@@ -266,7 +266,7 @@ export default function App() {
     persistScrollPositions(scrollPositions.current);
     activeScrollKey.current = scrollKey;
     markNavigation(pageName);
-    document.title = `Pawchive Desktop · ${pageTitle}`;
+    document.title = `Pawchive Client · ${pageTitle}`;
 
     const target = scrollPositions.current.get(scrollKey) ?? 0;
     suppressScrollSave.current = true;

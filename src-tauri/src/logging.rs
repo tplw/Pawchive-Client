@@ -6,7 +6,7 @@ fn filter() -> EnvFilter {
     // `PAWCHIVE_LOG` keeps local debugging simple; `RUST_LOG` remains the
     // conventional fallback. Release builds default to warnings and above.
     let fallback = if cfg!(debug_assertions) {
-        "pawchive_desktop_lib=info,warn"
+        "pawchive_client_lib=info,warn"
     } else {
         "warn"
     };

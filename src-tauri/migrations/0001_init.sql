@@ -1,4 +1,4 @@
--- Pawchive Desktop schema.
+-- Pawchive Client schema.
 -- Timestamps are Unix seconds unless stated otherwise.
 
 CREATE TABLE IF NOT EXISTS settings (

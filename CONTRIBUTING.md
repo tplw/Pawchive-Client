@@ -1,6 +1,6 @@
-# Contributing to Pawchive Desktop
+# Contributing to Pawchive Client
 
-Thanks for taking the time to improve Pawchive Desktop. This guide covers the
+Thanks for taking the time to improve Pawchive Client. This guide covers the
 development workflow, quality checks and pull-request expectations.
 
 By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).

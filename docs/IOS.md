@@ -3,8 +3,8 @@
 The iOS target is generated at `src-tauri/gen/apple`. The Xcode project and
 CocoaPods workspace are already configured for:
 
-- bundle identifier: `pw.pawchive.desktop`
-- product name: `Pawchive Desktop`
+- bundle identifier: `pw.pawchive.desktop` (kept for update and data continuity)
+- product name: `Pawchive Client`
 - deployment target: iOS 15.0
 - the generated Pawchive paw app icon
 
@@ -63,8 +63,8 @@ Then select a simulator/device in Xcode and press **Run**.
 ## Run on a physical iPhone/iPad
 
 1. Connect the device and trust it.
-2. In Xcode open `src-tauri/gen/apple/pawchive-desktop.xcworkspace`.
-3. Select the `pawchive-desktop_iOS` target → **Signing & Capabilities**.
+2. In Xcode open `src-tauri/gen/apple/pawchive-client.xcworkspace`.
+3. Select the `pawchive-client_iOS` target → **Signing & Capabilities**.
 4. Choose your Apple development team. Alternatively set the team through
    `APPLE_DEVELOPMENT_TEAM` or the Tauri iOS config:
 
@@ -104,7 +104,7 @@ sh scripts/ios.sh build --no-sign --export-method debugging --ci
 ```
 
 The IPA is written to
-`src-tauri/gen/apple/build/arm64/Pawchive Desktop.ipa`. It cannot be installed
+`src-tauri/gen/apple/build/arm64/Pawchive Client.ipa`. It cannot be installed
 until it is signed with an Apple development certificate and provisioning
 profile.
 
@@ -186,7 +186,7 @@ Platform-specific behavior:
 - The download-folder picker is hidden. Downloads are saved to the app's
   Documents folder, which is exposed in the Files app via
   `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`. Open
-  **Files → Browse → On My iPhone → Pawchive Desktop → Downloads**.
+  **Files → Browse → On My iPhone → Pawchive Client → Downloads**.
 - Download completion is shown in the Downloads page. Per-file completion
   toasts are suppressed so a 25-file post does not cover the screen; at most
   three compact toasts are visible at once.
@@ -208,6 +208,6 @@ npx tauri ios init --ci
 The generated project lives in `src-tauri/gen/apple` and is tracked. The
 generated `.gitignore` excludes `Pods/`, `build/`, `Externals/` and Xcode user
 data. If `tauri ios init` regenerates the Podfile and `pod install` complains
-about a missing `pawchive-desktop_macOS` target, remove that macOS target block
+about a missing `pawchive-client_macOS` target, remove that macOS target block
 from `src-tauri/gen/apple/Podfile` (the Xcode project only contains the iOS
 target) and run `pod install` again.

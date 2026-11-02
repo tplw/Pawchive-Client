@@ -28,10 +28,10 @@ impl Default for PawchiveConfig {
             static_base: "https://pawchive.pw".to_string(),
             image_base: "https://img.pawchive.pw".to_string(),
             file_base: "https://file.pawchive.pw/data".to_string(),
-            app_name: "Pawchive Desktop".to_string(),
+            app_name: "Pawchive Client".to_string(),
             app_version: env!("CARGO_PKG_VERSION").to_string(),
             user_agent: format!(
-                "PawchiveDesktop/{} (+https://pawchive.pw)",
+                "PawchiveClient/{} (+https://pawchive.pw)",
                 env!("CARGO_PKG_VERSION")
             ),
             default_timeout_secs: 30,

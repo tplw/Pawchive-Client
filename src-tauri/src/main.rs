@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    pawchive_desktop_lib::run()
+    pawchive_client_lib::run()
 }

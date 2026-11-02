@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible problem with Pawchive Desktop
+description: Report a reproducible problem with Pawchive Client
 title: "[Bug]: "
 labels: ["bug", "triage"]
 body:

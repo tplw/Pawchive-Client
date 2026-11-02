@@ -1,5 +1,5 @@
 {
-  "name": "pawchive-desktop",
+  "name": "pawchive-client",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -56,7 +56,7 @@
     "vitest": "3.2.4"
   },
   "license": "MIT",
-  "author": "Pawchive Desktop Contributors",
+  "author": "Pawchive Client Contributors",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tplw/Pawchive-Client.git"

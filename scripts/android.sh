@@ -1,5 +1,5 @@
 #!/bin/sh
-# Shared Android build helper for Pawchive Desktop.
+# Shared Android build helper for Pawchive Client.
 #
 # Locates Java 17 and the Android SDK, then forwards the command to the Tauri
 # CLI. Run `sh scripts/android.sh doctor` to check the local toolchain.

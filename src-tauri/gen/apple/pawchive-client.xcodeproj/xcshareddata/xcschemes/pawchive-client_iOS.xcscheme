@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
    LastUpgradeVersion = "1430"
-   version = "1.3">
+   version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
-      buildImplicitDependencies = "YES">
+      buildImplicitDependencies = "YES"
+      runPostActionsOnFailure = "NO">
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
@@ -14,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "AB5529D7D0C8894D8D78E6AB"
-               BuildableName = "Pawchive Desktop.app"
-               BlueprintName = "pawchive-desktop_iOS"
-               ReferencedContainer = "container:pawchive-desktop.xcodeproj">
+               BlueprintIdentifier = "B6FB78B45E50BE468E476361"
+               BuildableName = "pawchive-client_iOS.app"
+               BlueprintName = "pawchive-client_iOS"
+               ReferencedContainer = "container:pawchive-client.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -26,16 +27,21 @@
       buildConfiguration = "debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "NO">
+      shouldUseLaunchSchemeArgsEnv = "NO"
+      onlyGenerateCoverageForSpecifiedTargets = "NO">
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "AB5529D7D0C8894D8D78E6AB"
-            BuildableName = "Pawchive Desktop.app"
-            BlueprintName = "pawchive-desktop_iOS"
-            ReferencedContainer = "container:pawchive-desktop.xcodeproj">
+            BlueprintIdentifier = "B6FB78B45E50BE468E476361"
+            BuildableName = "pawchive-client_iOS.app"
+            BlueprintName = "pawchive-client_iOS"
+            ReferencedContainer = "container:pawchive-client.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
+      <Testables>
+      </Testables>
+      <CommandLineArguments>
+      </CommandLineArguments>
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "RUST_BACKTRACE"
@@ -48,8 +54,6 @@
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
-      <Testables>
-      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "debug"
@@ -65,12 +69,14 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "AB5529D7D0C8894D8D78E6AB"
-            BuildableName = "Pawchive Desktop.app"
-            BlueprintName = "pawchive-desktop_iOS"
-            ReferencedContainer = "container:pawchive-desktop.xcodeproj">
+            BlueprintIdentifier = "B6FB78B45E50BE468E476361"
+            BuildableName = "pawchive-client_iOS.app"
+            BlueprintName = "pawchive-client_iOS"
+            ReferencedContainer = "container:pawchive-client.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+      </CommandLineArguments>
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "RUST_BACKTRACE"
@@ -94,12 +100,14 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "AB5529D7D0C8894D8D78E6AB"
-            BuildableName = "Pawchive Desktop.app"
-            BlueprintName = "pawchive-desktop_iOS"
-            ReferencedContainer = "container:pawchive-desktop.xcodeproj">
+            BlueprintIdentifier = "B6FB78B45E50BE468E476361"
+            BuildableName = "pawchive-client_iOS.app"
+            BlueprintName = "pawchive-client_iOS"
+            ReferencedContainer = "container:pawchive-client.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+      </CommandLineArguments>
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "RUST_BACKTRACE"

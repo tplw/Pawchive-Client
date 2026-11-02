@@ -1,4 +1,4 @@
-name: pawchive-desktop
+name: pawchive-client
 options:
   bundleIdPrefix: pw.pawchive.desktop
   deploymentTarget:
@@ -10,7 +10,7 @@ configs:
 settingGroups:
   app:
     base:
-      PRODUCT_NAME: Pawchive Desktop
+      PRODUCT_NAME: Pawchive Client
       PRODUCT_BUNDLE_IDENTIFIER: pw.pawchive.desktop
 targetTemplates:
   app:
@@ -24,7 +24,7 @@ targetTemplates:
     settings:
       groups: [app]
 targets:
-  pawchive-desktop_iOS:
+  pawchive-client_iOS:
     type: application
     platform: iOS
     sources:
@@ -36,13 +36,13 @@ targets:
       # via LIBRARY_SEARCH_PATHS, never bundled as resources.
       - path: Externals
         excludes: ["**/*.a"]
-      - path: pawchive-desktop_iOS
+      - path: pawchive-client_iOS
       - path: assets
         buildPhase: resources
         type: folder
       - path: LaunchScreen.storyboard
     info:
-      path: pawchive-desktop_iOS/Info.plist
+      path: pawchive-client_iOS/Info.plist
       properties:
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
@@ -56,15 +56,10 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleDisplayName: Pawchive
         CFBundleShortVersionString: 1.0.0
         CFBundleVersion: "1.0.0"
-        NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
-        UIFileSharingEnabled: true
-        LSSupportsOpeningDocumentsInPlace: true
     entitlements:
-      path: pawchive-desktop_iOS/pawchive-desktop_iOS.entitlements
+      path: pawchive-client_iOS/pawchive-client_iOS.entitlements
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
@@ -73,7 +68,7 @@ targets:
       base:
         ENABLE_BITCODE: false
         ARCHS: [arm64]
-        VALID_ARCHS: arm64
+        VALID_ARCHS: arm64 
         LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
         LIBRARY_SEARCH_PATHS[arch=arm64]: $(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
         ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true

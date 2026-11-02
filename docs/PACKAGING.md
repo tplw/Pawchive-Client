@@ -1,6 +1,6 @@
 # Packaging
 
-Pawchive Desktop uses Tauri 2's bundler. The configuration lives in
+Pawchive Client uses Tauri 2's bundler. The configuration lives in
 [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json).
 
 ## Build locally
@@ -20,7 +20,8 @@ Artifacts are written to `src-tauri/target/release/bundle/`:
 | Android | `.apk` (per ABI or universal), `.aab` |
 
 The app identifier is `pw.pawchive.desktop`; the product name is
-`Pawchive Desktop`.
+`Pawchive Client`. The identifier is intentionally unchanged so existing
+installs keep their data and update path.
 
 ## Platform prerequisites
 

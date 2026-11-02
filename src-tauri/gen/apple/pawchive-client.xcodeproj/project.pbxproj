@@ -1,0 +1,564 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0DF12CFBA90E0AF8F2606569 /* libPods-pawchive-client_iOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B6EA980DC400FBDB9C37E9DE /* libPods-pawchive-client_iOS.a */; };
+		1B39105F660B8676FD6C6798 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A24411F4AE2532A116DEA6C7 /* MetalKit.framework */; };
+		43E978ADAB7DD692EACC4335 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3783D2159071FE8A726E4349 /* UIKit.framework */; };
+		4F78DA80A5E4F25014B28F4F /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B5EC2A2E64F8C14FCEA38BC0 /* WebKit.framework */; };
+		5336CCD74ADD0513A941330D /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0CA73D743489588AC55CE59 /* Metal.framework */; };
+		54F69D95C142ACDB96796307 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82CE3725F8C4277BBD3EB2C7 /* QuartzCore.framework */; };
+		591CAA461A14320DB84FEDD7 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 37BE05D10319BAB03F713224 /* libapp.a */; };
+		7353F91BFA06573D202D4765 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F91EC9F9CCC5FA2941135226 /* Assets.xcassets */; };
+		8AB59BE8835E7B0E45229713 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 221274D8675ABD46A9D091E6 /* LaunchScreen.storyboard */; };
+		A2A3CD341D116474A6923F89 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = DD07332D49FCE4F06D9B244C /* assets */; };
+		C786D487FF872607696E8BBA /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = D22D97CC4D6262B9514250A2 /* main.mm */; };
+		D92C9675954892C69947B674 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1B3C31C36513635DC4D16DA5 /* CoreGraphics.framework */; };
+		F3BA8C7860C39B2FB1411275 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3DA88CE3668C100E148E62B8 /* Security.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1388A07F8214204BE9C43E8E /* pawchive-client_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "pawchive-client_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		173F7CB87A49B04BFFDD7D74 /* error.rs */ = {isa = PBXFileReference; path = error.rs; sourceTree = "<group>"; };
+		183D7CFE04279918936732E6 /* state.rs */ = {isa = PBXFileReference; path = state.rs; sourceTree = "<group>"; };
+		1B3C31C36513635DC4D16DA5 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		221274D8675ABD46A9D091E6 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		237F034C85DC0C6506CEB8C4 /* media.rs */ = {isa = PBXFileReference; path = media.rs; sourceTree = "<group>"; };
+		23F0E14F85DB3C8307021B88 /* models.rs */ = {isa = PBXFileReference; path = models.rs; sourceTree = "<group>"; };
+		27AF7AA149B833C949988DE4 /* security.rs */ = {isa = PBXFileReference; path = security.rs; sourceTree = "<group>"; };
+		3783D2159071FE8A726E4349 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		37BE05D10319BAB03F713224 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		3DA88CE3668C100E148E62B8 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		4144372D9587B67371DAD47D /* Pods-pawchive-client_iOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-pawchive-client_iOS.debug.xcconfig"; path = "Target Support Files/Pods-pawchive-client_iOS/Pods-pawchive-client_iOS.debug.xcconfig"; sourceTree = "<group>"; };
+		48E5C2BA28B00256169F93A9 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		509C9254711F1EC0C9EE445A /* downloads.rs */ = {isa = PBXFileReference; path = downloads.rs; sourceTree = "<group>"; };
+		5C3C136E8F814554331C45AB /* Pods-pawchive-client_iOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-pawchive-client_iOS.release.xcconfig"; path = "Target Support Files/Pods-pawchive-client_iOS/Pods-pawchive-client_iOS.release.xcconfig"; sourceTree = "<group>"; };
+		5C40A733409999B73DE0C479 /* media_cache.rs */ = {isa = PBXFileReference; path = media_cache.rs; sourceTree = "<group>"; };
+		5C691D4A462926F9A0FC215B /* db.rs */ = {isa = PBXFileReference; path = db.rs; sourceTree = "<group>"; };
+		7560B9B8AC9EA95A5A012516 /* commands.rs */ = {isa = PBXFileReference; path = commands.rs; sourceTree = "<group>"; };
+		7AC07B5B84AC3DD021A72C80 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		82CE3725F8C4277BBD3EB2C7 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		895D73378B2F47A6A9036023 /* pawchive-client_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "pawchive-client_iOS.entitlements"; sourceTree = "<group>"; };
+		8C550F543C81E38403E82CDE /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		963F6581D957A82E472AF8B0 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		A24411F4AE2532A116DEA6C7 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		AD1980C3CEE52DC3130A10FA /* config.rs */ = {isa = PBXFileReference; path = config.rs; sourceTree = "<group>"; };
+		B5EC2A2E64F8C14FCEA38BC0 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		B6EA980DC400FBDB9C37E9DE /* libPods-pawchive-client_iOS.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-pawchive-client_iOS.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BBD50FC61D80843A0F575808 /* logging.rs */ = {isa = PBXFileReference; path = logging.rs; sourceTree = "<group>"; };
+		C358A13E59BA26F05BB9A125 /* filters.rs */ = {isa = PBXFileReference; path = filters.rs; sourceTree = "<group>"; };
+		CD717C387A2A222FF17CB4DD /* cache.rs */ = {isa = PBXFileReference; path = cache.rs; sourceTree = "<group>"; };
+		D22D97CC4D6262B9514250A2 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		DD07332D49FCE4F06D9B244C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		E93B5AC9D6B0E4C6B2726369 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		ED692B476BEBE74B43AE9FCE /* direct_media.rs */ = {isa = PBXFileReference; path = direct_media.rs; sourceTree = "<group>"; };
+		EF2C90EE33EF5811EBFE9936 /* local_media.rs */ = {isa = PBXFileReference; path = local_media.rs; sourceTree = "<group>"; };
+		F0CA73D743489588AC55CE59 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		F35B685FE7A112EDB3FD63EA /* transcode.rs */ = {isa = PBXFileReference; path = transcode.rs; sourceTree = "<group>"; };
+		F91EC9F9CCC5FA2941135226 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F947A1C45F9FF3D14F31292C /* popular.rs */ = {isa = PBXFileReference; path = popular.rs; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		2400BA8134BAD49E32B196C0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				591CAA461A14320DB84FEDD7 /* libapp.a in Frameworks */,
+				D92C9675954892C69947B674 /* CoreGraphics.framework in Frameworks */,
+				5336CCD74ADD0513A941330D /* Metal.framework in Frameworks */,
+				1B39105F660B8676FD6C6798 /* MetalKit.framework in Frameworks */,
+				54F69D95C142ACDB96796307 /* QuartzCore.framework in Frameworks */,
+				F3BA8C7860C39B2FB1411275 /* Security.framework in Frameworks */,
+				43E978ADAB7DD692EACC4335 /* UIKit.framework in Frameworks */,
+				4F78DA80A5E4F25014B28F4F /* WebKit.framework in Frameworks */,
+				0DF12CFBA90E0AF8F2606569 /* libPods-pawchive-client_iOS.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0A8896ED8F55F2CFEADC8CB1 /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		0BCFA018907F9AD1067ADA80 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1388A07F8214204BE9C43E8E /* pawchive-client_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1167F42D8E3CE18F533AE450 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				7560B9B8AC9EA95A5A012516 /* commands.rs */,
+				AD1980C3CEE52DC3130A10FA /* config.rs */,
+				5C691D4A462926F9A0FC215B /* db.rs */,
+				ED692B476BEBE74B43AE9FCE /* direct_media.rs */,
+				509C9254711F1EC0C9EE445A /* downloads.rs */,
+				173F7CB87A49B04BFFDD7D74 /* error.rs */,
+				C358A13E59BA26F05BB9A125 /* filters.rs */,
+				8C550F543C81E38403E82CDE /* lib.rs */,
+				EF2C90EE33EF5811EBFE9936 /* local_media.rs */,
+				BBD50FC61D80843A0F575808 /* logging.rs */,
+				963F6581D957A82E472AF8B0 /* main.rs */,
+				5C40A733409999B73DE0C479 /* media_cache.rs */,
+				237F034C85DC0C6506CEB8C4 /* media.rs */,
+				23F0E14F85DB3C8307021B88 /* models.rs */,
+				F947A1C45F9FF3D14F31292C /* popular.rs */,
+				27AF7AA149B833C949988DE4 /* security.rs */,
+				183D7CFE04279918936732E6 /* state.rs */,
+				F35B685FE7A112EDB3FD63EA /* transcode.rs */,
+				A019C8C4FC58B1FAAA2F6CDD /* api */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		1E4B4CA3F807DA1F992B6829 /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				48E5C2BA28B00256169F93A9 /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		4C7DE425FF40EF588E99F83D /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				CEFEA479CF41382F0C88C2C1 /* pawchive-client */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		9FB0E75691B19B633EBB5B39 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				4144372D9587B67371DAD47D /* Pods-pawchive-client_iOS.debug.xcconfig */,
+				5C3C136E8F814554331C45AB /* Pods-pawchive-client_iOS.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		A019C8C4FC58B1FAAA2F6CDD /* api */ = {
+			isa = PBXGroup;
+			children = (
+				CD717C387A2A222FF17CB4DD /* cache.rs */,
+				7AC07B5B84AC3DD021A72C80 /* mod.rs */,
+			);
+			path = api;
+			sourceTree = "<group>";
+		};
+		A7F280C0B000332D0FC681F3 /* pawchive-client_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				E93B5AC9D6B0E4C6B2726369 /* Info.plist */,
+				895D73378B2F47A6A9036023 /* pawchive-client_iOS.entitlements */,
+			);
+			path = "pawchive-client_iOS";
+			sourceTree = "<group>";
+		};
+		BC7F139EC6032A075972D943 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1B3C31C36513635DC4D16DA5 /* CoreGraphics.framework */,
+				37BE05D10319BAB03F713224 /* libapp.a */,
+				F0CA73D743489588AC55CE59 /* Metal.framework */,
+				A24411F4AE2532A116DEA6C7 /* MetalKit.framework */,
+				82CE3725F8C4277BBD3EB2C7 /* QuartzCore.framework */,
+				3DA88CE3668C100E148E62B8 /* Security.framework */,
+				3783D2159071FE8A726E4349 /* UIKit.framework */,
+				B5EC2A2E64F8C14FCEA38BC0 /* WebKit.framework */,
+				B6EA980DC400FBDB9C37E9DE /* libPods-pawchive-client_iOS.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		CEFEA479CF41382F0C88C2C1 /* pawchive-client */ = {
+			isa = PBXGroup;
+			children = (
+				D22D97CC4D6262B9514250A2 /* main.mm */,
+				1E4B4CA3F807DA1F992B6829 /* bindings */,
+			);
+			path = "pawchive-client";
+			sourceTree = "<group>";
+		};
+		D80AA666D0FAB9308BF5D5AF = {
+			isa = PBXGroup;
+			children = (
+				DD07332D49FCE4F06D9B244C /* assets */,
+				F91EC9F9CCC5FA2941135226 /* Assets.xcassets */,
+				221274D8675ABD46A9D091E6 /* LaunchScreen.storyboard */,
+				0A8896ED8F55F2CFEADC8CB1 /* Externals */,
+				A7F280C0B000332D0FC681F3 /* pawchive-client_iOS */,
+				4C7DE425FF40EF588E99F83D /* Sources */,
+				1167F42D8E3CE18F533AE450 /* src */,
+				BC7F139EC6032A075972D943 /* Frameworks */,
+				0BCFA018907F9AD1067ADA80 /* Products */,
+				9FB0E75691B19B633EBB5B39 /* Pods */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B6FB78B45E50BE468E476361 /* pawchive-client_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 160A0D33ACE5D93ED81B9C1F /* Build configuration list for PBXNativeTarget "pawchive-client_iOS" */;
+			buildPhases = (
+				A2C30ADD9663885480CC71A6 /* [CP] Check Pods Manifest.lock */,
+				C3F85EF5F9694790E6BEA57C /* Build Rust Code */,
+				61013264C162D915415BDDD5 /* Sources */,
+				4F48329E4105D339D207A83C /* Resources */,
+				2400BA8134BAD49E32B196C0 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "pawchive-client_iOS";
+			productName = "pawchive-client_iOS";
+			productReference = 1388A07F8214204BE9C43E8E /* pawchive-client_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		20C25F0919D599978BFC7F28 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 0C914FB2CD363D2256A1AA25 /* Build configuration list for PBXProject "pawchive-client" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = D80AA666D0FAB9308BF5D5AF;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 0BCFA018907F9AD1067ADA80 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B6FB78B45E50BE468E476361 /* pawchive-client_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4F48329E4105D339D207A83C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7353F91BFA06573D202D4765 /* Assets.xcassets in Resources */,
+				8AB59BE8835E7B0E45229713 /* LaunchScreen.storyboard in Resources */,
+				A2A3CD341D116474A6923F89 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A2C30ADD9663885480CC71A6 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-pawchive-client_iOS-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		C3F85EF5F9694790E6BEA57C /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "npm run -- tauri ios xcode-script -v --platform \"${PLATFORM_DISPLAY_NAME:?}\" --sdk-root \"${SDKROOT:?}\" --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration \"${CONFIGURATION:?}\" ${FORCE_COLOR} ${ARCHS:?}\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		61013264C162D915415BDDD5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C786D487FF872607696E8BBA /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		05D8829881ECCEF1E6F77526 /* release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5C3C136E8F814554331C45AB /* Pods-pawchive-client_iOS.release.xcconfig */;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "pawchive-client_iOS/pawchive-client_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "pawchive-client_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = pw.pawchive.desktop;
+				PRODUCT_NAME = "Pawchive Client";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		109A433193671DAD9192DCAD /* debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4144372D9587B67371DAD47D /* Pods-pawchive-client_iOS.debug.xcconfig */;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "pawchive-client_iOS/pawchive-client_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "pawchive-client_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = pw.pawchive.desktop;
+				PRODUCT_NAME = "Pawchive Client";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+		666C3D384A1C9BB5AD6CC186 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+		78F4EBAF02CBB8B4311E9B74 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0C914FB2CD363D2256A1AA25 /* Build configuration list for PBXProject "pawchive-client" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				78F4EBAF02CBB8B4311E9B74 /* debug */,
+				666C3D384A1C9BB5AD6CC186 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		160A0D33ACE5D93ED81B9C1F /* Build configuration list for PBXNativeTarget "pawchive-client_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				109A433193671DAD9192DCAD /* debug */,
+				05D8829881ECCEF1E6F77526 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 20C25F0919D599978BFC7F28 /* Project object */;
+}

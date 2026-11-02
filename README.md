@@ -1,4 +1,4 @@
-# Pawchive Desktop
+# Pawchive Client
 
 [![CI](https://github.com/tplw/Pawchive-Client/actions/workflows/ci.yml/badge.svg)](https://github.com/tplw/Pawchive-Client/actions/workflows/ci.yml)
 [![Android](https://github.com/tplw/Pawchive-Client/actions/workflows/android.yml/badge.svg)](https://github.com/tplw/Pawchive-Client/actions/workflows/android.yml)

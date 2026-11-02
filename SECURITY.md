@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Pawchive Desktop is a local-first desktop and mobile client. Security fixes
+Pawchive Client is a local-first desktop and mobile client. Security fixes
 are provided for the latest released minor version.
 
 | Version | Supported |
@@ -16,7 +16,7 @@ Please do not open a public issue for a security problem. Report it privately
 through the repository's **Security → Report a vulnerability** flow (GitHub
 private vulnerability reporting). Include:
 
-- the Pawchive Desktop version and operating system;
+- the Pawchive Client version and operating system;
 - a description of the issue and its impact;
 - reproduction steps or a proof of concept;
 - relevant logs with personal data removed.

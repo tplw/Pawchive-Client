@@ -320,7 +320,7 @@ export function SettingsPage() {
           <div className="space-y-2">
             <code className="block break-all rounded-lg border border-line/70 bg-base px-2.5 py-2 text-[10px] text-muted">
               {isIos
-                ? "Files → On My iPhone → Pawchive Desktop → Downloads"
+                ? "Files → On My iPhone → Pawchive Client → Downloads"
                 : isAndroid
                   ? "App storage → Downloads"
                   : settings.downloadDir || "Default application downloads folder"}

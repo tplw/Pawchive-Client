@@ -165,7 +165,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch (error) {
       set({ ready: true });
-      get().reportError(error, "Could not start Pawchive Desktop");
+      get().reportError(error, "Could not start Pawchive Client");
     }
   },
 
