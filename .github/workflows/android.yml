@@ -65,17 +65,16 @@ jobs:
 
       - run: npm ci
 
-      - name: Build debug APK
-        run: npm run android:build -- --debug --target aarch64
-
-      - name: Build release APK
-        run: npm run android:build -- --target aarch64
+      - name: Build release APKs
+        run: |
+          npm run android:build -- --target aarch64
+          npm run android:build -- --target armv7
 
       - uses: actions/upload-artifact@v4
         with:
           name: pawchive-android-apk
           path: |
-            src-tauri/gen/android/app/build/outputs/apk/arm64/debug/*.apk
             src-tauri/gen/android/app/build/outputs/apk/arm64/release/*.apk
+            src-tauri/gen/android/app/build/outputs/apk/arm/release/*.apk
           if-no-files-found: error
           retention-days: 14

@@ -7,7 +7,7 @@ export const FALLBACK_CONFIG: PawchiveConfig = {
   imageBase: "https://img.pawchive.pw",
   fileBase: "https://file.pawchive.pw/data",
   appName: "Pawchive",
-  appVersion: "1.0.2",
+  appVersion: "1.0.3",
   userAgent: "PawchiveClient",
   defaultTimeoutSecs: 30,
   defaultConcurrency: 8,

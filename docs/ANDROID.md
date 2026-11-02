@@ -4,7 +4,7 @@ Pawchive Client builds for Android through Tauri 2 and the shared React
 interface. The generated Gradle project is tracked at
 `src-tauri/gen/android`; build output and signing material are ignored.
 
-- Application ID: `pw.pawchive.client` (changed from `pw.pawchive.desktop` in 1.0.2; installs as a new app)
+- Application ID: `pw.pawchive.client` (changed from `pw.pawchive.desktop` in 1.0.3; installs as a new app)
 - Minimum SDK: 24 (Android 7.0)
 - Compile/target SDK: 36 (Android 16)
 - Architectures: `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`
@@ -164,7 +164,7 @@ apksigner sign \
   --ks-pass pass:android \
   --key-pass pass:android \
   --ks-key-alias androiddebugkey \
-  --out "Pawchive_1.0.2_android-arm64.apk" \
+  --out "Pawchive_1.0.3_android-arm64.apk" \
   "src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release-unsigned.apk"
 ```
 
@@ -180,7 +180,7 @@ keytool -genkeypair -v \
 
 apksigner sign \
   --ks "$HOME/keys/pawchive-release.jks" \
-  --out "Pawchive_1.0.2_android-arm64.apk" \
+  --out "Pawchive_1.0.3_android-arm64.apk" \
   "src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release-unsigned.apk"
 ```
 
@@ -190,7 +190,7 @@ keystore and passwords through repository secrets and sign after the build.
 ## Install on a device
 
 ```bash
-adb install -r "Pawchive_1.0.2_android-arm64.apk"
+adb install -r "Pawchive_1.0.3_android-arm64.apk"
 ```
 
 If a debug-signed build replaces a production-signed install (or the reverse),

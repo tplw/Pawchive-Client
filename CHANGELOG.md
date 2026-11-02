@@ -39,6 +39,36 @@ project follows [Semantic Versioning](https://semver.org/).
 - Windows finds ffmpeg from `PATH`, Program Files and common install folders,
   and downloaded files avoid reserved DOS device names and trailing dots.
 
+## 1.0.3 - 2026-11-02
+
+### Added
+
+- Offline playlist playback with local media serving and range support.
+- ASMR auto-detection, creator badges, manual ASMR tagging and automatic
+  audio-only filtering.
+- Fullscreen buffering indicator for audio and video.
+- Per-creator audio-only, hidden-keyword and no-media filters.
+
+### Changed
+
+- Media caching no longer runs during streaming, so playback does not compete
+  with a background cache download.
+- Downloads and cache/transcode transfers use range requests, HTTP/2 adaptive
+  windows, TCP no-delay and buffered disk writes for better throughput.
+- Transcoding now starts only for unsupported/decode errors.
+- Discover combines Recent, Popular and Creators in one control row.
+- Search no longer focuses its input automatically.
+- The post header stacks actions below the title on phones.
+- The minimized player title opens the original post.
+
+### Fixed
+
+- Pressing play after a pause now force-starts playback even if the UI and
+  media element state drifted apart.
+- Playback retries automatically when the media reaches `canplay`.
+- AI post detection uses context-aware markers to reduce false positives.
+- Improved creator filter persistence and clearing.
+
 ## 1.0.2 - 2026-11-02
 
 ### Changed
