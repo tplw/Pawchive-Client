@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PostSummary } from "../types";
 import {
   creatorFilterActive,
+  detectAsmrCreator,
   parseFilterKeywords,
   postMatchesCreatorFilter,
 } from "./creatorFilters";
@@ -67,6 +68,16 @@ describe("creator filters", () => {
         { audioOnly: false, hideNoMedia: true, keywords: [] },
       ),
     ).toBe(true);
+  });
+
+  it("detects ASMR creators from names and post text", () => {
+    expect(detectAsmrCreator("ASMR Haven", "", [])).toBe(true);
+    expect(
+      detectAsmrCreator("Quiet Artist", "", [
+        post({ title: "ASMR whisper practice" }),
+      ]),
+    ).toBe(true);
+    expect(detectAsmrCreator("Ai", "", [])).toBe(false);
   });
 
   it("deduplicates and trims keywords", () => {

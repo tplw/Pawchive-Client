@@ -16,6 +16,7 @@ import { api } from "../services/api";
 import { errorMessage, serviceLabel } from "../lib/constants";
 import {
   creatorFilterActive,
+  detectAsmrCreator,
   loadCreatorFilter,
   parseFilterKeywords,
   postMatchesCreatorFilter,
@@ -67,6 +68,7 @@ export function CreatorProfilePage({
     loadCreatorFilter(service, creatorId).keywords.join(", "),
   );
   const postCardSize = useAppStore((state) => state.settings.postCardSize);
+  const autoDetectAsmr = useAppStore((state) => state.settings.autoDetectAsmr);
   const postMetrics = postGridMetrics(postCardSize);
   const queryClient = useQueryClient();
   const toast = useAppStore((state) => state.toast);
@@ -125,11 +127,6 @@ export function CreatorProfilePage({
     saveCreatorFilter(service, creatorId, next);
   };
 
-  const filteredPostItems = useMemo(
-    () => postItems.filter((post) => postMatchesCreatorFilter(post, filter)),
-    [postItems, filter],
-  );
-
   const loadMore = useCallback(() => {
     if (posts.hasNextPage && !posts.isFetchingNextPage) {
       void posts.fetchNextPage();
@@ -139,6 +136,21 @@ export function CreatorProfilePage({
   const summary = creator.data;
   const details = profile.data;
   const name = details?.name || summary?.name || creatorId;
+  const detectedAsmr = useMemo(
+    () => detectAsmrCreator(name, details?.description, postItems),
+    [name, details?.description, postItems],
+  );
+  const isAsmr = filter.asmr ?? detectedAsmr;
+  const autoAudioOnly = isAsmr && autoDetectAsmr && filter.asmr !== false;
+  const effectiveFilter = useMemo(
+    () => ({ ...filter, audioOnly: filter.audioOnly || autoAudioOnly }),
+    [filter, autoAudioOnly],
+  );
+  const filteredPostItems = useMemo(
+    () =>
+      postItems.filter((post) => postMatchesCreatorFilter(post, effectiveFilter)),
+    [postItems, effectiveFilter],
+  );
 
   const favorite = useMutation({
     mutationFn: (favorited: boolean) =>
@@ -203,6 +215,9 @@ export function CreatorProfilePage({
                 </h1>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <ServiceBadge service={service} />
+                  {isAsmr ? (
+                    <Badge tone="accent">ASMR</Badge>
+                  ) : null}
                   {summary?.public_id ? (
                     <span className="text-[10px] text-muted">
                       @{summary.public_id}
@@ -233,7 +248,7 @@ export function CreatorProfilePage({
               <IconButton
                 label="Filter posts"
                 icon={Filter}
-                active={creatorFilterActive(filter)}
+                active={creatorFilterActive(effectiveFilter)}
                 onClick={() => setFilterOpen(true)}
               />
               {updated ? (
@@ -314,7 +329,7 @@ export function CreatorProfilePage({
                   : "Adjust or clear this creator's custom filters to see more posts."
               }
               action={
-                creatorFilterActive(filter) ? (
+                creatorFilterActive(effectiveFilter) ? (
                   <Button
                     variant="secondary"
                     onClick={() => {
@@ -322,6 +337,7 @@ export function CreatorProfilePage({
                         audioOnly: false,
                         hideNoMedia: false,
                         keywords: [],
+                        asmr: false,
                       });
                       setKeywordText("");
                     }}
@@ -521,6 +537,7 @@ export function CreatorProfilePage({
                   audioOnly: false,
                   hideNoMedia: false,
                   keywords: [],
+                  asmr: false,
                 });
                 setKeywordText("");
               }}
@@ -535,10 +552,36 @@ export function CreatorProfilePage({
       >
         <div className="space-y-4">
           <Toggle
-            checked={filter.audioOnly}
-            onChange={(checked) => updateFilter({ ...filter, audioOnly: checked })}
+            checked={isAsmr}
+            onChange={(checked) =>
+              updateFilter({
+                ...filter,
+                asmr: checked,
+                audioOnly: checked ? true : false,
+              })
+            }
+            label="ASMR creator"
+            description={
+              detectedAsmr
+                ? "Detected automatically from this creator's name, profile or posts. Audio-only is applied."
+                : "Manually mark this creator as ASMR and enable audio-only."
+            }
+          />
+          <Toggle
+            checked={effectiveFilter.audioOnly}
+            onChange={(checked) => {
+              if (autoAudioOnly && !checked) {
+                updateFilter({ ...filter, asmr: false, audioOnly: false });
+              } else {
+                updateFilter({ ...filter, audioOnly: checked });
+              }
+            }}
             label="Audio only"
-            description="Only show posts that include an audio attachment."
+            description={
+              autoAudioOnly
+                ? "Auto-enabled because this creator is marked as ASMR."
+                : "Only show posts that include an audio attachment."
+            }
           />
           <Toggle
             checked={filter.hideNoMedia}

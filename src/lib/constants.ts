@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   reduceMotion: false,
   accentColor: "#d6aea8",
   hideNoMedia: false,
+  autoDetectAsmr: true,
   autoSyncFavorites: false,
   cacheSizeMb: 64,
   mediaCacheSizeMb: 512,

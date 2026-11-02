@@ -5,7 +5,7 @@ use crate::state::AppState;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio_util::sync::CancellationToken;
 
 /// Start a single media download and return the queued record immediately.
@@ -129,9 +129,10 @@ async fn download_file(
     state
         .db
         .update_download(&record.id, 0, record.total_bytes, "downloading", None)?;
-    let mut file = tokio::fs::File::create(&record.file_path)
+    let file = tokio::fs::File::create(&record.file_path)
         .await
         .map_err(|e| AppError::Io(format!("could not create file: {e}")))?;
+    let mut file = BufWriter::with_capacity(1024 * 1024, file);
     let mut last_emit = Instant::now();
     let mut response = response;
     loop {
@@ -187,6 +188,9 @@ async fn fetch_with_retry(
                 .get(&record.url)
                 .header(reqwest::header::REFERER, "https://pawchive.pw/")
                 .header(reqwest::header::ACCEPT, "*/*")
+                // Mirror a normal media player's streaming request. Some CDNs
+                // serve range requests from a faster/streaming path.
+                .header(reqwest::header::RANGE, "bytes=0-")
                 .send() => response.map_err(|e| AppError::Network(e.to_string()))?,
         };
         let status = response.status();

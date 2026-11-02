@@ -307,6 +307,15 @@ export function SettingsPage() {
               }}
               label="Hide posts without media"
             />
+            <Toggle
+              compact
+              checked={settings.autoDetectAsmr}
+              onChange={(checked) =>
+                void saveSettings({ autoDetectAsmr: checked })
+              }
+              label="Auto-detect ASMR creators"
+              description="Detect ASMR creators from their name, profile and posts, then enable audio-only automatically."
+            />
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-ink">
                 Hidden keywords
@@ -394,7 +403,7 @@ export function SettingsPage() {
             checked={settings.cacheMedia}
             onChange={(checked) => void saveSettings({ cacheMedia: checked })}
             label="Cache viewed media"
-            description="Save remote images, audio and video for faster repeat viewing."
+            description="Save remote images and completed audio/video for faster repeat viewing. Nothing is cached while it is streaming."
           />
           <div className="flex items-center justify-between gap-3 pt-1">
             <p className="text-[10px] leading-relaxed text-muted">

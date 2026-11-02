@@ -27,6 +27,7 @@ import { SPEEDS, errorMessage } from "../lib/constants";
 import { cn, formatDuration, isEditableTarget } from "../lib/format";
 import { useIsLandscape } from "../lib/orientation";
 import { isMobile } from "../lib/platform";
+import { navigate } from "../lib/router";
 import { useAppStore } from "../stores/app";
 import { isPlayableMediaKind, playbackProgressKey } from "./queue";
 import { cachedProgress, rememberProgress } from "./progress";
@@ -300,7 +301,6 @@ export function Player() {
   const setDuration = usePlayerStore((state) => state.setDuration);
   const setBuffered = usePlayerStore((state) => state.setBuffered);
   const setSpeed = usePlayerStore((state) => state.setSpeed);
-  const toggle = usePlayerStore((state) => state.toggle);
   const next = usePlayerStore((state) => state.next);
   const previous = usePlayerStore((state) => state.previous);
   const seek = usePlayerStore((state) => state.seek);
@@ -520,7 +520,8 @@ export function Player() {
             return;
           }
           loadRemote();
-          void api.cacheMedia(item.url).catch(() => undefined);
+          // Do not cache while streaming: the cache download would compete
+          // with playback and make the first view slower.
         })
         .catch(() => {
           if (!cancelled) loadRemote();
@@ -587,8 +588,8 @@ export function Player() {
     if (!video || !item || !source) return;
     if (playing) {
       void video.play().catch(() => {
-        // Autoplay may be refused until the next explicit gesture.
-        setPlaying(false);
+        // Keep the play intent; onCanPlay retries when the element is ready.
+        setLoading(true);
       });
     } else {
       video.pause();
@@ -685,6 +686,50 @@ export function Player() {
     }
   }, [fullscreen, toast]);
 
+  const forcePlayback = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.ended) {
+      try {
+        video.currentTime = 0;
+      } catch {
+        // Ignore seek errors and let play() decide.
+      }
+    }
+    const attempt = () => {
+      if (!usePlayerStore.getState().playing) return;
+      void video.play().catch(() => {
+        // Keep the user's play intent. onCanPlay retries once data is ready.
+        setLoading(true);
+      });
+    };
+    attempt();
+    if (video.readyState < 2) {
+      const retry = () => {
+        video.removeEventListener("canplay", retry);
+        attempt();
+      };
+      video.addEventListener("canplay", retry, { once: true });
+    }
+  }, []);
+
+  const togglePlayback = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) {
+      usePlayerStore.getState().toggle();
+      return;
+    }
+    // Use the actual element state, not just the store. If the UI and media
+    // element ever drift out of sync, the first press still forces playback.
+    if (video.paused) {
+      setPlaying(true);
+      forcePlayback();
+    } else {
+      setPlaying(false);
+      video.pause();
+    }
+  }, [forcePlayback, setPlaying]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!usePlayerStore.getState().currentId) return;
@@ -695,7 +740,7 @@ export function Player() {
       switch (event.key.toLowerCase()) {
         case " ":
           event.preventDefault();
-          state.toggle();
+          togglePlayback();
           break;
         case "arrowleft":
           event.preventDefault();
@@ -739,7 +784,7 @@ export function Player() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fullscreen, toggleFullscreen]);
+  }, [fullscreen, toggleFullscreen, togglePlayback]);
 
   const collapse = useCallback(() => {
     saveProgress();
@@ -810,16 +855,18 @@ export function Player() {
   };
 
   const onError = () => {
+    const code = videoRef.current?.error?.code;
     if (
       settings.transcodeMedia &&
       item &&
       item.url.startsWith("https://") &&
+      (code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED ||
+        code === MediaError.MEDIA_ERR_DECODE) &&
       transcodeAttemptedRef.current !== item.id
     ) {
       void startTranscode();
       return;
     }
-    const code = videoRef.current?.error?.code;
     const message =
       code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
         ? "This container or codec is not supported by the system webview. Try another attachment or a dedicated player."
@@ -872,7 +919,7 @@ export function Player() {
       setControlsVisible((visible) => !visible);
       return;
     }
-    toggle();
+    togglePlayback();
   };
 
   const mediaStage = (
@@ -929,6 +976,14 @@ export function Player() {
         onTimeUpdate={onTimeUpdate}
         onProgress={onProgress}
         onWaiting={() => setLoading(true)}
+        onStalled={() => setLoading(true)}
+        onCanPlay={() => {
+          setLoading(false);
+          const video = videoRef.current;
+          if (video && usePlayerStore.getState().playing && video.paused) {
+            void video.play().catch(() => undefined);
+          }
+        }}
         onPlaying={() => {
           setLoading(false);
           setPlaying(true);
@@ -940,6 +995,13 @@ export function Player() {
         }}
         onEnded={() => {
           saveProgress();
+          if (
+            settings.cacheMedia &&
+            item.url.startsWith("https://") &&
+            !item.localPath
+          ) {
+            void api.cacheMedia(item.url).catch(() => undefined);
+          }
           const state = usePlayerStore.getState();
           const index = state.queue.findIndex((entry) => entry.id === state.currentId);
           if (
@@ -963,7 +1025,7 @@ export function Player() {
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
       ) : null}
-      {loading && !error ? (
+      {loading && !error && !expanded ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/15">
           <div className="flex flex-col items-center gap-1.5">
             <LoaderCircle
@@ -1020,7 +1082,7 @@ export function Player() {
         <IconButton label="Previous" icon={SkipBack} size="sm" onClick={previous} />
         <button
           type="button"
-          onClick={toggle}
+          onClick={togglePlayback}
           aria-label={playing ? "Pause" : "Play"}
           className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-[#151021] transition hover:brightness-110"
         >
@@ -1084,7 +1146,7 @@ export function Player() {
         />
         <button
           type="button"
-          onClick={toggle}
+          onClick={togglePlayback}
           aria-label={playing ? "Pause" : "Play"}
           className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-accent text-[#151021] transition hover:brightness-110"
         >
@@ -1206,9 +1268,22 @@ export function Player() {
         {!expanded ? (
           <div key="panel" className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <p className="truncate text-[11px] font-bold text-ink">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!item.postId) return;
+                  navigate({
+                    name: "post",
+                    service: item.service,
+                    creatorId: item.creatorId,
+                    postId: item.postId,
+                  });
+                }}
+                title="Open original post"
+                className="min-w-0 truncate text-left text-[11px] font-bold text-ink transition hover:text-accent"
+              >
                 {item.title || item.fileName}
-              </p>
+              </button>
               <span className="shrink-0 text-[9px] text-muted">
                 {item.creatorName || item.fileName}
               </span>
@@ -1225,6 +1300,17 @@ export function Player() {
           </div>
         ) : null}
       </div>
+
+      {expanded && loading && !error ? (
+        <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center">
+          <div className="flex flex-col items-center gap-2 rounded-2xl bg-black/55 px-5 py-4 text-white shadow-2xl backdrop-blur">
+            <LoaderCircle className="h-7 w-7 animate-spin text-accent" />
+            <span className="text-[10px] font-medium text-white/70">
+              Buffering…
+            </span>
+          </div>
+        </div>
+      ) : null}
 
       {expanded && controlsVisible ? (
         <div className="player-controls-ios absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black via-black/90 to-transparent px-4 pt-16">

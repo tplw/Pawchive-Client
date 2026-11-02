@@ -159,6 +159,7 @@ export interface AppSettings {
   reduceMotion: boolean;
   accentColor: string;
   hideNoMedia: boolean;
+  autoDetectAsmr: boolean;
   autoSyncFavorites: boolean;
   cacheSizeMb: number;
   mediaCacheSizeMb: number;

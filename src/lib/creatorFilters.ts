@@ -4,6 +4,8 @@ export interface CreatorFilter {
   audioOnly: boolean;
   hideNoMedia: boolean;
   keywords: string[];
+  /** undefined = auto-detect, true = manually tagged, false = manually rejected. */
+  asmr?: boolean;
 }
 
 const EMPTY_FILTER: CreatorFilter = {
@@ -30,6 +32,7 @@ export function loadCreatorFilter(
       keywords: Array.isArray(parsed.keywords)
         ? parsed.keywords.filter((keyword): keyword is string => typeof keyword === "string")
         : [],
+      ...(typeof parsed.asmr === "boolean" ? { asmr: parsed.asmr } : {}),
     };
   } catch {
     return EMPTY_FILTER;
@@ -42,7 +45,12 @@ export function saveCreatorFilter(
   filter: CreatorFilter,
 ): void {
   try {
-    if (filter.audioOnly || filter.hideNoMedia || filter.keywords.length > 0) {
+    if (
+      filter.audioOnly ||
+      filter.hideNoMedia ||
+      filter.keywords.length > 0 ||
+      typeof filter.asmr === "boolean"
+    ) {
       window.localStorage.setItem(
         storageKey(service, creatorId),
         JSON.stringify(filter),
@@ -56,7 +64,34 @@ export function saveCreatorFilter(
 }
 
 export function creatorFilterActive(filter: CreatorFilter): boolean {
-  return filter.audioOnly || filter.hideNoMedia || filter.keywords.length > 0;
+  return (
+    filter.audioOnly ||
+    filter.hideNoMedia ||
+    filter.keywords.length > 0 ||
+    filter.asmr === true
+  );
+}
+
+export function creatorNameLooksAsmr(name: string): boolean {
+  return /\basmr\b/i.test(name);
+}
+
+/** Detect ASMR creators from their name, profile text and recent post titles. */
+export function detectAsmrCreator(
+  name: string,
+  description: string | null | undefined,
+  posts: PostSummary[],
+): boolean {
+  const haystack = [
+    name,
+    description ?? "",
+    ...posts
+      .slice(0, 40)
+      .map((post) => `${post.title} ${post.excerpt}`),
+  ]
+    .join(" ")
+    .toLowerCase();
+  return /\basmr\b/.test(haystack) || haystack.includes("a.s.m.r");
 }
 
 export function postMatchesCreatorFilter(

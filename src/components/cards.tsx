@@ -16,13 +16,14 @@ import {
   creatorBanner,
   serviceLabel,
 } from "../lib/constants";
+import { creatorNameLooksAsmr, loadCreatorFilter } from "../lib/creatorFilters";
 import { cn, formatDate, formatRelative, shortNumber } from "../lib/format";
 import { navigate } from "../lib/router";
 import { useInView } from "../lib/useInView";
 import { api } from "../services/api";
 import { useAppStore } from "../stores/app";
 import type { CreatorSummary, MediaKind, PostSummary, Service } from "../types";
-import { Skeleton } from "./ui";
+import { Badge, Skeleton } from "./ui";
 import { SiteIcon } from "./SiteIcon";
 
 const KIND_ICONS: Record<MediaKind, typeof ImageIcon> = {
@@ -198,6 +199,8 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
       service: creator.service,
       creatorId: creator.id,
     });
+  const savedAsmr = loadCreatorFilter(creator.service, creator.id).asmr;
+  const isAsmr = savedAsmr ?? creatorNameLooksAsmr(creator.name);
 
   if (cardSize === "small") {
     return (
@@ -231,6 +234,11 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
             </h3>
             <div className="mt-1 flex min-w-0 items-center gap-2">
               <ServiceBadge service={creator.service} />
+              {isAsmr ? (
+                <Badge tone="accent" className="shrink-0 px-1 py-0 text-[8px]">
+                  ASMR
+                </Badge>
+              ) : null}
               <span className="truncate text-[10px] text-white/60">
                 {showCreatorUpdated && creator.updated
                   ? `Updated ${formatRelative(creator.updated)}`
@@ -326,6 +334,11 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
         </h3>
         <div className="mt-1 flex min-w-0 items-center gap-2">
           <ServiceBadge service={creator.service} />
+          {isAsmr ? (
+            <Badge tone="accent" className="shrink-0 px-1 py-0 text-[8px]">
+              ASMR
+            </Badge>
+          ) : null}
           {creator.updated ? (
             <span className="truncate text-[10px] text-muted">
               Updated {formatRelative(creator.updated)}

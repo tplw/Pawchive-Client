@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncWriteExt, BufWriter};
 use url::Url;
 
 #[derive(Clone, Serialize)]
@@ -74,6 +74,7 @@ pub async fn cache_media(
         .http
         .get(url.clone())
         .header(reqwest::header::REFERER, "https://pawchive.pw/")
+        .header(reqwest::header::RANGE, "bytes=0-")
         .send()
         .await
         .map_err(|error| AppError::Network(error.to_string()))?;
@@ -88,9 +89,10 @@ pub async fn cache_media(
     if total.is_some_and(|length| length > max_bytes) {
         return Ok(url.to_string());
     }
-    let mut file = tokio::fs::File::create(&temp_path)
+    let file = tokio::fs::File::create(&temp_path)
         .await
         .map_err(|error| AppError::Io(format!("could not create media cache file: {error}")))?;
+    let mut file = BufWriter::with_capacity(1024 * 1024, file);
     let mut downloaded = 0u64;
     let mut last_emit = Instant::now();
     let mut response = response;

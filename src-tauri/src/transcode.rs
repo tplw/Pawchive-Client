@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::process::Command;
 
 #[derive(Clone, Serialize)]
@@ -169,6 +169,7 @@ pub async fn transcode_media(
             .http
             .get(url.clone())
             .header(reqwest::header::REFERER, "https://pawchive.pw/")
+            .header(reqwest::header::RANGE, "bytes=0-")
             .send()
             .await
             .map_err(|error| AppError::Network(error.to_string()))?;
@@ -179,9 +180,10 @@ pub async fn transcode_media(
             )));
         }
         let total = response.content_length();
-        let mut file = tokio::fs::File::create(&source_path)
+        let file = tokio::fs::File::create(&source_path)
             .await
             .map_err(|error| AppError::Io(format!("could not create transcode source: {error}")))?;
+        let mut file = BufWriter::with_capacity(1024 * 1024, file);
         let mut downloaded = 0u64;
         let mut last_emit = Instant::now();
         let mut response = response;

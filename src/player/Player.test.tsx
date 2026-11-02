@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../services/api";
 import { useAppStore } from "../stores/app";
@@ -84,6 +84,26 @@ describe("player", () => {
         }),
       ),
     );
+  });
+
+  it("forces playback when the media element is paused but the UI says playing", () => {
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    expect(video).not.toBeNull();
+    Object.defineProperty(video, "paused", {
+      configurable: true,
+      value: true,
+    });
+    const play = vi.spyOn(video, "play").mockResolvedValue(undefined);
+    fireEvent.click(screen.getByLabelText("Pause"));
+    expect(play).toHaveBeenCalled();
+  });
+
+  it("opens the original post from the compact player title", () => {
+    window.location.hash = "#/home";
+    render(<Player />);
+    fireEvent.click(screen.getByTitle("Open original post"));
+    expect(window.location.hash).toBe("#/post/patreon/1/2");
   });
 
   it("restores the last playback position after metadata loads", async () => {

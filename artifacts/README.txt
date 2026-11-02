@@ -17,5 +17,8 @@ Pawchive_1.0.2_unsigned.ipa
 - UNSIGNED: sign it with an Apple ID/team before installing.
 - See docs/IOS.md.
 
+Pawchive_1.0.2_aarch64.dmg
+- macOS Apple Silicon installer.
+
 The Android APKs use the local debug keystore. Never use that key for a
 production store release.
