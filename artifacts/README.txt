@@ -20,5 +20,10 @@ Pawchive_1.0.2_unsigned.ipa
 Pawchive_1.0.2_aarch64.dmg
 - macOS Apple Silicon installer.
 
+Pawchive_1.0.2_universal.dmg
+- macOS universal installer (Apple Silicon + Intel).
+Pawchive_universal.app.tar.gz
+- Universal macOS app bundle used by release tooling.
+
 The Android APKs use the local debug keystore. Never use that key for a
 production store release.
