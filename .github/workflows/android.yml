@@ -71,7 +71,7 @@ jobs:
       - name: Build release APK
         run: npm run android:build -- --target aarch64
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pawchive-android-apk
           path: |
