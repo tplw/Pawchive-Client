@@ -99,6 +99,15 @@ describe("player", () => {
     expect(play).toHaveBeenCalled();
   });
 
+  it("shows the buffering notice over the media stage", async () => {
+    usePlayerStore.setState({ expanded: true });
+    render(<Player />);
+    const notice = await screen.findByText("Buffering…");
+    const stage = notice.closest(".relative");
+    expect(stage).not.toBeNull();
+    expect(stage?.querySelector("video")).not.toBeNull();
+  });
+
   it("opens the original post from the compact player title", () => {
     window.location.hash = "#/home";
     render(<Player />);

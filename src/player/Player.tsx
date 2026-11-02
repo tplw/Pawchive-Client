@@ -1025,8 +1025,8 @@ export function Player() {
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
       ) : null}
-      {loading && !error && !expanded ? (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/15">
+      {loading && !error ? (
+        <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-black/20 [transform:translateZ(0)]">
           <div className="flex flex-col items-center gap-1.5">
             <LoaderCircle
               className={cn(
@@ -1034,9 +1034,9 @@ export function Player() {
                 expanded ? "h-8 w-8" : "h-4 w-4",
               )}
             />
-            {expanded && transcodeText ? (
-              <span className="rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-medium text-white/80">
-                {transcodeText}
+            {expanded ? (
+              <span className="rounded-full bg-black/60 px-3 py-1 text-[10px] font-medium text-white/85 backdrop-blur">
+                {transcodeText ?? "Buffering…"}
               </span>
             ) : null}
           </div>
@@ -1300,17 +1300,6 @@ export function Player() {
           </div>
         ) : null}
       </div>
-
-      {expanded && loading && !error ? (
-        <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center">
-          <div className="flex flex-col items-center gap-2 rounded-2xl bg-black/55 px-5 py-4 text-white shadow-2xl backdrop-blur">
-            <LoaderCircle className="h-7 w-7 animate-spin text-accent" />
-            <span className="text-[10px] font-medium text-white/70">
-              Buffering…
-            </span>
-          </div>
-        </div>
-      ) : null}
 
       {expanded && controlsVisible ? (
         <div className="player-controls-ios absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black via-black/90 to-transparent px-4 pt-16">
