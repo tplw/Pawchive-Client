@@ -41,4 +41,15 @@ export DEVELOPER_DIR="$DEVELOPER"
 export PATH="$SHIM:$PATH"
 
 cd "$ROOT"
+
+# CocoaPods state is regenerable and removed by scripts/clean.sh.
+if [ -f "$ROOT/src-tauri/gen/apple/Podfile" ] && [ ! -d "$ROOT/src-tauri/gen/apple/Pods" ]; then
+  if command -v pod >/dev/null 2>&1; then
+    (cd "$ROOT/src-tauri/gen/apple" && pod install)
+  else
+    echo "CocoaPods is required for iOS builds: brew install cocoapods" >&2
+    exit 1
+  fi
+fi
+
 exec npx tauri ios "$@"

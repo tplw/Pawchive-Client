@@ -124,7 +124,7 @@ The unsigned files are written to:
 
 ```text
 src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release-unsigned.apk
-src-tauri/gen/android/app/build/outputs/apk/armv7/release/app-armv7-release-unsigned.apk
+src-tauri/gen/android/app/build/outputs/apk/arm/release/app-arm-release-unsigned.apk
 src-tauri/gen/android/app/build/outputs/apk/x86/release/app-x86-release-unsigned.apk
 src-tauri/gen/android/app/build/outputs/apk/x86_64/release/app-x86_64-release-unsigned.apk
 ```

@@ -13,7 +13,8 @@ CocoaPods workspace are already configured for:
 - macOS with **Xcode 15 or newer** installed and selected:
   `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
 - Xcode command-line tools.
-- CocoaPods (`brew install cocoapods`).
+- CocoaPods (`brew install cocoapods`). `scripts/ios.sh` runs `pod install`
+  automatically when the Pods directory is missing.
 - Rust iOS targets (already installed by `tauri ios init`):
   `aarch64-apple-ios`, `aarch64-apple-ios-sim`, `x86_64-apple-ios`.
 - An Apple ID and a development team for signing a physical device. Simulator

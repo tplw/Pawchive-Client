@@ -11,6 +11,13 @@ Browse and search creators and posts, play audio and video, organize local
 playlists, download media for offline use and optionally sync favorite creators
 with a Pawchive account. No telemetry, no ads, no account required.
 
+## Download
+
+Prebuilt desktop and mobile builds are available on the
+[Releases](https://github.com/tplw/Pawchive-Client/releases) page. Android APKs
+are debug-signed for testing and sideloading; the iOS IPA is unsigned and must
+be signed with your Apple ID/team before installation.
+
 ## Features
 
 - **Discover & search** — Popular, Recent and Creators feeds, unified
