@@ -28,7 +28,7 @@ impl Default for PawchiveConfig {
             static_base: "https://pawchive.pw".to_string(),
             image_base: "https://img.pawchive.pw".to_string(),
             file_base: "https://file.pawchive.pw/data".to_string(),
-            app_name: "Pawchive Client".to_string(),
+            app_name: "Pawchive".to_string(),
             app_version: env!("CARGO_PKG_VERSION").to_string(),
             user_agent: format!(
                 "PawchiveClient/{} (+https://pawchive.pw)",

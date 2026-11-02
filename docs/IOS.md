@@ -3,8 +3,8 @@
 The iOS target is generated at `src-tauri/gen/apple`. The Xcode project and
 CocoaPods workspace are already configured for:
 
-- bundle identifier: `pw.pawchive.desktop` (kept for update and data continuity)
-- product name: `Pawchive Client`
+- bundle identifier: `pw.pawchive.client` (new in 1.0.2)
+- product name: `Pawchive`
 - deployment target: iOS 15.0
 - the generated Pawchive paw app icon
 
@@ -104,7 +104,7 @@ sh scripts/ios.sh build --no-sign --export-method debugging --ci
 ```
 
 The IPA is written to
-`src-tauri/gen/apple/build/arm64/Pawchive Client.ipa`. It cannot be installed
+`src-tauri/gen/apple/build/arm64/Pawchive.ipa`. It cannot be installed
 until it is signed with an Apple development certificate and provisioning
 profile.
 
@@ -186,7 +186,7 @@ Platform-specific behavior:
 - The download-folder picker is hidden. Downloads are saved to the app's
   Documents folder, which is exposed in the Files app via
   `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`. Open
-  **Files → Browse → On My iPhone → Pawchive Client → Downloads**.
+  **Files → Browse → On My iPhone → Pawchive → Downloads**.
 - Download completion is shown in the Downloads page. Per-file completion
   toasts are suppressed so a 25-file post does not cover the screen; at most
   three compact toasts are visible at once.

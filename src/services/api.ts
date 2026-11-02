@@ -18,6 +18,7 @@ import type {
   PostSummary,
   Revision,
   SearchPage,
+  UpdateInfo,
 } from "../types";
 
 const call = <T>(command: string, args?: Record<string, unknown>) =>
@@ -65,6 +66,7 @@ export const api = {
   saveSettings: (settings: AppSettings) =>
     call<AppSettings>("save_settings", { settings }),
   getConfig: () => call<PawchiveConfig>("get_config"),
+  checkForUpdate: () => call<UpdateInfo>("check_for_update"),
   openExternal: (url: string) => call<void>("open_external", { url }),
 
   syncCreators: (signal?: AbortSignal) =>

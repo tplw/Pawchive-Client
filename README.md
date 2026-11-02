@@ -3,13 +3,13 @@
 [![CI](https://github.com/tplw/Pawchive-Client/actions/workflows/ci.yml/badge.svg)](https://github.com/tplw/Pawchive-Client/actions/workflows/ci.yml)
 [![Android](https://github.com/tplw/Pawchive-Client/actions/workflows/android.yml/badge.svg)](https://github.com/tplw/Pawchive-Client/actions/workflows/android.yml)
 
-A fast, local-first client for the [Pawchive](https://pawchive.pw) archive,
+A fast, local-first client for the [Pawchive](https://pawchive.pw),
 built with Rust, Tauri 2, React and TypeScript. Runs on macOS, Windows, Linux,
 iOS and Android.
 
 Browse and search creators and posts, play audio and video, organize local
 playlists, download media for offline use and optionally sync favorite creators
-with a Pawchive account. No telemetry, no ads, no account required.
+with a Pawchive account. The installed application is named **Pawchive**.
 
 ## Download
 
@@ -20,22 +20,24 @@ be signed with your Apple ID/team before installation.
 
 ## Features
 
-- **Discover & search** — Popular, Recent and Creators feeds, unified
+- **Discover & search** Popular, Recent and Creators feeds, unified
   post/creator search, filters, sorting and a locally indexed creator
   directory for instant search.
-- **Built-in player** — persistent mini-player, queue, speed control, subtitles,
+- **Built-in player** persistent mini-player, queue, speed control, subtitles,
   fullscreen, resume position and optional desktop ffmpeg transcoding.
-- **Image viewer** — full-screen gallery with swipe navigation and pinch-to-zoom.
-- **Playlists & favorites** — local playlists for audio, video and images, plus
+- **Image viewer** full-screen gallery with swipe navigation and pinch-to-zoom.
+- **Playlists & favorites** local playlists for audio, video and images, plus
   starred creators on Home.
-- **Offline downloads** — download posts, playlists or single attachments with
+- **Offline downloads** download posts, playlists or single attachments with
   progress, retry and cancel controls.
-- **Optional account** — sign in to sync favorite creators; the session stays in
+- **Optional account** sign in to sync favorite creators; the session stays in
   the Rust backend.
-- **Native mobile shell** — bottom tab navigation, safe areas, Android hardware
+- **Native mobile shell** bottom tab navigation, safe areas, Android hardware
   back handling and app-private downloads.
-- **Secure defaults** — HTTPS-only remote requests, host allowlisting,
+- **Secure defaults** HTTPS-only remote requests, host allowlisting,
   sanitized HTML, a strict CSP and a minimal Tauri capability set.
+- **Update checks** automatically check the latest GitHub release when enabled
+  in Settings.
 
 ## Technology
 

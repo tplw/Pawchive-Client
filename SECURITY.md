@@ -56,9 +56,13 @@ Out of scope:
   loopback media server used for downloaded files. On Android, a release
   network security config permits cleartext only for `127.0.0.1`, `localhost`,
   `tauri.localhost` and `ipc.localhost`; all remote requests remain HTTPS.
-- Requests are restricted to the configured Pawchive hosts
+- Archive requests are restricted to the configured Pawchive hosts
   (`pawchive.pw`, `img.pawchive.pw`, `file.pawchive.pw`). A URL is parsed and
   its host compared with the allowlist before a request or media handoff.
+- When **Automatically check for updates** is enabled in Settings, the app
+  makes one request to `api.github.com` at startup for the latest Pawchive
+  Client release metadata. It does not send account details or automatically
+  download anything.
 - Redirects are followed only when every hop is HTTPS and stays inside the
   allowlist. Redirects to other hosts are rejected.
 - TLS certificate verification is never disabled.
@@ -114,9 +118,9 @@ hardware back handler. There is no updater, telemetry or analytics.
 The app stores its SQLite database under the operating system's application
 data directory:
 
-- macOS: `~/Library/Application Support/pw.pawchive.desktop`
-- Windows: `%APPDATA%\pw.pawchive.desktop`
-- Linux: `~/.local/share/pw.pawchive.desktop`
+- macOS: `~/Library/Application Support/pw.pawchive.client`
+- Windows: `%APPDATA%\pw.pawchive.client`
+- Linux: `~/.local/share/pw.pawchive.client`
 - iOS/Android: the app's private application-data directory
 
 The database contains:
@@ -131,7 +135,7 @@ The database contains:
 Optional account sessions are stored in `account.json` only when “Remember me”
 is enabled. Downloaded media is stored in the folder chosen in Settings on
 desktop and in app-specific storage on mobile. On Android the default path is
-`/storage/emulated/0/Android/data/pw.pawchive.desktop/files/Documents/Downloads`.
+`/storage/emulated/0/Android/data/pw.pawchive.client/files/Documents/Downloads`.
 The database and session file are not encrypted; rely on full-disk encryption
 and operating-system account security for at-rest protection.
 

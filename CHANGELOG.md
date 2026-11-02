@@ -39,6 +39,19 @@ project follows [Semantic Versioning](https://semver.org/).
 - Windows finds ffmpeg from `PATH`, Program Files and common install folders,
   and downloaded files avoid reserved DOS device names and trailing dots.
 
+## 1.0.2 - 2026-11-02
+
+### Changed
+
+- Changed the bundle/application identifier to `pw.pawchive.client`. This is a
+  separate app identity from the previous `pw.pawchive.desktop` builds, so
+  local data does not carry over.
+- The installed application is now named **Pawchive**. The project and
+  repository remain Pawchive Client.
+- Added an **Automatically check for updates** toggle in Settings. When
+  enabled, the app checks the latest GitHub release at startup and links to it;
+  downloads and installation stay manual.
+
 ## 1.0.1 - 2026-11-02
 
 ### Changed

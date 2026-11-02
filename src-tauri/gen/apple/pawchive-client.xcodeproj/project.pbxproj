@@ -368,8 +368,8 @@
 					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
 					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = pw.pawchive.desktop;
-				PRODUCT_NAME = "Pawchive Client";
+				PRODUCT_BUNDLE_IDENTIFIER = pw.pawchive.client;
+				PRODUCT_NAME = "Pawchive";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
@@ -410,8 +410,8 @@
 					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
 					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = pw.pawchive.desktop;
-				PRODUCT_NAME = "Pawchive Client";
+				PRODUCT_BUNDLE_IDENTIFIER = pw.pawchive.client;
+				PRODUCT_NAME = "Pawchive";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;

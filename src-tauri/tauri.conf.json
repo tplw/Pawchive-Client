@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Pawchive Client",
-  "version": "1.0.1",
-  "identifier": "pw.pawchive.desktop",
+  "productName": "Pawchive",
+  "version": "1.0.2",
+  "identifier": "pw.pawchive.client",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Pawchive Client",
+        "title": "Pawchive",
         "width": 1440,
         "height": 920,
         "minWidth": 940,
@@ -34,7 +34,7 @@
     "targets": "all",
     "category": "Entertainment",
     "shortDescription": "Browse and play the Pawchive archive",
-    "longDescription": "Pawchive Client is a native client for the Pawchive archive with creator discovery, search, a local library, downloads, and an integrated audio and video player.",
+    "longDescription": "Pawchive is a native client for the Pawchive archive with creator discovery, search, a local library, downloads, and an integrated audio and video player.",
     "copyright": "© 2026 Pawchive Client Contributors",
     "icon": [
       "icons/32x32.png",

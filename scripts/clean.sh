@@ -18,7 +18,7 @@ rm -rf src-tauri/gen/android/app/build
 rm -rf src-tauri/gen/android/buildSrc/build
 rm -rf src-tauri/gen/android/app/src/main/assets
 rm -rf src-tauri/gen/android/app/src/main/jniLibs
-rm -rf src-tauri/gen/android/app/src/main/java/pw/pawchive/desktop/generated
+rm -rf src-tauri/gen/android/app/src/main/java/pw/pawchive/client/generated
 rm -f src-tauri/gen/android/app/tauri.properties
 rm -f src-tauri/gen/android/app/tauri.build.gradle.kts
 rm -f src-tauri/gen/android/app/proguard-tauri.pro

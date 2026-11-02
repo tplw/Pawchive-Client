@@ -166,6 +166,7 @@ export interface AppSettings {
   transcodeMedia: boolean;
   loadAheadPages: number;
   showCreatorUpdated: boolean;
+  autoCheckUpdates: boolean;
 }
 
 export interface PawchiveConfig {
@@ -181,6 +182,14 @@ export interface PawchiveConfig {
   defaultRetries: number;
   cacheTtlSecs: number;
   pageSize: number;
+}
+
+export interface UpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+  url: string;
+  releaseName: string | null;
 }
 
 export interface Playlist {

@@ -1,12 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,
+  ExternalLink,
   Filter,
   FolderOpen,
   HardDrive,
   Info,
   LayoutGrid,
   Play,
+  RefreshCw,
   Settings2,
   Trash2,
   UserRound,
@@ -35,6 +37,10 @@ export function SettingsPage() {
   const saveSettings = useAppStore((state) => state.saveSettings);
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
+  const updateInfo = useAppStore((state) => state.updateInfo);
+  const updateChecking = useAppStore((state) => state.updateChecking);
+  const updateError = useAppStore((state) => state.updateError);
+  const checkForUpdates = useAppStore((state) => state.checkForUpdates);
   const queryClient = useQueryClient();
   const [volume, setVolume] = useState(settings.volume);
   const [speed, setSpeed] = useState(settings.playbackSpeed);
@@ -320,7 +326,7 @@ export function SettingsPage() {
           <div className="space-y-2">
             <code className="block break-all rounded-lg border border-line/70 bg-base px-2.5 py-2 text-[10px] text-muted">
               {isIos
-                ? "Files → On My iPhone → Pawchive Client → Downloads"
+                ? "Files → On My iPhone → Pawchive → Downloads"
                 : isAndroid
                   ? "App storage → Downloads"
                   : settings.downloadDir || "Default application downloads folder"}
@@ -403,6 +409,59 @@ export function SettingsPage() {
             >
               <Trash2 className="h-3.5 w-3.5" /> Clear
             </Button>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection icon={RefreshCw} title="Updates">
+          <div className="space-y-2">
+            <p className="text-[10px] leading-relaxed text-muted">
+              Current version{" "}
+              <span className="font-medium text-ink">{config.appVersion}</span>
+            </p>
+            <Toggle
+              compact
+              checked={settings.autoCheckUpdates}
+              onChange={(checked) => {
+                void saveSettings({ autoCheckUpdates: checked });
+                if (checked) void checkForUpdates({ silent: true });
+              }}
+              label="Automatically check for updates"
+              description="Checks GitHub for a new release when the app starts."
+            />
+            {updateChecking ? (
+              <p className="text-[10px] text-muted">Checking for updates...</p>
+            ) : null}
+            {updateInfo?.updateAvailable ? (
+              <div className="rounded-lg border border-accent/40 bg-accent/5 p-2.5">
+                <p className="text-xs font-medium text-ink">
+                  Version {updateInfo.latestVersion} is available
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted">
+                  You are on {updateInfo.currentVersion}.
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => void api.openExternal(updateInfo.url)}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Open release
+                </Button>
+              </div>
+            ) : null}
+            {!updateInfo?.updateAvailable && updateInfo ? (
+              <p className="text-[10px] text-success">
+                Pawchive {updateInfo.currentVersion} is up to date.
+              </p>
+            ) : null}
+            {!settings.autoCheckUpdates && !updateInfo?.updateAvailable ? (
+              <p className="text-[10px] text-muted">
+                Automatic update checks are off.
+              </p>
+            ) : null}
+            {updateError ? (
+              <p className="text-[10px] text-danger">{updateError}</p>
+            ) : null}
           </div>
         </SettingsSection>
 

@@ -656,6 +656,7 @@ pub struct AppSettings {
     pub transcode_media: bool,
     pub load_ahead_pages: u64,
     pub show_creator_updated: bool,
+    pub auto_check_updates: bool,
 }
 
 impl Default for AppSettings {
@@ -685,6 +686,7 @@ impl Default for AppSettings {
             transcode_media: false,
             load_ahead_pages: 1,
             show_creator_updated: false,
+            auto_check_updates: true,
         }
     }
 }

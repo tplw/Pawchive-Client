@@ -1,4 +1,4 @@
-package pw.pawchive.desktop
+package pw.pawchive.client
 
 import android.graphics.Color
 import android.os.Bundle

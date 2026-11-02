@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import type { AppSettings, PawchiveConfig, Route, TabName } from "../types";
+import type {
+  AppSettings,
+  PawchiveConfig,
+  Route,
+  TabName,
+  UpdateInfo,
+} from "../types";
 import { DEFAULT_SETTINGS, FALLBACK_CONFIG, errorMessage } from "../lib/constants";
 import { api } from "../services/api";
 import {
@@ -40,7 +46,11 @@ interface AppStore {
   indexCount: number;
   indexError: string | null;
   toasts: Toast[];
+  updateInfo: UpdateInfo | null;
+  updateChecking: boolean;
+  updateError: string | null;
   initialize: () => Promise<void>;
+  checkForUpdates: (options?: { silent?: boolean }) => Promise<void>;
   ensureCreatorIndex: (force?: boolean) => Promise<void>;
   saveSettings: (patch: Partial<AppSettings>) => Promise<void>;
   navigate: (route: Route) => void;
@@ -137,6 +147,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   indexCount: 0,
   indexError: null,
   toasts: [],
+  updateInfo: null,
+  updateChecking: false,
+  updateError: null,
 
   initialize: async () => {
     try {
@@ -146,6 +159,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       ]);
       set({ settings, config, ready: true });
       void get().ensureCreatorIndex();
+      if (settings.autoCheckUpdates) {
+        void get().checkForUpdates({ silent: true });
+      }
       if (settings.autoSyncFavorites) {
         void (async () => {
           try {
@@ -165,7 +181,37 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch (error) {
       set({ ready: true });
-      get().reportError(error, "Could not start Pawchive Client");
+      get().reportError(error, "Could not start Pawchive");
+    }
+  },
+
+  checkForUpdates: async (options) => {
+    if (get().updateChecking) return;
+    set({ updateChecking: true, updateError: null });
+    try {
+      const info = await api.checkForUpdate();
+      set({ updateInfo: info, updateChecking: false });
+      if (info.updateAvailable) {
+        get().toast(
+          "info",
+          "Update available",
+          `Pawchive ${info.latestVersion} is available.`,
+        );
+      } else if (!options?.silent) {
+        get().toast(
+          "success",
+          "You're up to date",
+          `Pawchive ${info.currentVersion} is the latest version.`,
+        );
+      }
+    } catch (error) {
+      set({
+        updateChecking: false,
+        updateError: errorMessage(error),
+      });
+      if (!options?.silent) {
+        get().reportError(error, "Could not check for updates");
+      }
     }
   },
 

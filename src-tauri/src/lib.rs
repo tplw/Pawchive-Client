@@ -99,7 +99,7 @@ pub fn run() {
             tracing::info!(
                 data_dir = %data_dir.display(),
                 version = env!("CARGO_PKG_VERSION"),
-                "starting Pawchive Client"
+                "starting Pawchive"
             );
 
             app.manage(AppState {
@@ -122,6 +122,7 @@ pub fn run() {
             commands::get_settings,
             commands::save_settings,
             commands::get_config,
+            commands::check_for_update,
             commands::open_external,
             commands::sync_creators,
             commands::get_creator_count,
@@ -176,5 +177,5 @@ pub fn run() {
             commands::read_subtitle,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Pawchive Client");
+        .expect("error while running Pawchive");
 }

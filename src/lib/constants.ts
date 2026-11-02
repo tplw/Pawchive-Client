@@ -6,8 +6,8 @@ export const FALLBACK_CONFIG: PawchiveConfig = {
   staticBase: "https://pawchive.pw",
   imageBase: "https://img.pawchive.pw",
   fileBase: "https://file.pawchive.pw/data",
-  appName: "Pawchive Client",
-  appVersion: "1.0.0",
+  appName: "Pawchive",
+  appVersion: "1.0.2",
   userAgent: "PawchiveClient",
   defaultTimeoutSecs: 30,
   defaultConcurrency: 8,
@@ -36,6 +36,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   transcodeMedia: false,
   loadAheadPages: 1,
   showCreatorUpdated: false,
+  autoCheckUpdates: true,
 };
 
 export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;

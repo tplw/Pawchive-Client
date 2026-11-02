@@ -1,6 +1,6 @@
 name: pawchive-client
 options:
-  bundleIdPrefix: pw.pawchive.desktop
+  bundleIdPrefix: pw.pawchive.client
   deploymentTarget:
     iOS: 15.0
 fileGroups: [../../src]
@@ -10,8 +10,8 @@ configs:
 settingGroups:
   app:
     base:
-      PRODUCT_NAME: Pawchive Client
-      PRODUCT_BUNDLE_IDENTIFIER: pw.pawchive.desktop
+      PRODUCT_NAME: Pawchive
+      PRODUCT_BUNDLE_IDENTIFIER: pw.pawchive.client
 targetTemplates:
   app:
     type: application
@@ -56,8 +56,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 1.0.1
-        CFBundleVersion: "1.0.1"
+        CFBundleShortVersionString: 1.0.2
+        CFBundleVersion: "1.0.2"
     entitlements:
       path: pawchive-client_iOS/pawchive-client_iOS.entitlements
     scheme:

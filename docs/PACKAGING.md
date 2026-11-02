@@ -19,9 +19,10 @@ Artifacts are written to `src-tauri/target/release/bundle/`:
 | Linux | `.deb`, `.rpm`, `.AppImage` |
 | Android | `.apk` (per ABI or universal), `.aab` |
 
-The app identifier is `pw.pawchive.desktop`; the product name is
-`Pawchive Client`. The identifier is intentionally unchanged so existing
-installs keep their data and update path.
+The app identifier is `pw.pawchive.client`; the installed product name is
+`Pawchive`. The project and repository are called Pawchive Client. The
+identifier changed from `pw.pawchive.desktop` in 1.0.2, so older installs are
+treated as a separate app and do not share local data.
 
 ## Platform prerequisites
 

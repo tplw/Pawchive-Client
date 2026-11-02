@@ -67,6 +67,80 @@ pub fn get_config(state: State<'_, AppState>) -> PawchiveConfig {
     state.cfg.clone()
 }
 
+const UPDATES_API: &str = "https://api.github.com/repos/tplw/Pawchive-Client/releases/latest";
+const RELEASES_PAGE: &str = "https://github.com/tplw/Pawchive-Client/releases";
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateInfo {
+    current_version: String,
+    latest_version: String,
+    update_available: bool,
+    url: String,
+    release_name: Option<String>,
+}
+
+fn is_newer_version(current: &str, latest: &str) -> AppResult<bool> {
+    let current = semver::Version::parse(current.trim_start_matches('v'))
+        .map_err(|e| AppError::Internal(format!("invalid current version: {e}")))?;
+    let latest = semver::Version::parse(latest.trim_start_matches('v'))
+        .map_err(|e| AppError::InvalidResponse(format!("invalid release version: {e}")))?;
+    Ok(latest > current)
+}
+
+#[tauri::command]
+pub async fn check_for_update(state: State<'_, AppState>) -> AppResult<UpdateInfo> {
+    let response = state
+        .http
+        .get(UPDATES_API)
+        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|e| AppError::Network(format!("could not check for updates: {e}")))?;
+
+    if response.status() == reqwest::StatusCode::FORBIDDEN
+        || response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
+    {
+        return Err(AppError::Unavailable(
+            "GitHub is rate limiting update checks; try again later".into(),
+        ));
+    }
+    if !response.status().is_success() {
+        return Err(AppError::Unavailable(format!(
+            "update service returned {}",
+            response.status()
+        )));
+    }
+
+    let payload: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| AppError::InvalidResponse(format!("invalid update response: {e}")))?;
+    let latest = payload
+        .get("tag_name")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::InvalidResponse("release has no tag name".into()))?;
+    let latest = latest.trim_start_matches('v');
+    let update_available = is_newer_version(env!("CARGO_PKG_VERSION"), latest)?;
+    let url = payload
+        .get("html_url")
+        .and_then(|value| value.as_str())
+        .filter(|url| url.starts_with("https://github.com/tplw/Pawchive-Client/releases/"))
+        .unwrap_or(RELEASES_PAGE);
+    let release_name = payload
+        .get("name")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+
+    Ok(UpdateInfo {
+        current_version: env!("CARGO_PKG_VERSION").to_string(),
+        latest_version: latest.to_string(),
+        update_available,
+        url: url.to_string(),
+        release_name,
+    })
+}
+
 #[tauri::command]
 pub fn open_external(url: String) -> AppResult<()> {
     let url = crate::security::validate_external_url(&url)?;
@@ -1322,6 +1396,15 @@ mod tests {
         );
         assert_eq!(session_cookie("other=1"), None);
         assert_eq!(session_cookie("session="), None);
+    }
+
+    #[test]
+    fn compares_release_versions() {
+        assert!(is_newer_version("1.0.1", "1.0.2").unwrap());
+        assert!(is_newer_version("1.0.1", "v1.0.2").unwrap());
+        assert!(!is_newer_version("1.0.2", "1.0.2").unwrap());
+        assert!(!is_newer_version("1.0.2", "1.0.1").unwrap());
+        assert!(is_newer_version("1.0.2", "not-a-version").is_err());
     }
 
     #[test]

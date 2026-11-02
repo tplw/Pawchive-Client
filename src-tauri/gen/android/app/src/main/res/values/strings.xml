@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">"Pawchive Client"</string>
-    <string name="main_activity_title">"Pawchive Client"</string>
+    <string name="app_name">"Pawchive"</string>
+    <string name="main_activity_title">"Pawchive"</string>
 </resources>
