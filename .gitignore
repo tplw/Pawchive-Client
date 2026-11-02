@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# Frontend build output
+dist/
+dist-ssr/
+*.local
+
+# Rust / Tauri build output
+src-tauri/target/
+src-tauri/gen/schemas/
+src-tauri/gen/windows/
+
+# Android generated project build output and local signing material.
+# The Gradle project itself (src-tauri/gen/android) is tracked.
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/build/
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/buildSrc/build/
+src-tauri/gen/android/local.properties
+src-tauri/gen/android/keystore.properties
+src-tauri/gen/android/**/*.jks
+src-tauri/gen/android/**/*.keystore
+
+# iOS generated project build output
+src-tauri/gen/apple/build/
+src-tauri/gen/apple/Externals/
+src-tauri/gen/apple/Pods/
+src-tauri/gen/apple/Podfile.lock
+src-tauri/gen/apple/xcuserdata/
+
+# Local environment
+.env
+.env.*
+!.env.example
+*.log
+
+# Editor and OS metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# Test and tooling caches
+coverage/
+.vitest/
+.eslintcache
+*.tsbuildinfo
+
+# Release artifacts (built by CI or locally; see artifacts/README.txt)
+artifacts/*
+!artifacts/README.txt
+*.apk
+*.aab
+*.dmg
+*.ipa
+*.ipa.zip
+*.idsig
+
+# Signing material must never be committed
+*.p12
+*.mobileprovision
+*.jks
+*.keystore

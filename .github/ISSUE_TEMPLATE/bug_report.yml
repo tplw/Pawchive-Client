@@ -1,0 +1,88 @@
+name: Bug report
+description: Report a reproducible problem with Pawchive Desktop
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please search existing issues first.
+
+        Do **not** report security vulnerabilities here. See the repository's
+        `SECURITY.md` for private reporting instructions.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the problem.
+      placeholder: The player stops after seeking...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest sequence that reproduces the issue.
+      placeholder: |
+        1. Open Discover
+        2. Open a post with a video
+        3. Tap play
+        4. See the error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      multiple: true
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - iOS
+        - Android
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The app version, release tag or commit SHA.
+      placeholder: 1.0.0 / v1.0.0 / abc1234
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS version, device/emulator model, webview version, etc.
+      placeholder: macOS 15.6, iPhone 17 Pro simulator, Android 15 emulator
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Remove personal data and access tokens before pasting logs.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I can reproduce this on the latest version or main branch.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

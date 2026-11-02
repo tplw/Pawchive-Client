@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Release builds only allow cleartext traffic to the local Tauri asset host and
+  the loopback media server. Remote archive and media hosts use HTTPS.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">tauri.localhost</domain>
+        <domain includeSubdomains="false">ipc.localhost</domain>
+    </domain-config>
+</network-security-config>
