@@ -28,9 +28,11 @@ The app identifier is `pw.pawchive.desktop`; the product name is
 
 - Xcode command line tools.
 - For distribution: a Developer ID Application certificate and notarisation
-  credentials. Set `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
-  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID` in
-  the release environment (or repository secrets).
+  credentials. macOS builds are unsigned by default; add
+  `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID`
+  as repository secrets, then uncomment the matching `APPLE_*` environment
+  block in `.github/workflows/release.yml`.
 - Universal builds require both Rust targets:
 
   ```bash
@@ -57,7 +59,7 @@ Install the Tauri build dependencies and runtime media plugins:
 ```bash
 sudo apt-get update
 sudo apt-get install -y \
-  libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+  libwebkit2gtk-4.1-dev librsvg2-dev patchelf \
   build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev \
   gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
   gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
@@ -109,7 +111,8 @@ through repository secrets.
 
 Required repository permissions: `contents: write`.
 
-Optional secrets for signed macOS builds:
+Optional secrets for signed macOS builds (then uncomment the `APPLE_*` block
+in `.github/workflows/release.yml`):
 
 - `APPLE_CERTIFICATE`
 - `APPLE_CERTIFICATE_PASSWORD`

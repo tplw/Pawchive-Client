@@ -45,7 +45,7 @@ with a Pawchive account. No telemetry, no ads, no account required.
 - [Tauri 2 platform prerequisites](https://v2.tauri.app/start/prerequisites/):
   - **macOS**: Xcode command line tools.
   - **Windows**: WebView2 and the Microsoft C++ build tools.
-  - **Linux**: `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`,
+  - **Linux**: `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`,
     `librsvg2-dev`, `patchelf` and a C compiler. Install the GStreamer
     good/bad/ugly plugin sets for media playback.
   - **iOS**: macOS with Xcode 15+ and CocoaPods. See [docs/IOS.md](docs/IOS.md).
