@@ -12,7 +12,7 @@ interface. The generated Gradle project is tracked at
 
 ## Requirements
 
-- Node.js 20+ and npm.
+- Node.js 20.19+ and npm.
 - Rust stable with the Android targets.
 - JDK 17.
 - Android SDK command-line tools, platform-tools, Platform 36,
@@ -202,6 +202,8 @@ adb uninstall pw.pawchive.desktop
 
 ## Android behavior
 
+- The launcher icon and launch splash use the Pawchive paw mark. The loading
+  screen shows only the logo.
 - Home, Discover, Search, Downloads and Settings use a five-item bottom tab
   bar. Each tab keeps its own navigation stack and scroll position.
 - The Android system back button closes overlays and the full-screen player,

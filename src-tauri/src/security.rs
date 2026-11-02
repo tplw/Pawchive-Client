@@ -229,7 +229,11 @@ pub fn safe_filename(raw: &str) -> String {
             c => out.push(c),
         }
     }
-    let trimmed = out.trim().trim_start_matches('.').trim();
+    let trimmed = out
+        .trim()
+        .trim_start_matches('.')
+        .trim_end_matches([' ', '.'])
+        .trim();
     let mut name = if trimmed.is_empty() {
         "download".to_string()
     } else {
@@ -248,7 +252,22 @@ pub fn safe_filename(raw: &str) -> String {
             format!("{stem}.{ext}")
         };
     }
+    if is_windows_reserved_name(&name) {
+        name.insert(0, '_');
+    }
     name
+}
+
+/// Windows refuses to create files whose base name is a DOS device name.
+fn is_windows_reserved_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or(name).to_ascii_uppercase();
+    if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL") {
+        return true;
+    }
+    let bytes = stem.as_bytes();
+    bytes.len() == 4
+        && (stem.starts_with("COM") || stem.starts_with("LPT"))
+        && (b'1'..=b'9').contains(&bytes[3])
 }
 
 pub fn file_extension(name: &str) -> String {
@@ -405,6 +424,11 @@ mod tests {
         assert_eq!(safe_filename(".."), "download");
         assert_eq!(safe_filename(""), "download");
         assert_eq!(safe_filename("nul\0byte.mp3"), "nulbyte.mp3");
+        assert_eq!(safe_filename("CON"), "_CON");
+        assert_eq!(safe_filename("con.txt"), "_con.txt");
+        assert_eq!(safe_filename("COM1.mp3"), "_COM1.mp3");
+        assert_eq!(safe_filename("report."), "report");
+        assert_eq!(safe_filename("report. "), "report");
     }
 
     #[test]

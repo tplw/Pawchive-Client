@@ -21,18 +21,49 @@ pub struct TranscodeProgress {
 
 fn executable_candidates(name: &str) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
-    if let Ok(value) = std::env::var("PAWCHIVE_FFMPEG") {
-        let path = PathBuf::from(value);
-        if path.is_file() {
+    let file_name = if cfg!(windows) && !name.to_ascii_lowercase().ends_with(".exe") {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    };
+
+    let mut push = |path: PathBuf| {
+        if path.is_file() && !candidates.contains(&path) {
             candidates.push(path);
         }
+    };
+
+    if let Some(value) = std::env::var_os("PAWCHIVE_FFMPEG") {
+        push(PathBuf::from(value));
     }
-    for directory in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"] {
-        let path = Path::new(directory).join(name);
-        if path.is_file() {
-            candidates.push(path);
+
+    if let Some(path) = std::env::var_os("PATH") {
+        for directory in std::env::split_paths(&path) {
+            push(directory.join(&file_name));
         }
     }
+
+    let mut directories = vec!["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+    if cfg!(windows) {
+        directories.push(r"C:\ffmpeg\bin");
+    }
+    for directory in directories {
+        push(Path::new(directory).join(&file_name));
+    }
+
+    if cfg!(windows) {
+        for variable in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
+            if let Some(base) = std::env::var_os(variable) {
+                push(
+                    PathBuf::from(base)
+                        .join("ffmpeg")
+                        .join("bin")
+                        .join(&file_name),
+                );
+            }
+        }
+    }
+
     candidates
 }
 

@@ -19,6 +19,10 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The launch and loading screens now show only the Pawchive paw mark, with no
+  text or spinner; Android also uses the paw for its launcher icon.
+- Linux `.deb` and `.rpm` packages now recommend the GStreamer plugin sets used
+  for media playback; the AppImage continues to bundle them.
 - The Search page no longer repeats the archive search heading and description.
 - Mobile defaults use small square cards on both iOS and Android.
 - Downloads and folder controls adapt to mobile app-private storage.
@@ -32,6 +36,8 @@ project follows [Semantic Versioning](https://semver.org/).
   minification until the keep rules are verified.
 - Rapid settings changes no longer roll back or flicker because of out-of-order
   persistence responses.
+- Windows finds ffmpeg from `PATH`, Program Files and common install folders,
+  and downloaded files avoid reserved DOS device names and trailing dots.
 
 ## 1.0.0 - 2026-11-01
 

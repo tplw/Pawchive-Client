@@ -65,9 +65,9 @@ sudo apt-get install -y \
 ```
 
 The AppImage configuration enables `bundleMediaFramework` so playback has a
-bundled GStreamer framework. Distribution packages (`.deb`/`.rpm`) do not
-bundle codecs; list the GStreamer plugin packages as recommended dependencies
-in your distribution recipe.
+bundled GStreamer framework. The `.deb` and `.rpm` packages declare the
+GStreamer plugin sets as recommended dependencies; install them for full codec
+support.
 
 ### Android
 

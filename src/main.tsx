@@ -5,6 +5,12 @@ import App from "./App";
 import { queryClient } from "./lib/queryClient";
 import "./styles/index.css";
 
+declare global {
+  interface Window {
+    AndroidSplash?: { hide: () => void };
+  }
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -12,3 +18,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     </QueryClientProvider>
   </React.StrictMode>,
 );
+
+requestAnimationFrame(() => window.AndroidSplash?.hide());

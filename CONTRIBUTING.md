@@ -17,7 +17,7 @@ By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 Requirements:
 
-- Node.js 20+ and npm.
+- Node.js 20.19+ and npm.
 - Rust stable with `rustfmt` and `clippy`.
 - The platform prerequisites for Tauri 2. See the
   [README requirements](README.md#requirements).

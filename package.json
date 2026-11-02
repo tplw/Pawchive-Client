@@ -24,7 +24,8 @@
     "android:run": "sh scripts/android.sh run",
     "android:emulator": "sh scripts/android.sh emulator",
     "android:doctor": "sh scripts/android.sh doctor",
-    "android:clean": "sh scripts/android.sh clean"
+    "android:clean": "sh scripts/android.sh clean",
+    "clean": "sh scripts/clean.sh"
   },
   "dependencies": {
     "@tanstack/react-query": "5.90.2",
@@ -55,5 +56,13 @@
     "vitest": "3.2.4"
   },
   "license": "MIT",
-  "author": "Pawchive Desktop Contributors"
+  "author": "Pawchive Desktop Contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tplw/Pawchive-Client.git"
+  },
+  "homepage": "https://github.com/tplw/Pawchive-Client#readme",
+  "bugs": {
+    "url": "https://github.com/tplw/Pawchive-Client/issues"
+  }
 }

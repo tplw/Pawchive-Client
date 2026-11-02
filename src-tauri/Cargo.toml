@@ -1,11 +1,13 @@
 [package]
 name = "pawchive-desktop"
 version = "1.0.0"
-description = "A native desktop client for the Pawchive archive"
+description = "A native desktop and mobile client for the Pawchive archive"
 authors = ["Pawchive Desktop Contributors"]
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.90"
 license = "MIT"
+repository = "https://github.com/tplw/Pawchive-Client"
+homepage = "https://github.com/tplw/Pawchive-Client"
 
 [lib]
 name = "pawchive_desktop_lib"

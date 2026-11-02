@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from "react";
 import { AlertTriangle } from "lucide-react";
-import { BrandPaw } from "./components/BrandPaw";
 import { Sidebar } from "./components/Sidebar";
 import { MobileTabBar } from "./components/MobileTabBar";
 import { TopBar } from "./components/TopBar";
@@ -162,19 +161,7 @@ function persistScrollPositions(positions: Map<string, number>): void {
 function LoadingScreen() {
   return (
     <div className="grid h-screen place-items-center bg-base">
-      <div className="flex flex-col items-center gap-4">
-        <div className="grid h-14 w-14 place-items-center rounded-xl2 border border-line bg-surface shadow-lift">
-          <BrandPaw size={32} />
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-semibold tracking-tight text-ink">
-            Pawchive Desktop
-          </p>
-          <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-muted">
-            Opening your archive
-          </p>
-        </div>
-      </div>
+      <img src="/paw-logo.png" alt="Pawchive" className="h-40 w-40" />
     </div>
   );
 }
