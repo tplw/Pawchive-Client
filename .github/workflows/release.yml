@@ -41,7 +41,7 @@ jobs:
             build-essential curl wget file libssl-dev libgtk-3-dev \
             libayatana-appindicator3-dev libfuse2 rpm
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
