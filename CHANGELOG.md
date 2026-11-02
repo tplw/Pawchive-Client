@@ -19,10 +19,6 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Renamed the product from Pawchive Desktop to Pawchive Client across the UI,
-  documentation, installers and mobile builds. The `pw.pawchive.desktop`
-  bundle identifier is unchanged so existing installs keep their data and
-  update path.
 - The launch and loading screens now show only the Pawchive paw mark, with no
   text or spinner; Android also uses the paw for its launcher icon.
 - Linux `.deb` and `.rpm` packages now recommend the GStreamer plugin sets used
@@ -42,6 +38,17 @@ project follows [Semantic Versioning](https://semver.org/).
   persistence responses.
 - Windows finds ffmpeg from `PATH`, Program Files and common install folders,
   and downloaded files avoid reserved DOS device names and trailing dots.
+
+## 1.0.1 - 2026-11-02
+
+### Changed
+
+- Renamed the product from Pawchive Desktop to Pawchive Client across the UI,
+  documentation, installers and mobile builds. The `pw.pawchive.desktop`
+  bundle identifier is unchanged so existing installs keep their data and
+  update path.
+- GitHub releases now include Android APKs and an unsigned iOS IPA alongside
+  the desktop installers.
 
 ## 1.0.0 - 2026-11-01
 

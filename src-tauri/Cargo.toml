@@ -1,6 +1,6 @@
 [package]
 name = "pawchive-client"
-version = "1.0.0"
+version = "1.0.1"
 description = "A native desktop and mobile client for the Pawchive archive"
 authors = ["Pawchive Client Contributors"]
 edition = "2021"

@@ -164,7 +164,7 @@ apksigner sign \
   --ks-pass pass:android \
   --key-pass pass:android \
   --ks-key-alias androiddebugkey \
-  --out "Pawchive Client_1.0.0_android-arm64.apk" \
+  --out "Pawchive Client_1.0.1_android-arm64.apk" \
   "src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release-unsigned.apk"
 ```
 
@@ -180,7 +180,7 @@ keytool -genkeypair -v \
 
 apksigner sign \
   --ks "$HOME/keys/pawchive-release.jks" \
-  --out "Pawchive Client_1.0.0_android-arm64.apk" \
+  --out "Pawchive Client_1.0.1_android-arm64.apk" \
   "src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release-unsigned.apk"
 ```
 
@@ -190,7 +190,7 @@ keystore and passwords through repository secrets and sign after the build.
 ## Install on a device
 
 ```bash
-adb install -r "Pawchive Client_1.0.0_android-arm64.apk"
+adb install -r "Pawchive Client_1.0.1_android-arm64.apk"
 ```
 
 If a debug-signed build replaces a production-signed install (or the reverse),
