@@ -172,6 +172,37 @@ impl FileRef {
             .map(str::trim)
             .filter(|value| !value.is_empty())
     }
+
+    /// Deferred/streamed attachments have no archive-relative `path`. The
+    /// archive instead returns a signed download URL next to the streaming
+    /// `temp_url`, which is what a download should point at.
+    pub fn temp_download_url(&self) -> Option<&str> {
+        self.extra
+            .get("temp_download_url")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    /// List/search responses mark streamed attachments as deferred but only
+    /// the single-post response includes their signed URLs. The marker is
+    /// still enough to count and classify the attachment in summaries.
+    pub fn is_deferred(&self) -> bool {
+        self.extra
+            .get("deferred")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    }
+
+    /// A file is usable if it has a stored path, a temporary remote URL or is
+    /// a deferred attachment. Deferred attachments only get URLs when a post
+    /// is opened individually.
+    pub fn has_source(&self) -> bool {
+        !self.path.trim().is_empty()
+            || self.temp_url().is_some()
+            || self.temp_download_url().is_some()
+            || self.is_deferred()
+    }
 }
 
 /// The archive occasionally gives a cover image a video-looking `name`.
@@ -238,7 +269,7 @@ pub struct Post {
 
 impl Post {
     pub fn primary_file(&self) -> Option<&FileRef> {
-        self.file.as_ref().filter(|f| !f.path.trim().is_empty())
+        self.file.as_ref().filter(|f| f.has_source())
     }
 
     pub fn all_files(&self) -> Vec<&FileRef> {
@@ -246,11 +277,7 @@ impl Post {
         if let Some(file) = self.primary_file() {
             out.push(file);
         }
-        out.extend(
-            self.attachments
-                .iter()
-                .filter(|a| !a.path.trim().is_empty()),
-        );
+        out.extend(self.attachments.iter().filter(|a| a.has_source()));
         out
     }
 
@@ -374,7 +401,13 @@ pub struct Revision {
 pub struct Attachment {
     pub name: String,
     pub path: String,
+    /// URL handed to the player. Deferred attachments use the archive's
+    /// streaming URL (HLS) when one is available.
     pub url: String,
+    /// URL used when saving the file to disk. The archive exposes a separate
+    /// signed download URL for deferred attachments, which may differ from the
+    /// streaming URL.
+    pub download_url: String,
     pub thumbnail_url: Option<String>,
     pub kind: MediaKind,
     pub ext: String,
@@ -385,14 +418,33 @@ impl Attachment {
     pub fn new(cfg: &crate::config::PawchiveConfig, file: &FileRef) -> Option<Self> {
         let temp_url = file
             .temp_url()
-            .and_then(|raw| crate::security::validate_media_remote_url(raw).ok());
-        let (path, fallback_url) = if file.path.starts_with("https://") {
-            let url = crate::security::validate_media_remote_url(&file.path).ok()?;
-            (url.to_string(), url.to_string())
+            .and_then(|raw| crate::security::validate_media_remote_url(raw).ok())
+            .map(|url| url.to_string());
+        let temp_download_url = file
+            .temp_download_url()
+            .and_then(|raw| crate::security::validate_media_remote_url(raw).ok())
+            .map(|url| url.to_string());
+        let has_path = !file.path.trim().is_empty();
+        let (path, fallback_url) = if has_path {
+            if file.path.starts_with("https://") {
+                let url = crate::security::validate_media_remote_url(&file.path).ok()?;
+                (url.to_string(), url.to_string())
+            } else {
+                let path = crate::security::validate_relative_path(&file.path).ok()?;
+                let url = cfg.file_url(&path);
+                (path, url)
+            }
         } else {
-            let path = crate::security::validate_relative_path(&file.path).ok()?;
-            let url = cfg.file_url(&path);
-            (path, url)
+            // Deferred attachments only carry signed URLs. Derive a stable,
+            // path-like identifier from the URL path so queue ids, playlist
+            // entries and resume positions keep working.
+            let remote = temp_download_url.as_deref().or(temp_url.as_deref())?;
+            let parsed = url::Url::parse(remote).ok()?;
+            let remote_path = parsed.path().trim_start_matches('/');
+            if remote_path.is_empty() {
+                return None;
+            }
+            (format!("/{remote_path}"), remote.to_string())
         };
         let name = if file.name.trim().is_empty() {
             safe_filename(&path)
@@ -400,12 +452,10 @@ impl Attachment {
             safe_filename(&file.name)
         };
         let kind = media_kind_for_file(file);
-        let url = temp_url
-            .as_ref()
-            .map(|url| url.to_string())
-            .unwrap_or(fallback_url);
+        let url = temp_url.clone().unwrap_or(fallback_url);
+        let download_url = temp_download_url.clone().unwrap_or_else(|| url.clone());
         let thumbnail_url = if kind == MediaKind::Image {
-            Some(if file.path.starts_with("https://") {
+            Some(if !has_path || file.path.starts_with("https://") {
                 url.clone()
             } else {
                 cfg.thumbnail_url(&path)
@@ -416,12 +466,15 @@ impl Attachment {
         let ext = file_extension(&name);
         Some(Self {
             url,
+            download_url,
             name,
             path,
             thumbnail_url,
             kind,
             ext,
-            preview_only: file.preview_only.unwrap_or(false) && temp_url.is_none(),
+            preview_only: file.preview_only.unwrap_or(false)
+                && temp_url.is_none()
+                && temp_download_url.is_none(),
         })
     }
 }
@@ -459,7 +512,9 @@ impl PostSummary {
                 kinds.push(kind);
             }
             if thumbnail_url.is_none() && kind == MediaKind::Image {
-                thumbnail_url = Some(if file.path.starts_with("https://") {
+                thumbnail_url = Some(if let Some(temp) = file.temp_url() {
+                    temp.to_string()
+                } else if file.path.starts_with("https://") {
                     file.path.clone()
                 } else {
                     cfg.thumbnail_url(&file.path)
@@ -907,6 +962,82 @@ mod tests {
         assert_eq!(attachment.path, "/cc/dd/clip.mp4");
         assert_eq!(attachment.kind, MediaKind::Video);
         assert!(!attachment.preview_only);
+    }
+
+    #[test]
+    fn includes_deferred_attachments_without_paths() {
+        use crate::config::PawchiveConfig;
+
+        let cfg = PawchiveConfig::default();
+        let post: Post = serde_json::from_value(serde_json::json!({
+            "id": "172858951",
+            "user": "186745382",
+            "service": "patreon",
+            "title": "BTS 5th Muster",
+            "file": {
+                "name": "thumbnail.jpg",
+                "path": "/7a/bc/thumbnail.jpg",
+                "preview_only": true
+            },
+            "attachments": [{
+                "name": "767687094.mp4",
+                "deferred": true,
+                "temp_url": "https://t1.pawchive.pw/v/hash/master.m3u8?e=1&s=abc",
+                "temp_download_url": "https://t1.pawchive.pw/d/hash/767687094.mp4?e=1&s=xyz",
+                "temp_expires": "2026-11-30T00:00:00+00:00"
+            }]
+        }))
+        .unwrap();
+
+        assert_eq!(post.all_files().len(), 2);
+
+        let attachment = Attachment::new(&cfg, post.attachments.first().unwrap()).unwrap();
+        assert_eq!(attachment.kind, MediaKind::Video);
+        assert_eq!(attachment.name, "767687094.mp4");
+        assert_eq!(attachment.path, "/d/hash/767687094.mp4");
+        assert_eq!(
+            attachment.url,
+            "https://t1.pawchive.pw/v/hash/master.m3u8?e=1&s=abc"
+        );
+        assert_eq!(
+            attachment.download_url,
+            "https://t1.pawchive.pw/d/hash/767687094.mp4?e=1&s=xyz"
+        );
+        assert!(!attachment.preview_only);
+
+        let summary = PostSummary::from_post(&cfg, &post, None);
+        assert_eq!(summary.attachment_count, 2);
+        assert!(summary.media_kinds.contains(&MediaKind::Video));
+    }
+
+    #[test]
+    fn counts_deferred_attachments_in_list_summaries() {
+        use crate::config::PawchiveConfig;
+
+        let cfg = PawchiveConfig::default();
+        // Search/list responses omit the signed URLs; only `deferred` is set.
+        let post: Post = serde_json::from_value(serde_json::json!({
+            "id": "172858951",
+            "user": "186745382",
+            "service": "patreon",
+            "title": "BTS 5th Muster",
+            "file": {
+                "name": "thumbnail.jpg",
+                "path": "/7a/bc/thumbnail.jpg",
+                "preview_only": true
+            },
+            "attachments": [{
+                "name": "767687094.mp4",
+                "deferred": true
+            }]
+        }))
+        .unwrap();
+
+        let summary = PostSummary::from_post(&cfg, &post, None);
+        assert_eq!(summary.attachment_count, 2);
+        assert!(summary.media_kinds.contains(&MediaKind::Video));
+        // Without a signed URL the attachment cannot be built for playback.
+        assert!(Attachment::new(&cfg, post.attachments.first().unwrap()).is_none());
     }
 
     #[test]

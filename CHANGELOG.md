@@ -39,6 +39,32 @@ project follows [Semantic Versioning](https://semver.org/).
 - Windows finds ffmpeg from `PATH`, Program Files and common install folders,
   and downloaded files avoid reserved DOS device names and trailing dots.
 
+## 1.0.3.1 - 2026-11-03
+
+### Added
+
+- Streamed/deferred Patreon video attachments now appear in post lists, search
+  results and media filters instead of being counted as thumbnails only.
+- The mini player shows the live video frame once playback starts, rather than
+  keeping the post artwork over it.
+- Clicking the mini player thumbnail expands the player.
+
+### Changed
+
+- Clicking the title in the maximized player now minimizes the player and opens
+  the original post, matching the minimized player.
+
+### Fixed
+
+- Deferred video attachments now play and download using the archive's signed
+  download URL.
+- HLS playback falls back to the direct MP4 URL when the webview cannot play
+  `.m3u8` streams.
+- Playlist entries keep the real downloadable URL instead of storing the HLS
+  playlist.
+- Transcoding and caching use the direct media URL and skip `.m3u8` playlists.
+- Update checks understand four-part release tags such as `v1.0.3.1`.
+
 ## 1.0.3 - 2026-11-02
 
 ### Added

@@ -308,7 +308,7 @@ pub async fn download_post(
         .find_map(|(attachment, _)| attachment.thumbnail_url.clone());
     for (attachment, kind) in files {
         let request = DownloadRequest {
-            url: attachment.url.clone(),
+            url: attachment.download_url.clone(),
             file_name: attachment.name.clone(),
             title: title.clone(),
             creator_name: creator_name.clone(),

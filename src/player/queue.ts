@@ -48,6 +48,7 @@ export function queueItemFromAttachment(
   return {
     id: `${context.service}:${context.creatorId}:${context.postId}:${attachment.path}`,
     url: attachment.url,
+    downloadUrl: attachment.downloadUrl ?? attachment.url,
     filePath: attachment.path,
     fileName: attachment.name,
     mediaKind: attachment.kind,
@@ -64,6 +65,7 @@ export function queueItemFromPlaylistItem(item: PlaylistItem): QueueItem {
   return {
     id: `${item.service}:${item.creatorId}:${item.postId}:${item.mediaPath}`,
     url: item.mediaUrl,
+    downloadUrl: null,
     localPath: item.localPath ?? null,
     filePath: item.mediaPath,
     fileName: item.mediaPath.split("/").pop() ?? item.title,

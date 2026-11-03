@@ -70,6 +70,11 @@ pub fn get_config(state: State<'_, AppState>) -> PawchiveConfig {
 const UPDATES_API: &str = "https://api.github.com/repos/tplw/Pawchive-Client/releases/latest";
 const RELEASES_PAGE: &str = "https://github.com/tplw/Pawchive-Client/releases";
 
+/// Human-facing release version. Cargo and the Tauri bundle configuration
+/// require a strict three-part semver, while Pawchive releases can use a
+/// fourth patch segment (for example `1.0.3.1`).
+pub const APP_VERSION: &str = "1.0.3.1";
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {
@@ -80,12 +85,32 @@ pub struct UpdateInfo {
     release_name: Option<String>,
 }
 
+/// Parse a release version with two to four numeric segments. Release tags
+/// such as `v1.0.3.1` are valid Pawchive versions even though Cargo and Tauri
+/// only accept three numeric segments.
+fn parse_version(input: &str) -> AppResult<Vec<u64>> {
+    let raw = input.trim().trim_start_matches('v');
+    let core = raw.split(['-', '+']).next().unwrap_or(raw);
+    let mut parts = Vec::new();
+    for part in core.split('.') {
+        parts.push(
+            part.parse::<u64>()
+                .map_err(|_| AppError::InvalidResponse(format!("invalid version: {input}")))?,
+        );
+    }
+    if !(2..=4).contains(&parts.len()) {
+        return Err(AppError::InvalidResponse(format!(
+            "invalid version: {input}"
+        )));
+    }
+    while parts.len() < 4 {
+        parts.push(0);
+    }
+    Ok(parts)
+}
+
 fn is_newer_version(current: &str, latest: &str) -> AppResult<bool> {
-    let current = semver::Version::parse(current.trim_start_matches('v'))
-        .map_err(|e| AppError::Internal(format!("invalid current version: {e}")))?;
-    let latest = semver::Version::parse(latest.trim_start_matches('v'))
-        .map_err(|e| AppError::InvalidResponse(format!("invalid release version: {e}")))?;
-    Ok(latest > current)
+    Ok(parse_version(latest)? > parse_version(current)?)
 }
 
 #[tauri::command]
@@ -121,7 +146,7 @@ pub async fn check_for_update(state: State<'_, AppState>) -> AppResult<UpdateInf
         .and_then(|value| value.as_str())
         .ok_or_else(|| AppError::InvalidResponse("release has no tag name".into()))?;
     let latest = latest.trim_start_matches('v');
-    let update_available = is_newer_version(env!("CARGO_PKG_VERSION"), latest)?;
+    let update_available = is_newer_version(APP_VERSION, latest)?;
     let url = payload
         .get("html_url")
         .and_then(|value| value.as_str())
@@ -133,7 +158,7 @@ pub async fn check_for_update(state: State<'_, AppState>) -> AppResult<UpdateInf
         .map(str::to_string);
 
     Ok(UpdateInfo {
-        current_version: env!("CARGO_PKG_VERSION").to_string(),
+        current_version: APP_VERSION.to_string(),
         latest_version: latest.to_string(),
         update_available,
         url: url.to_string(),
@@ -331,11 +356,18 @@ fn thumbnail_for_file(st: &AppState, file: &crate::models::FileRef) -> Option<St
     if crate::models::media_kind_for_file(file) != MediaKind::Image {
         return None;
     }
-    Some(if file.path.starts_with("https://") {
-        file.path.clone()
+    if let Some(temp) = file.temp_url() {
+        if let Ok(url) = crate::security::validate_media_remote_url(temp) {
+            return Some(url.to_string());
+        }
+    }
+    if file.path.starts_with("https://") {
+        Some(file.path.clone())
+    } else if !file.path.trim().is_empty() {
+        Some(st.cfg.thumbnail_url(&file.path))
     } else {
-        st.cfg.thumbnail_url(&file.path)
-    })
+        None
+    }
 }
 
 fn post_thumbnail(st: &AppState, post: &Post) -> Option<String> {
@@ -1405,6 +1437,15 @@ mod tests {
         assert!(!is_newer_version("1.0.2", "1.0.2").unwrap());
         assert!(!is_newer_version("1.0.2", "1.0.1").unwrap());
         assert!(is_newer_version("1.0.2", "not-a-version").is_err());
+    }
+
+    #[test]
+    fn compares_four_part_release_versions() {
+        assert!(is_newer_version("1.0.3", "1.0.3.1").unwrap());
+        assert!(is_newer_version("1.0.3.1", "v1.0.4").unwrap());
+        assert!(!is_newer_version("1.0.3.1", "v1.0.3.1").unwrap());
+        assert!(!is_newer_version("1.0.4", "v1.0.3.1").unwrap());
+        assert!(!is_newer_version("1.0.3.1", "1.0.3").unwrap());
     }
 
     #[test]

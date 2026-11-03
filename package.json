@@ -1,7 +1,7 @@
 {
   "name": "pawchive-client",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.3.1",
   "type": "module",
   "description": "A native desktop and mobile client for the Pawchive archive",
   "scripts": {

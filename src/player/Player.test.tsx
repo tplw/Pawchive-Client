@@ -39,7 +39,11 @@ describe("player", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearProgressCache();
-    useAppStore.setState({ toasts: [] });
+    useAppStore.setState({
+      toasts: [],
+      route: { name: "home" },
+      previousRoute: null,
+    });
     usePlayerStore.setState({
       queue: [item],
       currentId: item.id,
@@ -113,6 +117,61 @@ describe("player", () => {
     render(<Player />);
     fireEvent.click(screen.getByTitle("Open original post"));
     expect(window.location.hash).toBe("#/post/patreon/1/2");
+  });
+
+  it("minimizes the player and opens the post from the expanded title", () => {
+    window.location.hash = "#/home";
+    usePlayerStore.setState({ expanded: true });
+    render(<Player />);
+    fireEvent.click(screen.getByTitle("Open original post"));
+    expect(window.location.hash).toBe("#/post/patreon/1/2");
+    expect(usePlayerStore.getState().expanded).toBe(false);
+  });
+
+  it("expands the player when the compact thumbnail is clicked", () => {
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    expect(video).not.toBeNull();
+    fireEvent.click(video);
+    expect(usePlayerStore.getState().expanded).toBe(true);
+  });
+
+  it("falls back to the direct download when HLS playback is unsupported", async () => {
+    const hlsItem: QueueItem = {
+      ...item,
+      id: "patreon:1:2:/d/hash/clip.mp4",
+      url: "https://t1.pawchive.pw/v/hash/master.m3u8?e=1&s=abc",
+      downloadUrl: "https://t1.pawchive.pw/d/hash/clip.mp4?e=1&s=xyz",
+      filePath: "/d/hash/clip.mp4",
+    };
+    usePlayerStore.setState({ queue: [hlsItem], currentId: hlsItem.id });
+    vi.mocked(api.validateMedia).mockResolvedValue(hlsItem.url);
+
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    await waitFor(() => expect(video.src).toBe(hlsItem.url));
+
+    fireEvent.error(video);
+
+    await waitFor(() => expect(video.src).toBe(hlsItem.downloadUrl));
+  });
+
+  it("shows the playing video instead of the artwork in the mini player", async () => {
+    const artworkItem: QueueItem = {
+      ...item,
+      artwork: "https://img.pawchive.pw/thumbnail/data/aa/bb/cover.jpg",
+    };
+    usePlayerStore.setState({ queue: [artworkItem], currentId: artworkItem.id });
+    vi.mocked(api.validateMedia).mockResolvedValue(artworkItem.url);
+
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    const stage = video.parentElement as HTMLElement;
+    expect(stage.querySelector("img")).not.toBeNull();
+
+    await waitFor(() => expect(video.src).toBe(artworkItem.url));
+    fireEvent.loadedData(video);
+    expect(stage.querySelector("img")).toBeNull();
   });
 
   it("restores the last playback position after metadata loads", async () => {

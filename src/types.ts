@@ -54,6 +54,7 @@ export interface Attachment {
   name: string;
   path: string;
   url: string;
+  downloadUrl?: string | null;
   thumbnailUrl: string | null;
   kind: MediaKind;
   ext: string;
@@ -260,6 +261,7 @@ export interface AccountState {
 export interface QueueItem {
   id: string;
   url: string;
+  downloadUrl?: string | null;
   localPath?: string | null;
   filePath: string;
   fileName: string;

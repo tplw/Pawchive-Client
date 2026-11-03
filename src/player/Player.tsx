@@ -37,6 +37,10 @@ import type { PlaylistItemInput } from "../types";
 import { Button, IconButton } from "../components/ui";
 import { PlaylistPicker } from "../components/PlaylistPicker";
 
+function isHlsUrl(url: string): boolean {
+  return /\.m3u8(?:$|[?#])/i.test(url);
+}
+
 function SeekBar({
   value,
   max,
@@ -272,6 +276,7 @@ export function Player() {
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [videoAspect, setVideoAspect] = useState<number | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
   const [stageBounds, setStageBounds] = useState({ width: 0, height: 0 });
   const [controlsVisible, setControlsVisible] = useState(true);
   const [showQueue, setShowQueue] = useState(false);
@@ -281,6 +286,7 @@ export function Player() {
   >(null);
   const transcodeRequestRef = useRef<string | null>(null);
   const transcodeAttemptedRef = useRef<string | null>(null);
+  const hlsFallbackRef = useRef<string | null>(null);
   const isLandscape = useIsLandscape();
   const [playlistItem, setPlaylistItem] = useState<PlaylistItemInput | null>(null);
 
@@ -366,6 +372,10 @@ export function Player() {
   }, [expanded, item?.id]);
 
   useEffect(() => {
+    setVideoReady(false);
+  }, [item?.id, source]);
+
+  useEffect(() => {
     if (!autoHideControls) setControlsVisible(true);
   }, [autoHideControls]);
 
@@ -378,6 +388,7 @@ export function Player() {
   useEffect(() => {
     transcodeAttemptedRef.current = null;
     transcodeRequestRef.current = null;
+    hlsFallbackRef.current = null;
     setTranscodeProgress(null);
     setTranscodePhase(null);
   }, [item?.id]);
@@ -451,7 +462,10 @@ export function Player() {
     setTranscodePhase("download");
     setTranscodeProgress(0);
     try {
-      const localUrl = await api.transcodeMedia(item.url, requestId);
+      const localUrl = await api.transcodeMedia(
+        item.downloadUrl ?? item.url,
+        requestId,
+      );
       if (transcodeRequestRef.current !== requestId) return;
       transcodeRequestRef.current = null;
       setSource(localUrl);
@@ -510,9 +524,13 @@ export function Player() {
         .catch(() => {
           if (!cancelled) loadRemote();
         });
-    } else if (settings.cacheMedia && item.url.startsWith("https://")) {
+    } else if (
+      settings.cacheMedia &&
+      !isHlsUrl(item.url) &&
+      item.url.startsWith("https://")
+    ) {
       void api
-        .getCachedMediaUrl(item.url)
+        .getCachedMediaUrl(item.downloadUrl ?? item.url)
         .then((cached) => {
           if (cancelled) return;
           if (cached) {
@@ -829,6 +847,17 @@ export function Player() {
     ) : null;
   }
 
+  const openOriginalPost = () => {
+    if (!item.postId) return;
+    if (expanded) collapse();
+    navigate({
+      name: "post",
+      service: item.service,
+      creatorId: item.creatorId,
+      postId: item.postId,
+    });
+  };
+
   const onLoadedMetadata = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -856,6 +885,24 @@ export function Player() {
 
   const onError = () => {
     const code = videoRef.current?.error?.code;
+    // Some webviews (notably WebView2) have no native HLS support. When the
+    // archive gave us a direct download URL, retry once with that before
+    // surfacing an error.
+    if (
+      item &&
+      isHlsUrl(item.url) &&
+      item.downloadUrl &&
+      item.downloadUrl !== item.url &&
+      !isHlsUrl(item.downloadUrl) &&
+      hlsFallbackRef.current !== item.id
+    ) {
+      hlsFallbackRef.current = item.id;
+      setSource(item.downloadUrl);
+      setError(null);
+      setLoading(true);
+      setPlaying(true);
+      return;
+    }
     if (
       settings.transcodeMedia &&
       item &&
@@ -919,11 +966,28 @@ export function Player() {
       setControlsVisible((visible) => !visible);
       return;
     }
-    togglePlayback();
+    setExpanded(true);
   };
 
   const mediaStage = (
     <div
+      role={!expanded ? "button" : undefined}
+      tabIndex={!expanded ? 0 : undefined}
+      aria-label={
+        !expanded ? (isAudio ? "Expand audio player" : "Expand video player") : undefined
+      }
+      title={!expanded ? "Expand player" : undefined}
+      onClick={!expanded ? () => setExpanded(true) : undefined}
+      onKeyDown={
+        !expanded
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setExpanded(true);
+              }
+            }
+          : undefined
+      }
       className={cn(
         "relative flex shrink-0 items-center justify-center overflow-hidden bg-black",
         expanded
@@ -931,8 +995,8 @@ export function Player() {
             ? "absolute inset-0"
             : "max-h-full max-w-full"
           : isAudio
-            ? "h-14 w-14 rounded-lg"
-            : "h-14 w-24 rounded-lg",
+            ? "h-14 w-14 cursor-pointer rounded-lg"
+            : "h-14 w-24 cursor-pointer rounded-lg",
       )}
       style={videoStageStyle}
     >
@@ -972,6 +1036,7 @@ export function Player() {
           isAudio && "hidden",
         )}
         onLoadedMetadata={onLoadedMetadata}
+        onLoadedData={() => setVideoReady(true)}
         onDurationChange={() => setDuration(videoRef.current?.duration ?? 0)}
         onTimeUpdate={onTimeUpdate}
         onProgress={onProgress}
@@ -995,12 +1060,14 @@ export function Player() {
         }}
         onEnded={() => {
           saveProgress();
+          const cacheUrl = item.downloadUrl ?? item.url;
           if (
             settings.cacheMedia &&
-            item.url.startsWith("https://") &&
+            !isHlsUrl(item.url) &&
+            cacheUrl.startsWith("https://") &&
             !item.localPath
           ) {
-            void api.cacheMedia(item.url).catch(() => undefined);
+            void api.cacheMedia(cacheUrl).catch(() => undefined);
           }
           const state = usePlayerStore.getState();
           const index = state.queue.findIndex((entry) => entry.id === state.currentId);
@@ -1018,7 +1085,7 @@ export function Player() {
         onClick={onVideoClick}
       />
 
-      {!expanded && !isAudio && item.artwork ? (
+      {!expanded && !isAudio && item.artwork && !videoReady ? (
         <img
           src={item.artwork}
           alt=""
@@ -1043,7 +1110,10 @@ export function Player() {
         </div>
       ) : null}
       {error ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/85 px-5 text-center">
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/85 px-5 text-center"
+          onClick={(event) => event.stopPropagation()}
+        >
           <p
             className={cn(
               "max-w-sm text-white/75",
@@ -1198,7 +1268,7 @@ export function Player() {
             creatorId: item.creatorId,
             postId: item.postId,
             mediaPath: item.filePath,
-            mediaUrl: item.url,
+            mediaUrl: item.downloadUrl ?? item.url,
             title: item.title,
             creatorName: item.creatorName,
             thumbnailUrl: item.artwork,
@@ -1270,15 +1340,7 @@ export function Player() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  if (!item.postId) return;
-                  navigate({
-                    name: "post",
-                    service: item.service,
-                    creatorId: item.creatorId,
-                    postId: item.postId,
-                  });
-                }}
+                onClick={openOriginalPost}
                 title="Open original post"
                 className="min-w-0 truncate text-left text-[11px] font-bold text-ink transition hover:text-accent"
               >
@@ -1305,9 +1367,20 @@ export function Player() {
         <div className="player-controls-ios absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black via-black/90 to-transparent px-4 pt-16">
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-bold text-white/90">
-                {item.title || item.fileName}
-              </p>
+              {item.postId ? (
+                <button
+                  type="button"
+                  onClick={openOriginalPost}
+                  title="Open original post"
+                  className="block max-w-full truncate text-left text-xs font-bold text-white/90 transition hover:text-accent"
+                >
+                  {item.title || item.fileName}
+                </button>
+              ) : (
+                <p className="truncate text-xs font-bold text-white/90">
+                  {item.title || item.fileName}
+                </p>
+              )}
               <p className="truncate text-[9px] text-white/40">
                 {item.creatorName || item.fileName}
               </p>

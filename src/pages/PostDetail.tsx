@@ -99,13 +99,13 @@ function AttachmentMeta({
 
   useEffect(() => {
     let cancelled = false;
-    void mediaSize(attachment.url).then((value) => {
+    void mediaSize(attachment.downloadUrl ?? attachment.url).then((value) => {
       if (!cancelled) setSize(value);
     });
     return () => {
       cancelled = true;
     };
-  }, [attachment.url]);
+  }, [attachment.downloadUrl, attachment.url]);
 
   useEffect(() => {
     if (attachment.kind !== "video" && attachment.kind !== "image") return;
@@ -284,7 +284,7 @@ export function PostDetailPage({
       creatorId,
       postId,
       mediaPath: attachment.path,
-      mediaUrl: attachment.url,
+      mediaUrl: attachment.downloadUrl ?? attachment.url,
       title: detail.post.title || attachment.name,
       creatorName,
       thumbnailUrl:
@@ -305,7 +305,7 @@ export function PostDetailPage({
     }
     try {
       await api.startDownload({
-        url: attachment.url,
+        url: attachment.downloadUrl ?? attachment.url,
         fileName: attachment.name,
         title: detail.post.title || attachment.name,
         creatorName,
@@ -332,7 +332,7 @@ export function PostDetailPage({
 
   const openFile = async (attachment: Attachment) => {
     try {
-      await api.openExternal(attachment.url);
+      await api.openExternal(attachment.downloadUrl ?? attachment.url);
     } catch (error) {
       reportError(error, "Could not open this file");
     }

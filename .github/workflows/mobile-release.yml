@@ -1,0 +1,147 @@
+name: Mobile Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the mobile builds to
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  android:
+    name: Android release APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.0.12077973"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+
+      - name: Build release APKs
+        run: |
+          npm run android:build -- --target aarch64
+          npm run android:build -- --target armv7
+
+      - name: Collect assets
+        run: |
+          VERSION="${TAG#v}"
+          mkdir -p release-assets
+          cp src-tauri/gen/android/app/build/outputs/apk/arm64/release/*.apk \
+            "release-assets/Pawchive_${VERSION}_android-arm64.apk"
+          cp src-tauri/gen/android/app/build/outputs/apk/arm/release/*.apk \
+            "release-assets/Pawchive_${VERSION}_android-armv7.apk"
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for _ in $(seq 1 90); do
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release upload "$TAG" release-assets/*.apk --clobber
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Release $TAG was not created in time" >&2
+          exit 1
+
+  ios:
+    name: iOS unsigned IPA
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Ensure CocoaPods is available
+        run: |
+          if ! command -v pod >/dev/null 2>&1; then
+            brew install cocoapods
+          fi
+
+      - name: Build unsigned IPA
+        run: sh scripts/ios.sh build --no-sign --export-method debugging --ci
+
+      - name: Collect asset
+        run: |
+          VERSION="${TAG#v}"
+          mkdir -p release-assets
+          IPA=$(find src-tauri/gen/apple/build -name '*.ipa' -print -quit)
+          if [ -z "$IPA" ]; then
+            echo "No IPA was produced" >&2
+            exit 1
+          fi
+          cp "$IPA" "release-assets/Pawchive_${VERSION}_ios-unsigned.ipa"
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for _ in $(seq 1 90); do
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release upload "$TAG" release-assets/*.ipa --clobber
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Release $TAG was not created in time" >&2
+          exit 1
