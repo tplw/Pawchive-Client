@@ -139,6 +139,20 @@ describe("player", () => {
     expect(usePlayerStore.getState().expanded).toBe(true);
   });
 
+  it("hides and restores the player ui when the media is pressed", () => {
+    usePlayerStore.setState({ expanded: true });
+    render(<Player />);
+
+    const toggle = screen.getByLabelText("Toggle player controls");
+    expect(screen.getByTitle("Open original post")).toBeTruthy();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByTitle("Open original post")).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(screen.getByTitle("Open original post")).toBeTruthy();
+  });
+
   it("falls back to the direct download when HLS playback is unsupported", async () => {
     const hlsItem: QueueItem = {
       ...item,

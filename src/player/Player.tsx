@@ -341,7 +341,7 @@ export function Player() {
       }`
     : null;
   const autoHideControls =
-    expanded && !isAudio && isLandscape && (isMobile || fullscreen);
+    expanded && !isAudio && (fullscreen || (isMobile && isLandscape));
   const hideStatusBar =
     isIos && expanded && !isAudio && (isLandscape || fullscreen);
 
@@ -982,7 +982,8 @@ export function Player() {
         setShowQueue(false);
         return;
       }
-      if (!autoHideControls) return;
+      // Pressing the media always toggles the controls in the expanded
+      // player, including desktop fullscreen where auto-hide is optional.
       setControlsVisible((visible) => !visible);
       return;
     }
