@@ -169,6 +169,8 @@ export interface AppSettings {
   loadAheadPages: number;
   showCreatorUpdated: boolean;
   autoCheckUpdates: boolean;
+  /** Release version the user dismissed; newer versions show the prompt again. */
+  dismissedUpdateVersion: string;
 }
 
 export interface PawchiveConfig {

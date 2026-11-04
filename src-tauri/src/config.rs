@@ -29,10 +29,10 @@ impl Default for PawchiveConfig {
             image_base: "https://img.pawchive.pw".to_string(),
             file_base: "https://file.pawchive.pw/data".to_string(),
             app_name: "Pawchive".to_string(),
-            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            app_version: crate::version::APP_VERSION.to_string(),
             user_agent: format!(
                 "PawchiveClient/{} (+https://pawchive.pw)",
-                env!("CARGO_PKG_VERSION")
+                crate::version::APP_VERSION
             ),
             default_timeout_secs: 30,
             default_concurrency: 8,
@@ -115,3 +115,16 @@ impl Default for NetworkSettings {
 pub const PAGE_SIZE: i64 = 50;
 pub const MIN_SEARCH_LEN: usize = 3;
 pub const MAX_SEARCH_LEN: usize = 200;
+
+#[cfg(test)]
+mod tests {
+    use super::PawchiveConfig;
+
+    #[test]
+    fn exposes_the_release_version() {
+        assert_eq!(
+            PawchiveConfig::default().app_version,
+            crate::version::APP_VERSION
+        );
+    }
+}

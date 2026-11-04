@@ -51,6 +51,7 @@ interface AppStore {
   updateError: string | null;
   initialize: () => Promise<void>;
   checkForUpdates: (options?: { silent?: boolean }) => Promise<void>;
+  dismissUpdate: () => Promise<void>;
   ensureCreatorIndex: (force?: boolean) => Promise<void>;
   saveSettings: (patch: Partial<AppSettings>) => Promise<void>;
   navigate: (route: Route) => void;
@@ -135,6 +136,20 @@ function initialNavigation(): {
 
 const initial = initialNavigation();
 
+/**
+ * Returns the release version that should be announced in the update prompt.
+ * A version is only announced until the user dismisses that exact version;
+ * the prompt returns automatically for any newer release.
+ */
+export function pendingUpdateVersion(
+  info: UpdateInfo | null,
+  settings: Pick<AppSettings, "dismissedUpdateVersion">,
+): string | null {
+  if (!info?.updateAvailable) return null;
+  if (info.latestVersion === settings.dismissedUpdateVersion) return null;
+  return info.latestVersion;
+}
+
 export const useAppStore = create<AppStore>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   config: FALLBACK_CONFIG,
@@ -190,13 +205,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ updateChecking: true, updateError: null });
     try {
       const info = await api.checkForUpdate();
+      const promptVersion = pendingUpdateVersion(info, get().settings);
       set({ updateInfo: info, updateChecking: false });
       if (info.updateAvailable) {
-        get().toast(
-          "info",
-          "Update available",
-          `Pawchive ${info.latestVersion} is available.`,
-        );
+        // The one-time prompt covers fresh releases. Once the user dismissed
+        // this version, only a manual check still reports it as a toast.
+        if (!promptVersion && !options?.silent) {
+          get().toast(
+            "info",
+            "Update available",
+            `Pawchive ${info.latestVersion} is available.`,
+          );
+        }
       } else if (!options?.silent) {
         get().toast(
           "success",
@@ -213,6 +233,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
         get().reportError(error, "Could not check for updates");
       }
     }
+  },
+
+  dismissUpdate: () => {
+    const info = get().updateInfo;
+    if (!info?.updateAvailable) return Promise.resolve();
+    return get().saveSettings({
+      dismissedUpdateVersion: info.latestVersion,
+    });
   },
 
   ensureCreatorIndex: async (force = false) => {

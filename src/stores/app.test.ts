@@ -3,7 +3,7 @@ import { waitFor } from "@testing-library/react";
 import { DEFAULT_SETTINGS, FALLBACK_CONFIG } from "../lib/constants";
 import { switchTab } from "../lib/router";
 import { api } from "../services/api";
-import { useAppStore } from "./app";
+import { pendingUpdateVersion, useAppStore } from "./app";
 
 vi.mock("../services/api", () => ({
   api: {
@@ -14,6 +14,7 @@ vi.mock("../services/api", () => ({
     syncCreators: vi.fn(),
     getAccountState: vi.fn(),
     syncAccountFavorites: vi.fn(),
+    checkForUpdate: vi.fn(),
   },
 }));
 
@@ -37,6 +38,9 @@ describe("app store", () => {
       indexState: "idle",
       indexCount: 0,
       indexError: null,
+      updateInfo: null,
+      updateChecking: false,
+      updateError: null,
     });
   });
 
@@ -176,6 +180,71 @@ describe("app store", () => {
       "Note 3",
       "Note 4",
     ]);
+  });
+
+  it("announces a new release once and remembers the dismissal", async () => {
+    vi.mocked(api.saveSettings).mockImplementation(async (settings) => settings);
+    vi.mocked(api.checkForUpdate).mockResolvedValue({
+      currentVersion: "1.0.3.1",
+      latestVersion: "1.0.4",
+      updateAvailable: true,
+      url: "https://example.com/releases",
+      releaseName: "Pawchive 1.0.4",
+    });
+
+    await useAppStore.getState().checkForUpdates({ silent: true });
+    let state = useAppStore.getState();
+    expect(pendingUpdateVersion(state.updateInfo, state.settings)).toBe("1.0.4");
+    // The popup replaces the startup toast, so silent checks stay quiet.
+    expect(state.toasts).toHaveLength(0);
+
+    await useAppStore.getState().dismissUpdate();
+    expect(api.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ dismissedUpdateVersion: "1.0.4" }),
+    );
+    state = useAppStore.getState();
+    expect(state.settings.dismissedUpdateVersion).toBe("1.0.4");
+    expect(pendingUpdateVersion(state.updateInfo, state.settings)).toBeNull();
+
+    // The same release never prompts again, even on another startup check.
+    await useAppStore.getState().checkForUpdates({ silent: true });
+    state = useAppStore.getState();
+    expect(pendingUpdateVersion(state.updateInfo, state.settings)).toBeNull();
+    expect(state.toasts).toHaveLength(0);
+
+    // A manual check still reports the skipped release as a toast.
+    await useAppStore.getState().checkForUpdates();
+    state = useAppStore.getState();
+    expect(state.toasts[state.toasts.length - 1]?.title).toBe(
+      "Update available",
+    );
+  });
+
+  it("prompts again when a newer release appears", async () => {
+    vi.mocked(api.saveSettings).mockImplementation(async (settings) => settings);
+    vi.mocked(api.checkForUpdate).mockResolvedValue({
+      currentVersion: "1.0.3.1",
+      latestVersion: "1.0.4",
+      updateAvailable: true,
+      url: "https://example.com/releases",
+      releaseName: null,
+    });
+    await useAppStore.getState().checkForUpdates({ silent: true });
+    await useAppStore.getState().dismissUpdate();
+
+    vi.mocked(api.checkForUpdate).mockResolvedValue({
+      currentVersion: "1.0.3.1",
+      latestVersion: "1.0.4.1",
+      updateAvailable: true,
+      url: "https://example.com/releases",
+      releaseName: null,
+    });
+    await useAppStore.getState().checkForUpdates({ silent: true });
+    const state = useAppStore.getState();
+    expect(pendingUpdateVersion(state.updateInfo, state.settings)).toBe(
+      "1.0.4.1",
+    );
+    expect(state.toasts).toHaveLength(0);
   });
 
   it("uses an existing creator index without syncing again", async () => {

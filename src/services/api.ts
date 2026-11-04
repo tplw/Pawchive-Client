@@ -68,6 +68,8 @@ export const api = {
   getConfig: () => call<PawchiveConfig>("get_config"),
   checkForUpdate: () => call<UpdateInfo>("check_for_update"),
   openExternal: (url: string) => call<void>("open_external", { url }),
+  setStatusBarHidden: (hidden: boolean) =>
+    call<void>("set_status_bar_hidden", { hidden }),
 
   syncCreators: (signal?: AbortSignal) =>
     cancellable(signal, (requestId) =>

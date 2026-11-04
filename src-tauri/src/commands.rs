@@ -70,11 +70,6 @@ pub fn get_config(state: State<'_, AppState>) -> PawchiveConfig {
 const UPDATES_API: &str = "https://api.github.com/repos/tplw/Pawchive-Client/releases/latest";
 const RELEASES_PAGE: &str = "https://github.com/tplw/Pawchive-Client/releases";
 
-/// Human-facing release version. Cargo and the Tauri bundle configuration
-/// require a strict three-part semver, while Pawchive releases can use a
-/// fourth patch segment (for example `1.0.3.1`).
-pub const APP_VERSION: &str = "1.0.3.1";
-
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {
@@ -146,7 +141,7 @@ pub async fn check_for_update(state: State<'_, AppState>) -> AppResult<UpdateInf
         .and_then(|value| value.as_str())
         .ok_or_else(|| AppError::InvalidResponse("release has no tag name".into()))?;
     let latest = latest.trim_start_matches('v');
-    let update_available = is_newer_version(APP_VERSION, latest)?;
+    let update_available = is_newer_version(crate::version::APP_VERSION, latest)?;
     let url = payload
         .get("html_url")
         .and_then(|value| value.as_str())
@@ -158,7 +153,7 @@ pub async fn check_for_update(state: State<'_, AppState>) -> AppResult<UpdateInf
         .map(str::to_string);
 
     Ok(UpdateInfo {
-        current_version: APP_VERSION.to_string(),
+        current_version: crate::version::APP_VERSION.to_string(),
         latest_version: latest.to_string(),
         update_available,
         url: url.to_string(),
@@ -171,6 +166,34 @@ pub fn open_external(url: String) -> AppResult<()> {
     let url = crate::security::validate_external_url(&url)?;
     tauri_plugin_opener::open_url(url.as_str(), None::<&str>)
         .map_err(|e| AppError::Io(format!("could not open the link: {e}")))
+}
+
+/// Hide or restore the iOS status bar while the player is immersive.
+///
+/// The generated iOS project sets `UIViewControllerBasedStatusBarAppearance`
+/// to `false`, so the app-level status bar state is authoritative.
+#[tauri::command]
+pub fn set_status_bar_hidden(app: tauri::AppHandle, hidden: bool) -> AppResult<()> {
+    #[cfg(target_os = "ios")]
+    {
+        app.run_on_main_thread(move || {
+            use objc2::MainThreadMarker;
+            use objc2_ui_kit::UIApplication;
+
+            let Some(mtm) = MainThreadMarker::new() else {
+                return;
+            };
+            let application = UIApplication::sharedApplication(mtm);
+            #[allow(deprecated)]
+            application.setStatusBarHidden_animated(hidden, false);
+        })
+        .map_err(|error| AppError::Internal(error.to_string()))?;
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let _ = (app, hidden);
+    }
+    Ok(())
 }
 
 /* ------------------------------- creators ------------------------------- */

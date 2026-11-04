@@ -70,6 +70,7 @@
       "minimumSystemVersion": "11.0"
     },
     "iOS": {
+      "bundleVersion": "1.0.3.1",
       "minimumSystemVersion": "15.0"
     },
     "windows": {

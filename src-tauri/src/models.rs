@@ -713,6 +713,9 @@ pub struct AppSettings {
     pub load_ahead_pages: u64,
     pub show_creator_updated: bool,
     pub auto_check_updates: bool,
+    /// Latest release the user dismissed, so the update prompt only appears
+    /// once per version.
+    pub dismissed_update_version: String,
 }
 
 impl Default for AppSettings {
@@ -744,6 +747,7 @@ impl Default for AppSettings {
             load_ahead_pages: 1,
             show_creator_updated: false,
             auto_check_updates: true,
+            dismissed_update_version: String::new(),
         }
     }
 }

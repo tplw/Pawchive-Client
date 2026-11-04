@@ -18,6 +18,7 @@ vi.mock("../services/api", () => ({
     saveProgress: vi.fn(),
     readSubtitle: vi.fn(),
     openExternal: vi.fn(),
+    setStatusBarHidden: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -103,13 +104,15 @@ describe("player", () => {
     expect(play).toHaveBeenCalled();
   });
 
-  it("shows the buffering notice over the media stage", async () => {
+  it("shows the buffering animation beside the media time", async () => {
     usePlayerStore.setState({ expanded: true });
     render(<Player />);
-    const notice = await screen.findByText("Buffering…");
-    const stage = notice.closest(".relative");
-    expect(stage).not.toBeNull();
-    expect(stage?.querySelector("video")).not.toBeNull();
+    const spinner = await screen.findByRole("status", { name: "Buffering" });
+    const time = screen.getByText(/0:00 \/ 0:00/);
+    expect(time.parentElement).toContainElement(spinner);
+    expect(
+      time.compareDocumentPosition(spinner) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("opens the original post from the compact player title", () => {

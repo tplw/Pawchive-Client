@@ -15,6 +15,7 @@ import { MobileTabBar } from "./components/MobileTabBar";
 import { TopBar } from "./components/TopBar";
 import { Player } from "./player/Player";
 import { Button, Toaster } from "./components/ui";
+import { UpdateDialog } from "./components/UpdateDialog";
 import { hexToRgbTriplet, isEditableTarget } from "./lib/format";
 import { markNavigation } from "./lib/perf";
 import {
@@ -476,6 +477,7 @@ export default function App() {
         <Player />
         {isMobile ? <MobileTabBar /> : null}
       </div>
+      <UpdateDialog />
       <Toaster />
     </div>
   );

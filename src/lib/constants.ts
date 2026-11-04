@@ -38,6 +38,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   loadAheadPages: 1,
   showCreatorUpdated: false,
   autoCheckUpdates: true,
+  dismissedUpdateVersion: "",
 };
 
 export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;

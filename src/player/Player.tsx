@@ -26,7 +26,7 @@ import { api } from "../services/api";
 import { SPEEDS, errorMessage } from "../lib/constants";
 import { cn, formatDuration, isEditableTarget } from "../lib/format";
 import { useIsLandscape } from "../lib/orientation";
-import { isMobile } from "../lib/platform";
+import { isIos, isMobile } from "../lib/platform";
 import { navigate } from "../lib/router";
 import { useAppStore } from "../stores/app";
 import { isPlayableMediaKind, playbackProgressKey } from "./queue";
@@ -342,6 +342,20 @@ export function Player() {
     : null;
   const autoHideControls =
     expanded && !isAudio && isLandscape && (isMobile || fullscreen);
+  const hideStatusBar =
+    isIos && expanded && !isAudio && (isLandscape || fullscreen);
+
+  useEffect(() => {
+    if (!isIos) return;
+    void api.setStatusBarHidden(hideStatusBar).catch(() => undefined);
+  }, [hideStatusBar]);
+
+  useEffect(() => {
+    if (!isIos) return;
+    return () => {
+      void api.setStatusBarHidden(false).catch(() => undefined);
+    };
+  }, []);
 
   useEffect(() => {
     if (!expanded) return;
@@ -380,10 +394,16 @@ export function Player() {
   }, [autoHideControls]);
 
   useEffect(() => {
-    if (!autoHideControls || !controlsVisible || showQueue) return;
+    // The buffering indicator lives in the controls, so keep them visible
+    // while the stream is stalled.
+    if (loading) setControlsVisible(true);
+  }, [loading]);
+
+  useEffect(() => {
+    if (!autoHideControls || !controlsVisible || showQueue || loading) return;
     const timer = window.setTimeout(() => setControlsVisible(false), 4000);
     return () => window.clearTimeout(timer);
-  }, [autoHideControls, controlsVisible, showQueue, item?.id]);
+  }, [autoHideControls, controlsVisible, showQueue, item?.id, loading]);
 
   useEffect(() => {
     transcodeAttemptedRef.current = null;
@@ -1092,23 +1112,6 @@ export function Player() {
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
       ) : null}
-      {loading && !error ? (
-        <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-black/20 [transform:translateZ(0)]">
-          <div className="flex flex-col items-center gap-1.5">
-            <LoaderCircle
-              className={cn(
-                "animate-spin text-white/80",
-                expanded ? "h-8 w-8" : "h-4 w-4",
-              )}
-            />
-            {expanded ? (
-              <span className="rounded-full bg-black/60 px-3 py-1 text-[10px] font-medium text-white/85 backdrop-blur">
-                {transcodeText ?? "Buffering…"}
-              </span>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
       {error ? (
         <div
           className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/85 px-5 text-center"
@@ -1139,6 +1142,17 @@ export function Player() {
     </div>
   );
 
+  const bufferingIndicator =
+    loading && !error ? (
+      <span
+        role="status"
+        aria-label="Buffering"
+        className="inline-flex shrink-0 items-center"
+      >
+        <LoaderCircle className="h-3 w-3 animate-spin text-white/60" />
+      </span>
+    ) : null;
+
   const controls = (
     <div className="flex flex-col gap-1.5">
       <SeekBar
@@ -1163,8 +1177,11 @@ export function Player() {
           )}
         </button>
         <IconButton label="Next" icon={SkipForward} size="sm" onClick={() => next()} />
-        <span className="player-time ml-1 whitespace-nowrap text-[10px] tabular-nums text-white/55">
-          {formatDuration(currentTime)} / {formatDuration(duration)}
+        <span className="player-time ml-1 flex items-center gap-1 whitespace-nowrap text-[10px] tabular-nums text-white/55">
+          <span>
+            {formatDuration(currentTime)} / {formatDuration(duration)}
+          </span>
+          {bufferingIndicator}
         </span>
         <div className="ml-auto flex items-center gap-1">
           <VolumeControl compact />
@@ -1244,11 +1261,17 @@ export function Player() {
         onSeek={seek}
         compact={false}
       />
-      <div className="flex items-center justify-between text-[10px] tabular-nums text-white/45">
-        <span>
-          {formatDuration(currentTime)} / {formatDuration(duration)}
+      <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums text-white/45">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0">
+            {formatDuration(currentTime)} / {formatDuration(duration)}
+          </span>
+          {bufferingIndicator}
+          {transcodeText ? (
+            <span className="truncate text-accent">{transcodeText}</span>
+          ) : null}
         </span>
-        <span>
+        <span className="shrink-0">
           {queue.length} item{queue.length === 1 ? "" : "s"} in this post
         </span>
       </div>

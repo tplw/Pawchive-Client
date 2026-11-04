@@ -15,6 +15,7 @@ mod popular;
 mod security;
 mod state;
 mod transcode;
+mod version;
 
 use api::ApiClient;
 use config::{NetworkSettings, PawchiveConfig};
@@ -101,7 +102,7 @@ pub fn run() {
 
             tracing::info!(
                 data_dir = %data_dir.display(),
-                version = env!("CARGO_PKG_VERSION"),
+                version = crate::version::APP_VERSION,
                 "starting Pawchive"
             );
 
@@ -127,6 +128,7 @@ pub fn run() {
             commands::get_config,
             commands::check_for_update,
             commands::open_external,
+            commands::set_status_bar_hidden,
             commands::sync_creators,
             commands::get_creator_count,
             commands::list_creators,
