@@ -3,13 +3,13 @@
 [![CI](https://github.com/tplw/Pawchive-Client/actions/workflows/ci.yml/badge.svg)](https://github.com/tplw/Pawchive-Client/actions/workflows/ci.yml)
 [![Android](https://github.com/tplw/Pawchive-Client/actions/workflows/android.yml/badge.svg)](https://github.com/tplw/Pawchive-Client/actions/workflows/android.yml)
 
-A fast, local-first client for the [Pawchive](https://pawchive.pw),
+A fast, local-first client for [Pawchive](https://pawchive.pw),
 built with Rust, Tauri 2, React and TypeScript. Runs on macOS, Windows, Linux,
 iOS and Android.
 
 Browse and search creators and posts, play audio and video, organize local
 playlists, download media for offline use and optionally sync favorite creators
-with a Pawchive account. The installed application is named **Pawchive**.
+with a Pawchive account.
 
 ## Download
 
@@ -157,7 +157,7 @@ Please do not open a public issue for security problems.
 ## Contributing
 
 Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md)
-and the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 
 ## License
 
