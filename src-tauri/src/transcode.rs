@@ -350,18 +350,16 @@ pub async fn transcode_media(
         }
         let mut wait = Box::pin(child.wait());
         let mut wait_cancelled = false;
-        let status = loop {
-            if let Some(token) = token {
-                tokio::select! {
-                    _ = token.cancelled() => {
-                        wait_cancelled = true;
-                        break None;
-                    }
-                    status = &mut wait => break Some(status),
+        let status = if let Some(token) = token {
+            tokio::select! {
+                _ = token.cancelled() => {
+                    wait_cancelled = true;
+                    None
                 }
-            } else {
-                break Some(wait.as_mut().await);
+                status = &mut wait => Some(status),
             }
+        } else {
+            Some(wait.as_mut().await)
         };
         drop(wait);
         if wait_cancelled {
