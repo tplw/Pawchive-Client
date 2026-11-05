@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertCircle, CheckCircle2, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
@@ -61,6 +61,22 @@ export function AccountPanel() {
     return (
       <div className="flex justify-center py-6">
         <Spinner />
+      </div>
+    );
+  }
+
+  if (account.isError) {
+    return (
+      <div className="space-y-3 rounded-lg border border-danger/30 bg-danger/10 p-3">
+        <p className="flex items-center gap-2 text-xs font-semibold text-danger">
+          <AlertCircle className="h-4 w-4" /> Could not load account status
+        </p>
+        <p className="text-[11px] leading-relaxed text-muted">
+          {errorMessage(account.error)}
+        </p>
+        <Button variant="secondary" size="sm" onClick={() => void account.refetch()}>
+          Try again
+        </Button>
       </div>
     );
   }

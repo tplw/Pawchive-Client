@@ -13,6 +13,7 @@ mod media_cache;
 mod models;
 mod popular;
 mod security;
+mod similar;
 mod state;
 mod transcode;
 mod version;
@@ -61,7 +62,23 @@ pub fn run() {
             {
                 settings.download_dir = default_download_dir.to_string_lossy().to_string();
             }
-            std::fs::create_dir_all(&settings.download_dir)?;
+            // A saved folder can disappear (external drive, sandbox move). Fall
+            // back to the application folder instead of failing startup.
+            if let Err(error) = std::fs::create_dir_all(&settings.download_dir) {
+                tracing::warn!(
+                    %error,
+                    path = %settings.download_dir,
+                    "download folder is unavailable; using the default folder"
+                );
+                settings.download_dir = default_download_dir.to_string_lossy().to_string();
+                if let Err(error) = std::fs::create_dir_all(&settings.download_dir) {
+                    tracing::error!(
+                        %error,
+                        path = %settings.download_dir,
+                        "could not create the default download folder"
+                    );
+                }
+            }
             if let Err(error) = db.save_settings(&settings) {
                 tracing::warn!(%error, "could not persist startup settings");
             }
@@ -87,6 +104,7 @@ pub fn run() {
                 .http2_adaptive_window(true)
                 .pool_max_idle_per_host(8)
                 .cookie_store(true)
+                .dns_resolver(std::sync::Arc::new(crate::security::PublicDnsResolver))
                 .redirect(crate::security::media_redirect_policy())
                 .build()
                 .map_err(|e| {
@@ -106,6 +124,12 @@ pub fn run() {
                 "starting Pawchive"
             );
 
+            let cache_dir = data_dir.join("media-cache");
+            let cache_max_bytes = settings
+                .media_cache_size_mb
+                .saturating_mul(1024 * 1024)
+                .max(64 * 1024 * 1024);
+
             app.manage(AppState {
                 db: Arc::new(db),
                 api,
@@ -119,6 +143,13 @@ pub fn run() {
                 default_download_dir,
                 media_server,
                 account: Arc::new(RwLock::new(account)),
+            });
+
+            // Remove abandoned partial downloads and enforce the cache limit
+            // even if the app previously exited without finishing a cleanup.
+            tauri::async_runtime::spawn(async move {
+                crate::media_cache::cleanup_stale(&cache_dir).await;
+                crate::media_cache::prune_cache(&cache_dir, cache_max_bytes).await;
             });
             Ok(())
         })
@@ -137,6 +168,7 @@ pub fn run() {
             commands::get_creator_links,
             commands::get_creator_announcements,
             commands::get_creator_posts,
+            commands::get_similar_creators,
             commands::get_recent_posts,
             commands::get_popular_posts,
             commands::get_post_summary,
@@ -160,6 +192,7 @@ pub fn run() {
             commands::download_playlist,
             commands::cancel_download,
             commands::delete_download,
+            commands::retry_download,
             commands::clear_completed_downloads,
             commands::clear_all_downloads,
             commands::list_downloads,

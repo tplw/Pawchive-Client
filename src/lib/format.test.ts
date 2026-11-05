@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cn, formatDate, formatDuration, shortNumber } from "./format";
+import { cn, formatDate, formatDuration, formatRelative, shortNumber } from "./format";
 
 describe("format helpers", () => {
   it("formats durations", () => {
@@ -12,7 +12,14 @@ describe("format helpers", () => {
   it("formats compact numbers", () => {
     expect(shortNumber(999)).toBe("999");
     expect(shortNumber(12_500)).toBe("13k");
+    expect(shortNumber(999_999)).toBe("1m");
     expect(shortNumber(2_500_000)).toBe("2.5m");
+  });
+
+  it("does not show future timestamps as just now", () => {
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    expect(formatRelative(future)).toBe(formatDate(future));
+    expect(formatRelative(Math.floor(Date.now() / 1000))).toBe("just now");
   });
 
   it("formats dates and handles missing timestamps", () => {

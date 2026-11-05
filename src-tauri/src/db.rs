@@ -14,6 +14,18 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0004_download_thumbnails.sql"),
 ];
 
+/// Preserve the raw corrupt settings row before the app falls back to defaults.
+/// Keeping one backup avoids silently destroying user preferences while also
+/// preventing unbounded growth from repeated failed startups.
+fn backup_corrupt_settings(conn: &Connection, raw: &str) {
+    let _ = conn.execute("DELETE FROM settings WHERE key LIKE 'app:corrupt:%'", []);
+    let key = format!("app:corrupt:{}", now_ts());
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO settings(key, value) VALUES(?1, ?2)",
+        params![key, raw],
+    );
+}
+
 /// SQLite persistence layer. A single connection guarded by a mutex is plenty
 /// for a desktop app; all calls run on a blocking worker thread.
 pub struct Db {
@@ -83,16 +95,23 @@ impl Db {
                     r.get(0)
                 })
                 .optional()?;
-            let settings = raw
-                .and_then(|raw| match serde_json::from_str::<AppSettings>(&raw) {
-                    Ok(settings) => Some(settings),
-                    Err(error) => {
-                        tracing::warn!(%error, "stored settings were unreadable; using defaults");
-                        None
-                    }
-                })
-                .unwrap_or_default();
-            Ok(settings)
+            let Some(raw) = raw else {
+                return Ok(AppSettings::default());
+            };
+            let parsed = match serde_json::from_str::<AppSettings>(&raw) {
+                Ok(settings) => settings,
+                Err(error) => {
+                    tracing::warn!(%error, "stored settings were unreadable; using defaults");
+                    backup_corrupt_settings(conn, &raw);
+                    return Ok(AppSettings::default());
+                }
+            };
+            if parsed.validate().is_err() {
+                tracing::warn!("stored settings had invalid values; using defaults");
+                backup_corrupt_settings(conn, &raw);
+                return Ok(AppSettings::default());
+            }
+            Ok(parsed)
         })
     }
 
@@ -536,6 +555,27 @@ impl Db {
                 "UPDATE downloads SET downloaded_bytes = ?2, total_bytes = ?3,
                     status = ?4, error = ?5, updated_at = ?6 WHERE id = ?1",
                 params![id, downloaded_bytes, total_bytes, status, error, now_ts()],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Put a finished/failed download back into the queue, keeping its id and
+    /// metadata so the UI can retry it without creating a duplicate record.
+    pub fn reset_download(&self, record: &DownloadRecord) -> AppResult<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE downloads SET url = ?2, file_path = ?3, file_name = ?4,
+                    thumbnail_url = ?5, total_bytes = NULL, downloaded_bytes = 0,
+                    status = 'queued', error = NULL, updated_at = ?6 WHERE id = ?1",
+                params![
+                    record.id,
+                    record.url,
+                    record.file_path,
+                    record.file_name,
+                    record.thumbnail_url,
+                    now_ts()
+                ],
             )?;
             Ok(())
         })
@@ -1098,5 +1138,23 @@ mod tests {
             })
             .unwrap();
         assert_eq!(stored, "456");
+    }
+
+    #[test]
+    fn corrupt_settings_are_backed_up_before_defaults() {
+        let db = Db::open_in_memory().unwrap();
+        db.set_raw_setting("app", "{not-json").unwrap();
+        let settings = db.load_settings().unwrap();
+        assert_eq!(settings.media_cache_size_mb, 512);
+        let backup: String = db
+            .with_conn(|conn| {
+                Ok(conn.query_row(
+                    "SELECT value FROM settings WHERE key LIKE 'app:corrupt:%' LIMIT 1",
+                    [],
+                    |r| r.get(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(backup, "{not-json");
     }
 }

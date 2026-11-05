@@ -316,13 +316,26 @@ export default function App() {
   }, [pageName, pageTitle, ready, scrollKey]);
 
   useEffect(() => {
+    let disposed = false;
     let unlistenProgress: (() => void) | undefined;
     let unlistenComplete: (() => void) | undefined;
     let unlistenError: (() => void) | undefined;
-    void listen<DownloadRecord>("download://progress", () => {
-      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+    void listen<DownloadRecord>("download://progress", (event) => {
+      // Progress events fire several times per second per active download.
+      // Patch the cached list instead of refetching it on every tick.
+      const updated = event.payload;
+      if (!updated?.id) return;
+      queryClient.setQueryData<DownloadRecord[]>(["downloads"], (records) => {
+        if (!records) return records;
+        const index = records.findIndex((record) => record.id === updated.id);
+        if (index === -1) return [updated, ...records];
+        const next = records.slice();
+        next[index] = { ...next[index], ...updated };
+        return next;
+      });
     }).then((fn) => {
-      unlistenProgress = fn;
+      if (disposed) fn();
+      else unlistenProgress = fn;
     });
     void listen<DownloadRecord>("download://complete", () => {
       // Completion is visible in the Downloads page. Avoid one toast per file
@@ -330,15 +343,18 @@ export default function App() {
       void queryClient.invalidateQueries({ queryKey: ["downloads"] });
       void queryClient.invalidateQueries({ queryKey: ["playlist-items"] });
     }).then((fn) => {
-      unlistenComplete = fn;
+      if (disposed) fn();
+      else unlistenComplete = fn;
     });
     void listen<DownloadRecord>("download://error", (event) => {
       toast("error", "Download failed", event.payload.error ?? event.payload.fileName);
       void queryClient.invalidateQueries({ queryKey: ["downloads"] });
     }).then((fn) => {
-      unlistenError = fn;
+      if (disposed) fn();
+      else unlistenError = fn;
     });
     return () => {
+      disposed = true;
       unlistenProgress?.();
       unlistenComplete?.();
       unlistenError?.();

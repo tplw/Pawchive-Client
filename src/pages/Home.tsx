@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, LoaderCircle, Play, Plus, Star } from "lucide-react";
+import { AlertCircle, Download, LoaderCircle, Play, Plus, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
@@ -340,6 +340,17 @@ export function HomePage() {
               <CreatorCardSkeleton key={index} />
             ))}
           </div>
+        ) : favorites.isError ? (
+          <EmptyState
+            icon={AlertCircle}
+            title="Could not load favorite creators"
+            message={errorMessage(favorites.error)}
+            action={
+              <Button variant="secondary" onClick={() => void favorites.refetch()}>
+                Try again
+              </Button>
+            }
+          />
         ) : favorites.data && favorites.data.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {favorites.data.map((creator) => (

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListMusic, Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
 import { useAppStore } from "../stores/app";
 import type { PlaylistItemInput } from "../types";
@@ -24,10 +24,19 @@ export function PlaylistPicker({
   const reportError = useAppStore((state) => state.reportError);
   const [selected, setSelected] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
+  // Track progress within the current add operation so a retry after a
+  // partial failure does not insert the already-added items again.
+  const addedCount = useRef(0);
+  const createdPlaylist = useRef<{ id: number; name: string } | null>(null);
+  const opened = useRef(false);
   const pending = useMemo(
     () => items ?? (item ? [item] : []),
     [items, item],
   );
+  const resetProgress = useCallback(() => {
+    addedCount.current = 0;
+    createdPlaylist.current = null;
+  }, []);
 
   const playlists = useQuery({
     queryKey: ["playlists"],
@@ -37,10 +46,28 @@ export function PlaylistPicker({
   });
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      opened.current = false;
+      return;
+    }
+    if (opened.current) return;
+    opened.current = true;
     setSelected(playlists.data?.[0]?.id ?? null);
     setNewName("");
-  }, [open, playlists.data]);
+    resetProgress();
+  }, [open, playlists.data, resetProgress]);
+
+  // The playlist list often arrives after the modal opens. Pick the first
+  // entry once it exists without discarding a name the user already typed.
+  useEffect(() => {
+    if (!open || selected !== null || newName.trim()) return;
+    const first = playlists.data?.[0]?.id;
+    if (first !== undefined) setSelected(first);
+  }, [open, selected, newName, playlists.data]);
+
+  useEffect(() => {
+    resetProgress();
+  }, [pending, resetProgress]);
 
   const add = useMutation({
     mutationFn: async () => {
@@ -49,14 +76,22 @@ export function PlaylistPicker({
       let playlistName = playlists.data?.find(
         (entry) => entry.id === selected,
       )?.name;
-      if (newName.trim()) {
-        const playlist = await api.createPlaylist(newName.trim());
-        playlistId = playlist.id;
-        playlistName = playlist.name;
+      const trimmedName = newName.trim();
+      if (trimmedName) {
+        if (createdPlaylist.current?.name === trimmedName) {
+          playlistId = createdPlaylist.current.id;
+          playlistName = createdPlaylist.current.name;
+        } else {
+          const playlist = await api.createPlaylist(trimmedName);
+          createdPlaylist.current = { id: playlist.id, name: playlist.name };
+          playlistId = playlist.id;
+          playlistName = playlist.name;
+        }
       }
       if (!playlistId) throw new Error("Choose a playlist first");
-      for (const entry of pending) {
-        await api.addPlaylistItem(playlistId, entry);
+      for (let index = addedCount.current; index < pending.length; index += 1) {
+        await api.addPlaylistItem(playlistId, pending[index]);
+        addedCount.current = index + 1;
       }
       return {
         name: playlistName ?? "playlist",
@@ -64,6 +99,7 @@ export function PlaylistPicker({
       };
     },
     onSuccess: ({ name, count }) => {
+      resetProgress();
       toast(
         "success",
         count === 1 ? "Added to playlist" : `Added ${count} items`,
@@ -117,6 +153,7 @@ export function PlaylistPicker({
               onClick={() => {
                 setSelected(playlist.id);
                 setNewName("");
+                resetProgress();
               }}
               className={cn(
                 "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition",
@@ -157,8 +194,17 @@ export function PlaylistPicker({
           id="new-playlist-name"
           value={newName}
           onChange={(event) => {
-            setNewName(event.target.value);
-            if (event.target.value) setSelected(null);
+            const value = event.target.value;
+            setNewName(value);
+            if (value) {
+              setSelected(null);
+              // Switching the destination to a new playlist invalidates the
+              // partial progress from a previous attempt. Re-typing the same
+              // name keeps it so a retry can resume where it failed.
+              if (createdPlaylist.current?.name !== value.trim()) {
+                resetProgress();
+              }
+            }
           }}
           maxLength={80}
           placeholder="Playlist name"

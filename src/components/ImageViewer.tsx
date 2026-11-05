@@ -15,7 +15,7 @@ import { api } from "../services/api";
 import { isMobile } from "../lib/platform";
 import { useAppStore } from "../stores/app";
 import type { Attachment } from "../types";
-import { IconButton } from "./ui";
+import { IconButton, lockBodyScroll, unlockBodyScroll } from "./ui";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -62,6 +62,8 @@ export function ImageViewer({
   const pinchStart = useRef<{ distance: number; zoom: number } | null>(null);
   const suppressTap = useRef(false);
   const previousAutoHide = useRef(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
   const image = images[index];
   const autoHideControls = isLandscape && (isMobile || fullscreen);
 
@@ -96,9 +98,42 @@ export function ImageViewer({
   }, [autoHideControls, controlsVisible, index, zoom]);
 
   useEffect(() => {
+    previousFocus.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    lockBodyScroll();
+    const timer = window.setTimeout(() => rootRef.current?.focus(), 30);
+    return () => {
+      window.clearTimeout(timer);
+      unlockBodyScroll();
+      const target = previousFocus.current;
+      if (target?.isConnected) {
+        window.setTimeout(() => target.focus(), 0);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const win = currentWindow();
     if (!win) return;
-    void win.isFullscreen().then(setFullscreen).catch(() => undefined);
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const sync = () => {
+      void win.isFullscreen().then(setFullscreen).catch(() => undefined);
+    };
+    sync();
+    void win
+      .onResized(sync)
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => undefined);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -168,11 +203,13 @@ export function ImageViewer({
     };
 
     let unlisten: (() => void) | undefined;
+    let cacheRequestId: string | null = null;
     if (cacheMedia && image.url.startsWith("https://")) {
       const requestId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      cacheRequestId = requestId;
       setProgress(0);
       void listen<{
         requestId?: string;
@@ -221,12 +258,46 @@ export function ImageViewer({
       cancelled = true;
       controller.abort();
       unlisten?.();
+      if (cacheRequestId) {
+        void api.cancelRequest(cacheRequestId).catch(() => undefined);
+      }
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [cacheMedia, image, index]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Tab") {
+        const root = rootRef.current;
+        if (!root) return;
+        const focusable = Array.from(
+          root.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter(
+          (element) =>
+            element.offsetParent !== null || element === document.activeElement,
+        );
+        if (focusable.length === 0) {
+          event.preventDefault();
+          root.focus();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        if (event.shiftKey && (active === first || !root.contains(active))) {
+          event.preventDefault();
+          last.focus();
+        } else if (
+          !event.shiftKey &&
+          (active === last || !root.contains(active))
+        ) {
+          event.preventDefault();
+          first.focus();
+        }
+        return;
+      }
       if (event.key === "Escape") {
         if (fullscreen) {
           const win = currentWindow();
@@ -260,7 +331,8 @@ export function ImageViewer({
     const win = currentWindow();
     if (!win) return;
     try {
-      const next = !fullscreen;
+      const current = await win.isFullscreen().catch(() => fullscreen);
+      const next = !current;
       await win.setFullscreen(next);
       setFullscreen(next);
     } catch {
@@ -288,9 +360,12 @@ export function ImageViewer({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] touch-none overflow-hidden bg-black text-white animate-fade-in"
+      ref={rootRef}
+      tabIndex={-1}
+      className="fixed inset-0 z-[90] touch-none overflow-hidden bg-black text-white outline-none animate-fade-in"
       data-modal-open="true"
       role="dialog"
+      aria-modal="true"
       aria-label="Image viewer"
       onClick={(event) => {
         if ((event.target as HTMLElement | null)?.closest("button")) return;

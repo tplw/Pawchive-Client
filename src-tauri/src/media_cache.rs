@@ -6,7 +6,10 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncWriteExt, BufWriter};
+use tokio_util::sync::CancellationToken;
 use url::Url;
+
+const CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,6 +56,7 @@ pub async fn cache_media(
     state: &AppState,
     raw: &str,
     request_id: Option<String>,
+    token: Option<&CancellationToken>,
 ) -> AppResult<String> {
     let url = crate::media::validate_media_url(&state.cfg, raw)?;
     let final_path = cache_path(state, raw)?;
@@ -70,14 +74,33 @@ pub async fn cache_media(
         .saturating_mul(1024 * 1024)
         .max(64 * 1024 * 1024);
     let temp_path = dir.join(format!(".part-{}", uuid::Uuid::new_v4()));
-    let response = state
-        .http
-        .get(url.clone())
-        .header(reqwest::header::REFERER, "https://pawchive.pw/")
-        .header(reqwest::header::RANGE, "bytes=0-")
-        .send()
-        .await
-        .map_err(|error| AppError::Network(error.to_string()))?;
+    let request = tokio::time::timeout(
+        Duration::from_secs(120),
+        state
+            .http
+            .get(url.clone())
+            .header(reqwest::header::REFERER, "https://pawchive.pw/")
+            .header(reqwest::header::RANGE, "bytes=0-")
+            .send(),
+    );
+    let response = if let Some(token) = token {
+        tokio::select! {
+            _ = token.cancelled() => return Err(AppError::Cancelled),
+            response = request => match response {
+                Ok(response) => response.map_err(|error| {
+                    AppError::Network(crate::security::network_error_message(&error))
+                })?,
+                Err(_) => return Err(AppError::Timeout),
+            },
+        }
+    } else {
+        match request.await {
+            Ok(response) => response.map_err(|error| {
+                AppError::Network(crate::security::network_error_message(&error))
+            })?,
+            Err(_) => return Err(AppError::Timeout),
+        }
+    };
     if !response.status().is_success() {
         return Err(AppError::Unavailable(format!(
             "media cache request answered HTTP {}",
@@ -97,17 +120,50 @@ pub async fn cache_media(
     let mut last_emit = Instant::now();
     let mut response = response;
     loop {
-        let chunk = response
-            .chunk()
-            .await
-            .map_err(|error| AppError::Network(error.to_string()))?;
+        let chunk = if let Some(token) = token {
+            tokio::select! {
+                _ = token.cancelled() => {
+                    drop(file);
+                    let _ = tokio::fs::remove_file(&temp_path).await;
+                    return Err(AppError::Cancelled);
+                }
+                chunk = tokio::time::timeout(CHUNK_TIMEOUT, response.chunk()) => {
+                    match chunk {
+                        Ok(chunk) => chunk.map_err(|error| {
+                            AppError::Network(crate::security::network_error_message(&error))
+                        })?,
+                        Err(_) => {
+                            drop(file);
+                            let _ = tokio::fs::remove_file(&temp_path).await;
+                            return Err(AppError::Timeout);
+                        }
+                    }
+                }
+            }
+        } else {
+            match tokio::time::timeout(CHUNK_TIMEOUT, response.chunk()).await {
+                Ok(chunk) => chunk.map_err(|error| {
+                    AppError::Network(crate::security::network_error_message(&error))
+                })?,
+                Err(_) => {
+                    drop(file);
+                    let _ = tokio::fs::remove_file(&temp_path).await;
+                    return Err(AppError::Timeout);
+                }
+            }
+        };
         let Some(chunk) = chunk else {
             break;
         };
+        downloaded += chunk.len() as u64;
+        if downloaded > max_bytes {
+            drop(file);
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            return Ok(url.to_string());
+        }
         file.write_all(&chunk)
             .await
             .map_err(|error| AppError::Io(format!("could not write media cache: {error}")))?;
-        downloaded += chunk.len() as u64;
         if last_emit.elapsed() >= Duration::from_millis(150) {
             let _ = app.emit(
                 "media-cache://progress",
@@ -125,11 +181,6 @@ pub async fn cache_media(
         .await
         .map_err(|error| AppError::Io(format!("could not flush media cache: {error}")))?;
     drop(file);
-
-    if downloaded > max_bytes {
-        let _ = tokio::fs::remove_file(&temp_path).await;
-        return Ok(url.to_string());
-    }
 
     tokio::fs::rename(&temp_path, &final_path)
         .await
@@ -204,6 +255,34 @@ pub(crate) async fn prune_cache(dir: &Path, max_bytes: u64) {
         }
         if tokio::fs::remove_file(&path).await.is_ok() {
             total = total.saturating_sub(length);
+        }
+    }
+}
+
+/// Remove abandoned temporary files left by an interrupted cache or transcode
+/// request. Only files older than a day are touched so an in-flight download
+/// from another window is never deleted.
+pub(crate) async fn cleanup_stale(dir: &Path) {
+    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+        return;
+    };
+    let cutoff = std::time::SystemTime::now()
+        .checked_sub(Duration::from_secs(24 * 60 * 60))
+        .unwrap_or(std::time::UNIX_EPOCH);
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !(name.starts_with(".part-") || name.starts_with(".transcode-source-")) {
+            continue;
+        }
+        let Ok(metadata) = entry.metadata().await else {
+            continue;
+        };
+        let modified = metadata.modified().unwrap_or(std::time::UNIX_EPOCH);
+        if modified < cutoff {
+            let _ = tokio::fs::remove_file(&path).await;
         }
     }
 }

@@ -56,6 +56,9 @@ export function formatDateTime(epoch: number | null | undefined): string {
 export function formatRelative(epoch: number | null | undefined): string {
   if (!epoch) return "unknown";
   const delta = Math.round(Date.now() / 1000) - epoch;
+  // A timestamp in the future is not "just now" unless it is within a small
+  // clock-skew window; older builds could show "just now" indefinitely.
+  if (delta < -60) return formatDate(epoch);
   if (delta < 60) return "just now";
   if (delta < 3600) return `${Math.floor(delta / 60)}m ago`;
   if (delta < 86400) return `${Math.floor(delta / 3600)}h ago`;
@@ -68,7 +71,11 @@ export function shortNumber(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   if (value < 1000) return String(value);
   if (value < 1_000_000) {
-    return `${(value / 1000).toFixed(value < 10_000 ? 1 : 0)}k`;
+    const scaled = value / 1000;
+    const text = scaled.toFixed(value < 10_000 ? 1 : 0);
+    // 999,950 rounds to "1000k"; promote it to the next unit instead.
+    if (Number(text) >= 1000) return "1m";
+    return `${text}k`;
   }
   return `${(value / 1_000_000).toFixed(1)}m`;
 }

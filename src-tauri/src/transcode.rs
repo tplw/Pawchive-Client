@@ -8,6 +8,9 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::process::Command;
+use tokio_util::sync::CancellationToken;
+
+const CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -147,6 +150,7 @@ pub async fn transcode_media(
     state: &AppState,
     raw_url: &str,
     request_id: Option<String>,
+    token: Option<&CancellationToken>,
 ) -> AppResult<String> {
     let url = crate::media::validate_media_url(&state.cfg, raw_url)?;
     let ffmpeg = ffmpeg_path().ok_or_else(|| {
@@ -163,16 +167,42 @@ pub async fn transcode_media(
     tokio::fs::create_dir_all(&cache_dir)
         .await
         .map_err(|error| AppError::Io(format!("could not create transcode cache: {error}")))?;
+    let max_bytes = state
+        .settings()
+        .media_cache_size_mb
+        .saturating_mul(1024 * 1024)
+        .max(64 * 1024 * 1024);
+    // The intermediate source is usually larger than the transcoded result.
+    let source_max_bytes = max_bytes.saturating_mul(4).max(1024 * 1024 * 1024);
     let source_path = cache_dir.join(format!(".transcode-source-{}.bin", uuid::Uuid::new_v4()));
     let result = async {
-        let response = state
-            .http
-            .get(url.clone())
-            .header(reqwest::header::REFERER, "https://pawchive.pw/")
-            .header(reqwest::header::RANGE, "bytes=0-")
-            .send()
-            .await
-            .map_err(|error| AppError::Network(error.to_string()))?;
+        let request = tokio::time::timeout(
+            Duration::from_secs(120),
+            state
+                .http
+                .get(url.clone())
+                .header(reqwest::header::REFERER, "https://pawchive.pw/")
+                .header(reqwest::header::RANGE, "bytes=0-")
+                .send(),
+        );
+        let response = if let Some(token) = token {
+            tokio::select! {
+                _ = token.cancelled() => return Err(AppError::Cancelled),
+                response = request => match response {
+                    Ok(response) => response.map_err(|error| {
+                        AppError::Network(crate::security::network_error_message(&error))
+                    })?,
+                    Err(_) => return Err(AppError::Timeout),
+                },
+            }
+        } else {
+            match request.await {
+                Ok(response) => response.map_err(|error| {
+                    AppError::Network(crate::security::network_error_message(&error))
+                })?,
+                Err(_) => return Err(AppError::Timeout),
+            }
+        };
         if !response.status().is_success() {
             return Err(AppError::Unavailable(format!(
                 "media source answered HTTP {}",
@@ -180,6 +210,11 @@ pub async fn transcode_media(
             )));
         }
         let total = response.content_length();
+        if total.is_some_and(|length| length > source_max_bytes) {
+            return Err(AppError::Validation(
+                "media source exceeds the transcode limit".into(),
+            ));
+        }
         let file = tokio::fs::File::create(&source_path)
             .await
             .map_err(|error| AppError::Io(format!("could not create transcode source: {error}")))?;
@@ -188,17 +223,38 @@ pub async fn transcode_media(
         let mut last_emit = Instant::now();
         let mut response = response;
         loop {
-            let chunk = response
-                .chunk()
-                .await
-                .map_err(|error| AppError::Network(error.to_string()))?;
+            let chunk = if let Some(token) = token {
+                tokio::select! {
+                    _ = token.cancelled() => return Err(AppError::Cancelled),
+                    chunk = tokio::time::timeout(CHUNK_TIMEOUT, response.chunk()) => {
+                        match chunk {
+                            Ok(chunk) => chunk.map_err(|error| {
+                                AppError::Network(crate::security::network_error_message(&error))
+                            })?,
+                            Err(_) => return Err(AppError::Timeout),
+                        }
+                    }
+                }
+            } else {
+                match tokio::time::timeout(CHUNK_TIMEOUT, response.chunk()).await {
+                    Ok(chunk) => chunk.map_err(|error| {
+                        AppError::Network(crate::security::network_error_message(&error))
+                    })?,
+                    Err(_) => return Err(AppError::Timeout),
+                }
+            };
             let Some(chunk) = chunk else {
                 break;
             };
+            downloaded += chunk.len() as u64;
+            if downloaded > source_max_bytes {
+                return Err(AppError::Validation(
+                    "media source exceeds the transcode limit".into(),
+                ));
+            }
             file.write_all(&chunk).await.map_err(|error| {
                 AppError::Io(format!("could not write transcode source: {error}"))
             })?;
-            downloaded += chunk.len() as u64;
             if last_emit.elapsed() >= Duration::from_millis(150) {
                 emit(
                     app,
@@ -250,10 +306,25 @@ pub async fn transcode_media(
             .stderr(Stdio::null())
             .spawn()
             .map_err(|error| AppError::Io(format!("could not start ffmpeg: {error}")))?;
+        let mut was_cancelled = false;
         if let Some(stdout) = child.stdout.take() {
             let mut lines = BufReader::new(stdout).lines();
             let mut last_emit = Instant::now();
-            while let Ok(Some(line)) = lines.next_line().await {
+            loop {
+                let next = if let Some(token) = token {
+                    tokio::select! {
+                        _ = token.cancelled() => {
+                            was_cancelled = true;
+                            break;
+                        }
+                        line = lines.next_line() => line,
+                    }
+                } else {
+                    lines.next_line().await
+                };
+                let Ok(Some(line)) = next else {
+                    break;
+                };
                 if let Some(value) = line.strip_prefix("out_time=") {
                     if let (Some(duration), Some(seconds)) = (duration, parse_timecode(value)) {
                         if last_emit.elapsed() >= Duration::from_millis(150) {
@@ -273,9 +344,32 @@ pub async fn transcode_media(
                 }
             }
         }
-        let status = child
-            .wait()
-            .await
+        if was_cancelled {
+            let _ = child.kill().await;
+            return Err(AppError::Cancelled);
+        }
+        let mut wait = Box::pin(child.wait());
+        let mut wait_cancelled = false;
+        let status = loop {
+            if let Some(token) = token {
+                tokio::select! {
+                    _ = token.cancelled() => {
+                        wait_cancelled = true;
+                        break None;
+                    }
+                    status = &mut wait => break Some(status),
+                }
+            } else {
+                break Some(wait.as_mut().await);
+            }
+        };
+        drop(wait);
+        if wait_cancelled {
+            let _ = child.kill().await;
+            return Err(AppError::Cancelled);
+        }
+        let status = status
+            .expect("wait status is set unless the request was cancelled")
             .map_err(|error| AppError::Io(format!("could not wait for ffmpeg: {error}")))?;
         if !status.success() {
             return Err(AppError::Unavailable(
@@ -286,11 +380,6 @@ pub async fn transcode_media(
             .await
             .map(|metadata| metadata.len())
             .unwrap_or(0);
-        let max_bytes = state
-            .settings()
-            .media_cache_size_mb
-            .saturating_mul(1024 * 1024)
-            .max(64 * 1024 * 1024);
         if output_size > max_bytes {
             let _ = tokio::fs::remove_file(&output).await;
             return Err(AppError::Validation(

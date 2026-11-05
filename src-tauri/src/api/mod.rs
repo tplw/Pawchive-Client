@@ -14,6 +14,7 @@ use tokio::sync::{Mutex as AsyncMutex, Semaphore};
 use tokio_util::sync::CancellationToken;
 
 const CACHE_MAX_ENTRIES: usize = 512;
+const MAX_HTML_BYTES: usize = 4 * 1024 * 1024;
 
 /// Typed client for the public Pawchive API.
 ///
@@ -427,6 +428,7 @@ impl ApiClient {
         service: &str,
         creator_id: &str,
         offset: i64,
+        query: Option<&str>,
         cancel: Option<&CancellationToken>,
     ) -> AppResult<Vec<Post>> {
         let service = validate_service(service)?;
@@ -436,6 +438,9 @@ impl ApiClient {
         if offset > 0 {
             params.push(("o", offset.to_string()));
         }
+        if let Some(query) = query.filter(|value| !value.trim().is_empty()) {
+            params.push(("q", validate_search_query(query)?));
+        }
         self.get_json(
             &format!("{service}/user/{creator_id}"),
             &params,
@@ -443,6 +448,60 @@ impl ApiClient {
             cancel,
         )
         .await
+    }
+
+    /// The archive's "Similar Creators" view is server-rendered. Mirror the
+    /// public page and parse its creator cards; there is no JSON endpoint.
+    pub async fn similar_creators_html(
+        &self,
+        service: &str,
+        creator_id: &str,
+        cancel: Option<&CancellationToken>,
+    ) -> AppResult<String> {
+        let service = validate_service(service)?;
+        let creator_id = validate_id(creator_id, "creator id")?;
+        let url = format!(
+            "{}/{service}/user/{creator_id}/recommended",
+            self.cfg.static_base.trim_end_matches('/')
+        );
+        let response = self
+            .send(
+                Method::GET,
+                &url,
+                cancel,
+                Some(Duration::from_secs(45)),
+                false,
+            )
+            .await?
+            .ok_or(AppError::NotFound)?;
+        if response
+            .content_length()
+            .is_some_and(|length| length > MAX_HTML_BYTES as u64)
+        {
+            return Err(AppError::InvalidResponse(
+                "similar creators page is unexpectedly large".into(),
+            ));
+        }
+        let mut response = response;
+        let mut body = Vec::new();
+        while body.len() < MAX_HTML_BYTES {
+            let next = match cancel {
+                Some(token) => tokio::select! {
+                    _ = token.cancelled() => return Err(AppError::Cancelled),
+                    chunk = tokio::time::timeout(Duration::from_secs(30), response.chunk()) => chunk,
+                },
+                None => tokio::time::timeout(Duration::from_secs(30), response.chunk()).await,
+            };
+            let chunk = next.map_err(|_| AppError::Timeout)?.map_err(|error| {
+                AppError::Network(crate::security::network_error_message(&error))
+            })?;
+            let Some(chunk) = chunk else {
+                break;
+            };
+            let remaining = MAX_HTML_BYTES - body.len();
+            body.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
+        }
+        Ok(String::from_utf8_lossy(&body).into_owned())
     }
 
     pub async fn creator_profile(

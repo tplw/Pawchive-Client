@@ -9,7 +9,9 @@ import {
   Info,
   Link2,
   LoaderCircle,
+  Search,
   Users,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../services/api";
@@ -24,12 +26,15 @@ import {
   type CreatorFilter,
 } from "../lib/creatorFilters";
 import { cn, formatDate, formatRelative, shortNumber } from "../lib/format";
-import { postGridMetrics } from "../lib/layout";
+import { creatorGridMetrics, postGridMetrics } from "../lib/layout";
 import { goBack, navigate, routeTitle } from "../lib/router";
 import { useAppStore } from "../stores/app";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import {
   CreatorAvatar,
   CreatorBanner,
+  CreatorCard,
+  CreatorCardSkeleton,
   PostCard,
   PostCardSkeleton,
   ServiceBadge,
@@ -50,7 +55,7 @@ import {
 } from "../components/ui";
 import type { PostSummary } from "../types";
 
-type Tab = "posts" | "about" | "announcements";
+type Tab = "posts" | "about" | "announcements" | "similar";
 
 export function CreatorProfilePage({
   service,
@@ -67,9 +72,13 @@ export function CreatorProfilePage({
   const [keywordText, setKeywordText] = useState(() =>
     loadCreatorFilter(service, creatorId).keywords.join(", "),
   );
+  const [postSearch, setPostSearch] = useState("");
+  const debouncedPostSearch = useDebouncedValue(postSearch.trim(), 300);
+  const postQuery = debouncedPostSearch.length >= 3 ? debouncedPostSearch : "";
   const postCardSize = useAppStore((state) => state.settings.postCardSize);
   const autoDetectAsmr = useAppStore((state) => state.settings.autoDetectAsmr);
   const postMetrics = postGridMetrics(postCardSize);
+  const creatorMetrics = creatorGridMetrics(postCardSize);
   const queryClient = useQueryClient();
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
@@ -97,10 +106,23 @@ export function CreatorProfilePage({
     staleTime: 180_000,
     enabled: tab === "announcements",
   });
+  const similar = useQuery({
+    queryKey: ["creator-similar", service, creatorId],
+    queryFn: ({ signal }) =>
+      api.getSimilarCreators(service, creatorId, signal),
+    staleTime: 300_000,
+    enabled: tab === "similar",
+  });
   const posts = useInfiniteQuery({
-    queryKey: ["creator-posts", service, creatorId],
+    queryKey: ["creator-posts", service, creatorId, postQuery],
     queryFn: ({ pageParam, signal }) =>
-      api.getCreatorPosts({ service, creatorId, offset: pageParam, signal }),
+      api.getCreatorPosts({
+        service,
+        creatorId,
+        offset: pageParam,
+        query: postQuery || undefined,
+        signal,
+      }),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.hasMore ? last.offset + 50 : undefined),
     staleTime: 60_000,
@@ -120,6 +142,7 @@ export function CreatorProfilePage({
     const next = loadCreatorFilter(service, creatorId);
     setFilter(next);
     setKeywordText(next.keywords.join(", "));
+    setPostSearch("");
   }, [service, creatorId]);
 
   const updateFilter = (next: CreatorFilter) => {
@@ -150,6 +173,13 @@ export function CreatorProfilePage({
     () =>
       postItems.filter((post) => postMatchesCreatorFilter(post, effectiveFilter)),
     [postItems, effectiveFilter],
+  );
+  const similarCreators = useMemo(
+    () =>
+      (similar.data ?? []).filter(
+        (entry) => !(entry.service === service && entry.id === creatorId),
+      ),
+    [similar.data, service, creatorId],
   );
 
   const favorite = useMutation({
@@ -264,12 +294,13 @@ export function CreatorProfilePage({
             </div>
           </div>
 
-          <div className="mt-5 flex gap-1 border-b border-line/60">
+          <div className="mt-5 flex gap-1 overflow-x-auto border-b border-line/60">
             {(
               [
                 ["posts", "Posts"],
                 ["about", "About & links"],
                 ["announcements", "Announcements"],
+                ["similar", "Similar Creators"],
               ] as Array<[Tab, string]>
             ).map(([value, label]) => (
               <button
@@ -277,7 +308,7 @@ export function CreatorProfilePage({
                 type="button"
                 onClick={() => setTab(value)}
                 className={cn(
-                  "relative px-3 py-2.5 text-xs font-medium transition",
+                  "relative shrink-0 px-3 py-2.5 text-xs font-medium transition",
                   tab === value ? "text-ink" : "text-muted hover:text-ink",
                 )}
               >
@@ -293,11 +324,35 @@ export function CreatorProfilePage({
 
       {tab === "posts" ? (
         <section className="mt-6">
-          <SectionHeader
-            eyebrow="Archive"
-            title="Posts"
-            description="Newest archived posts from this creator."
-          />
+          <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.22em] text-accent/80">
+            Posts
+          </p>
+          <div className="relative mb-4 max-w-xl">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <input
+              value={postSearch}
+              onChange={(event) => setPostSearch(event.target.value)}
+              placeholder="Search this creator's posts…"
+              spellCheck={false}
+              aria-label="Search this creator's posts"
+              className="h-10 w-full rounded-xl border border-line/70 bg-surface/55 pl-9 pr-9 text-sm text-ink outline-none placeholder:text-muted/60 focus:border-accent/45 focus:ring-2 focus:ring-accent/10"
+            />
+            {postSearch ? (
+              <button
+                type="button"
+                aria-label="Clear post search"
+                onClick={() => setPostSearch("")}
+                className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-muted transition hover:bg-white/8 hover:text-ink"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+          {postSearch.trim().length > 0 && postQuery === "" ? (
+            <p className="mb-3 text-[10px] text-muted">
+              Type at least 3 characters to search.
+            </p>
+          ) : null}
           {posts.isLoading ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {Array.from({ length: 8 }).map((_, index) => (
@@ -319,17 +374,25 @@ export function CreatorProfilePage({
             <EmptyState
               icon={Info}
               title={
-                postItems.length === 0
-                  ? "No visible posts"
-                  : "No posts match your filters"
+                postQuery
+                  ? "No posts match your search"
+                  : postItems.length === 0
+                    ? "No visible posts"
+                    : "No posts match your filters"
               }
               message={
-                postItems.length === 0
-                  ? "The archive has no posts for this creator, or your content filters hid them."
-                  : "Adjust or clear this creator's custom filters to see more posts."
+                postQuery
+                  ? "Try a different search term or clear the search."
+                  : postItems.length === 0
+                    ? "The archive has no posts for this creator, or your content filters hid them."
+                    : "Adjust or clear this creator's custom filters to see more posts."
               }
               action={
-                creatorFilterActive(effectiveFilter) ? (
+                postQuery ? (
+                  <Button variant="secondary" onClick={() => setPostSearch("")}>
+                    Clear search
+                  </Button>
+                ) : creatorFilterActive(effectiveFilter) ? (
                   <Button
                     variant="secondary"
                     onClick={() => {
@@ -518,6 +581,51 @@ export function CreatorProfilePage({
               icon={Bell}
               title="No announcements"
               message="This creator has no archived announcements."
+            />
+          )}
+        </section>
+      ) : null}
+
+      {tab === "similar" ? (
+        <section className="mt-6">
+          <SectionHeader
+            eyebrow="Discover"
+            title="Similar creators"
+            description={`Creators the archive recommends alongside ${name}.`}
+          />
+          {similar.isLoading ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <CreatorCardSkeleton key={index} />
+              ))}
+            </div>
+          ) : similar.isError ? (
+            <EmptyState
+              icon={AlertCircle}
+              title="Could not load similar creators"
+              message={errorMessage(similar.error)}
+              action={
+                <Button
+                  variant="secondary"
+                  onClick={() => void similar.refetch()}
+                >
+                  Try again
+                </Button>
+              }
+            />
+          ) : similarCreators.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No similar creators"
+              message="The archive has no recommendations for this creator yet."
+            />
+          ) : (
+            <CardGrid
+              items={similarCreators}
+              getKey={(creator) => `${creator.service}:${creator.id}`}
+              renderItem={(creator) => <CreatorCard creator={creator} />}
+              minColumnWidth={creatorMetrics.minColumnWidth}
+              itemHeight={creatorMetrics.rowHeight}
             />
           )}
         </section>

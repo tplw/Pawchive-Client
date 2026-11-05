@@ -39,6 +39,77 @@ project follows [Semantic Versioning](https://semver.org/).
 - Windows finds ffmpeg from `PATH`, Program Files and common install folders,
   and downloaded files avoid reserved DOS device names and trailing dots.
 
+## 1.0.4 - 2026-11-04
+
+This release adds creator post search, similar-creator discovery and download
+retries, plus a broad reliability and security pass across playback, downloads,
+media caching, settings and navigation.
+
+### Added
+
+- Per-creator post search on creator profiles, with a 300 ms debounce and a
+  three-character minimum. Searches use the archive's `q` parameter and keep
+  pagination intact.
+- A **Similar Creators** tab that reads the archive's recommendation page and
+  enriches the results with locally indexed creator details.
+- Retry for failed or cancelled downloads. Retrying reuses the existing record,
+  revalidates the media URL and replaces the partially written file.
+- Creator names in both player layouts now open the creator profile and collapse
+  the expanded player.
+- Delete confirmation for individual downloads.
+- Focus trapping, background scroll locking and Escape handling for modals and
+  the image viewer.
+
+### Changed
+
+- The creator profile Posts tab now uses a compact uppercase `POSTS` heading
+  without the redundant title and description.
+- Search and creator-directory filters persist when navigating into a post or
+  creator and back.
+- Download progress events patch the cached download list instead of refetching
+  the whole list several times per second.
+- Settings autosaves stay serialized and no longer retry indefinitely after a
+  failed save.
+- Media requests use a public-only DNS resolver, and cache/transcode jobs are
+  cancellable with idle timeouts and size limits.
+- Download workers finish their file and database cleanup before delete or
+  clear-all operations proceed, and filenames are reserved atomically.
+- Download counts now report only attachments that were actually queued.
+
+### Fixed
+
+- Resume position could be applied to the previously loaded item when switching
+  tracks quickly; progress is now saved and restored against the item the media
+  element actually holds.
+- Download cancellation, deletion and clear-all could race a running worker or
+  remove files outside the download folder.
+- Retried downloads could reuse a partially written or already-taken filename.
+- Start-up no longer fails when the configured download folder is unavailable.
+- Corrupt settings are backed up before falling back to defaults instead of
+  being silently discarded.
+- Corrupt persisted player queues no longer crash or restore invalid entries.
+- Playlist links with id `0` now resolve instead of falling back to Home.
+- Retrying a partial playlist add no longer duplicates items or creates the
+  same playlist twice.
+- Document entries in playlists now open their post (or start a download)
+  instead of doing nothing.
+- Changing settings no longer restarts the current media source and loses the
+  playback position.
+- Player keyboard shortcuts only capture keys while the player is expanded.
+- Fullscreen state stays in sync when the window is resized, and the image
+  viewer cancels abandoned cache requests.
+- Future timestamps are no longer shown as "just now", and `shortNumber` no
+  longer renders `1000k`.
+- Account and favorite-creator failures now show an inline error with a retry
+  action.
+- SSRF checks now cover IPv4-mapped and IPv4-compatible IPv6, NAT64, legacy
+  numeric IPv4, `localhost` subdomains, metadata hosts, CGNAT and reserved
+  ranges; DNS rebinding is blocked by the public-only resolver.
+- Network errors no longer leak signed media URLs into toasts or download
+  records.
+- Abandoned cache and transcode temporary files are removed at start-up and the
+  cache size limit is enforced.
+
 ## 1.0.3.1 - 2026-11-03
 
 ### Added

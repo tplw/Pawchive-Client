@@ -125,6 +125,7 @@ export const api = {
     service: string;
     creatorId: string;
     offset?: number;
+    query?: string;
     signal?: AbortSignal;
   }) =>
     cancellable(params.signal, (requestId) =>
@@ -132,6 +133,19 @@ export const api = {
         service: params.service,
         creatorId: params.creatorId,
         offset: params.offset,
+        query: params.query,
+        requestId,
+      }),
+    ),
+  getSimilarCreators: (
+    service: string,
+    creatorId: string,
+    signal?: AbortSignal,
+  ) =>
+    cancellable(signal, (requestId) =>
+      call<CreatorSummary[]>("get_similar_creators", {
+        service,
+        creatorId,
         requestId,
       }),
     ),
@@ -264,6 +278,7 @@ export const api = {
     call<number>("download_playlist", { playlistId }),
   cancelDownload: (id: string) => call<void>("cancel_download", { id }),
   deleteDownload: (id: string) => call<void>("delete_download", { id }),
+  retryDownload: (id: string) => call<DownloadRecord>("retry_download", { id }),
   clearCompletedDownloads: () => call<number>("clear_completed_downloads"),
   clearAllDownloads: () => call<number>("clear_all_downloads"),
   listDownloads: () => call<DownloadRecord[]>("list_downloads"),

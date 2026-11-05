@@ -13,7 +13,7 @@ import {
   Trash2,
   UserRound,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { SPEEDS } from "../lib/constants";
 import { isAndroid, isIos, isMobile } from "../lib/platform";
 import { api } from "../services/api";
@@ -49,6 +49,10 @@ export function SettingsPage() {
   );
   const [hideAi, setHideAi] = useState(settings.hideAiPosts);
   const [clearingCache, setClearingCache] = useState(false);
+  // Remember the last value we tried to persist. Without this, a failed save
+  // rolls the store back and the debounce effect immediately retries forever.
+  const lastVolumeSave = useRef<number | null>(null);
+  const lastKeywordSave = useRef<string | null>(null);
   const transcodeAvailable = useQuery({
     queryKey: ["can-transcode"],
     queryFn: () => api.canTranscode(),
@@ -73,7 +77,17 @@ export function SettingsPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (Math.abs(volume - settings.volume) < 0.001) return;
+      if (Math.abs(volume - settings.volume) < 0.001) {
+        lastVolumeSave.current = null;
+        return;
+      }
+      if (
+        lastVolumeSave.current !== null &&
+        Math.abs(lastVolumeSave.current - volume) < 0.001
+      ) {
+        return;
+      }
+      lastVolumeSave.current = volume;
       void saveSettings({ volume });
     }, 300);
     return () => window.clearTimeout(timer);
@@ -86,12 +100,13 @@ export function SettingsPage() {
         .map((keyword) => keyword.trim())
         .filter(Boolean)
         .slice(0, 100);
-      if (
-        JSON.stringify(keywords) ===
-        JSON.stringify(settings.hiddenKeywords ?? [])
-      ) {
+      const serialized = JSON.stringify(keywords);
+      if (serialized === JSON.stringify(settings.hiddenKeywords ?? [])) {
+        lastKeywordSave.current = null;
         return;
       }
+      if (lastKeywordSave.current === serialized) return;
+      lastKeywordSave.current = serialized;
       void saveSettings({ hiddenKeywords: keywords }).then(invalidateFilters);
     }, 500);
     return () => window.clearTimeout(timer);

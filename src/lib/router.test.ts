@@ -41,6 +41,14 @@ describe("hash router", () => {
     expect(routeToHash({ name: "playlist", playlistId: 12 })).toBe("#/playlist/12");
   });
 
+  it("keeps playlist id zero instead of treating it as missing", () => {
+    expect(parseRoute("#/playlist/0")).toEqual({
+      name: "playlist",
+      playlistId: 0,
+    });
+    expect(routeToHash({ name: "playlist", playlistId: 0 })).toBe("#/playlist/0");
+  });
+
   it("falls back when route identifiers are incomplete", () => {
     expect(parseRoute("#/creator/patreon")).toEqual({ name: "creators" });
     expect(parseRoute("#/post/patreon/1")).toEqual({ name: "discover" });

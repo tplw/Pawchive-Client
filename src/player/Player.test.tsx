@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../services/api";
 import { useAppStore } from "../stores/app";
 import type { QueueItem } from "../types";
 import { Player } from "./Player";
-import { clearProgressCache } from "./progress";
+import { clearProgressCache, rememberProgress } from "./progress";
 import { usePlayerStore } from "./store";
 
 vi.mock("@tauri-apps/api/event", () => ({
@@ -79,6 +79,7 @@ describe("player", () => {
       configurable: true,
       value: 120,
     });
+    fireEvent.loadedMetadata(video);
     window.dispatchEvent(new Event("pawchive:save-progress"));
     await waitFor(() =>
       expect(api.saveProgress).toHaveBeenCalledWith(
@@ -206,5 +207,40 @@ describe("player", () => {
     await waitFor(() =>
       expect((video as HTMLVideoElement).currentTime).toBeCloseTo(30, 1),
     );
+  });
+
+  it("resumes cached progress after switching to another item", async () => {
+    const next: QueueItem = {
+      ...item,
+      id: "patreon:1:3:/cc/dd/next.mp4",
+      url: "https://file.pawchive.pw/data/cc/dd/next.mp4",
+      filePath: "/cc/dd/next.mp4",
+      fileName: "next.mp4",
+      title: "Next video",
+    };
+    rememberProgress({
+      filePath: "cc/dd/next.mp4",
+      position: 40,
+      duration: 120,
+      updatedAt: 1700000000,
+    });
+    vi.mocked(api.validateMedia).mockImplementation(async (url) => url);
+
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    await waitFor(() => expect(video.src).toBe(item.url));
+    fireEvent.loadedMetadata(video);
+
+    act(() => {
+      usePlayerStore.setState({ queue: [item, next], currentId: next.id });
+    });
+    await waitFor(() => expect(video.src).toBe(next.url));
+
+    Object.defineProperty(video, "duration", {
+      configurable: true,
+      value: 120,
+    });
+    fireEvent.loadedMetadata(video);
+    await waitFor(() => expect(video.currentTime).toBeCloseTo(40, 1));
   });
 });

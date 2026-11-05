@@ -8,6 +8,8 @@ use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio_util::sync::CancellationToken;
 
+const CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
+
 /// Start a single media download and return the queued record immediately.
 pub async fn enqueue(
     state: &AppState,
@@ -28,8 +30,8 @@ pub async fn enqueue(
     } else {
         request.file_name.clone()
     };
-    let file_name = unique_name(&dir, &safe_filename(&proposed));
-    let file_path = dir.join(&file_name);
+    let file_name = safe_filename(&proposed);
+    let (file_name, file_path) = reserve_unique_path(&dir, &file_name).await?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = now_ts();
     let record = DownloadRecord {
@@ -52,11 +54,64 @@ pub async fn enqueue(
         created_at: now,
         updated_at: now,
     };
-    state.db.insert_download(&record)?;
+    if let Err(error) = state.db.insert_download(&record) {
+        let _ = tokio::fs::remove_file(&file_path).await;
+        return Err(error);
+    }
 
     let token = CancellationToken::new();
     if let Ok(mut map) = state.downloads.lock() {
         map.insert(id.clone(), token.clone());
+    }
+    let task_state = state.clone();
+    let task_app = app.clone();
+    let task_record = record.clone();
+    tauri::async_runtime::spawn(async move {
+        run(task_state, task_app, task_record, token).await;
+    });
+    Ok(record)
+}
+
+/// Requeue a failed or cancelled download. The record keeps its id so the
+/// Downloads list can update in place instead of showing a duplicate.
+pub async fn retry(state: &AppState, app: &AppHandle, id: &str) -> AppResult<DownloadRecord> {
+    let mut record = state.db.get_download(id)?.ok_or(AppError::NotFound)?;
+    if record.status == "queued" || record.status == "downloading" {
+        return Ok(record);
+    }
+    if record.status != "failed" && record.status != "cancelled" {
+        return Err(AppError::Validation(
+            "only failed or cancelled downloads can be retried".into(),
+        ));
+    }
+    let url = crate::media::validate_media_url(&state.cfg, &record.url)?;
+    let dir = state.download_dir();
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| AppError::Io(format!("could not create download folder: {e}")))?;
+    // A failed attempt may have left a partial file behind. Remove it before
+    // reusing the name, and fall back to a suffixed name if it cannot be
+    // deleted (for example because another process still holds it).
+    remove_if_inside(&dir, Path::new(&record.file_path)).await;
+    let (file_name, file_path) =
+        reserve_unique_path(&dir, &safe_filename(&record.file_name)).await?;
+
+    record.url = url.to_string();
+    record.file_name = file_name;
+    record.file_path = file_path.to_string_lossy().to_string();
+    record.total_bytes = None;
+    record.downloaded_bytes = 0;
+    record.status = "queued".into();
+    record.error = None;
+    record.updated_at = now_ts();
+    if let Err(error) = state.db.reset_download(&record) {
+        let _ = tokio::fs::remove_file(&file_path).await;
+        return Err(error);
+    }
+
+    let token = CancellationToken::new();
+    if let Ok(mut map) = state.downloads.lock() {
+        map.insert(record.id.clone(), token.clone());
     }
     let task_state = state.clone();
     let task_app = app.clone();
@@ -82,11 +137,17 @@ async fn run(
     };
 
     // Space queued downloads out; the file host rate-limits bursts.
-    tokio::time::sleep(Duration::from_millis(350)).await;
-    let result = download_file(&state, &app, &mut record, &token).await;
-    if let Ok(mut map) = state.downloads.lock() {
-        map.remove(&record.id);
+    tokio::select! {
+        _ = token.cancelled() => {
+            if let Ok(mut map) = state.downloads.lock() {
+                map.remove(&record.id);
+            }
+            return;
+        }
+        _ = tokio::time::sleep(Duration::from_millis(350)) => {}
     }
+    let result = download_file(&state, &app, &mut record, &token).await;
+    let record_id = record.id.clone();
     match result {
         Ok(()) => {
             let _ = state.db.update_download(
@@ -102,7 +163,7 @@ async fn run(
             let _ = app.emit("download://complete", record);
         }
         Err(AppError::Cancelled) => {
-            let _ = tokio::fs::remove_file(&record.file_path).await;
+            remove_active_file(&state, &record).await;
             let _ = state
                 .db
                 .update_download(&record.id, 0, record.total_bytes, "cancelled", None);
@@ -112,9 +173,23 @@ async fn run(
             let _ = app.emit("download://progress", record);
         }
         Err(error) => {
-            let _ = tokio::fs::remove_file(&record.file_path).await;
+            remove_active_file(&state, &record).await;
             finish_error(&state, &app, &record, &error.to_string());
         }
+    }
+    // Remove the worker only after its final file/DB work. Callers such as
+    // `delete` and `clear_all` wait for this map entry, so removing it earlier
+    // would let them race the worker's own cleanup.
+    if let Ok(mut map) = state.downloads.lock() {
+        map.remove(&record_id);
+    }
+}
+
+/// Only remove the partial file while the download record still exists. If the
+/// user deleted the record, its filename may already have been reused.
+async fn remove_active_file(state: &AppState, record: &DownloadRecord) {
+    if state.db.get_download(&record.id).ok().flatten().is_some() {
+        remove_if_inside(&state.download_dir(), Path::new(&record.file_path)).await;
     }
 }
 
@@ -138,7 +213,14 @@ async fn download_file(
     loop {
         let chunk = tokio::select! {
             _ = token.cancelled() => return Err(AppError::Cancelled),
-            chunk = response.chunk() => chunk.map_err(|e| AppError::Network(e.to_string()))?,
+            chunk = tokio::time::timeout(CHUNK_TIMEOUT, response.chunk()) => {
+                match chunk {
+                    Ok(chunk) => chunk.map_err(|e| {
+                        AppError::Network(crate::security::network_error_message(&e))
+                    })?,
+                    Err(_) => return Err(AppError::Timeout),
+                }
+            }
         };
         let Some(chunk) = chunk else {
             break;
@@ -183,15 +265,23 @@ async fn fetch_with_retry(
         }
         let response = tokio::select! {
             _ = token.cancelled() => return Err(AppError::Cancelled),
-            response = state
-                .http
-                .get(&record.url)
-                .header(reqwest::header::REFERER, "https://pawchive.pw/")
-                .header(reqwest::header::ACCEPT, "*/*")
-                // Mirror a normal media player's streaming request. Some CDNs
-                // serve range requests from a faster/streaming path.
-                .header(reqwest::header::RANGE, "bytes=0-")
-                .send() => response.map_err(|e| AppError::Network(e.to_string()))?,
+            response = tokio::time::timeout(
+                Duration::from_secs(120),
+                state
+                    .http
+                    .get(&record.url)
+                    .header(reqwest::header::REFERER, "https://pawchive.pw/")
+                    .header(reqwest::header::ACCEPT, "*/*")
+                    // Mirror a normal media player's streaming request. Some CDNs
+                    // serve range requests from a faster/streaming path.
+                    .header(reqwest::header::RANGE, "bytes=0-")
+                    .send(),
+            ) => match response {
+                Ok(response) => response.map_err(|e| {
+                    AppError::Network(crate::security::network_error_message(&e))
+                })?,
+                Err(_) => return Err(AppError::Timeout),
+            },
         };
         let status = response.status();
         if status.is_success() {
@@ -228,17 +318,34 @@ fn finish_error(state: &AppState, app: &AppHandle, record: &DownloadRecord, mess
     }
 }
 
-pub async fn cancel(state: &AppState, id: &str) -> AppResult<()> {
-    if let Ok(mut map) = state.downloads.lock() {
-        if let Some(token) = map.remove(id) {
+/// Signal a running download to stop and give it a moment to release its file
+/// handle before callers delete or replace the destination.
+async fn cancel_active(state: &AppState, id: &str) {
+    if let Ok(map) = state.downloads.lock() {
+        if let Some(token) = map.get(id) {
             token.cancel();
         }
     }
-    if let Some(record) = state.db.get_download(id)? {
-        let path = PathBuf::from(&record.file_path);
-        if path.exists() {
-            let _ = tokio::fs::remove_file(path).await;
+    for _ in 0..40 {
+        let active = state
+            .downloads
+            .lock()
+            .map(|map| map.contains_key(id))
+            .unwrap_or(false);
+        if !active {
+            break;
         }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
+pub async fn cancel(state: &AppState, id: &str) -> AppResult<()> {
+    cancel_active(state, id).await;
+    if let Some(record) = state.db.get_download(id)? {
+        if record.status != "queued" && record.status != "downloading" {
+            return Ok(());
+        }
+        remove_if_inside(&state.download_dir(), Path::new(&record.file_path)).await;
         state
             .db
             .update_download(id, 0, record.total_bytes, "cancelled", None)?;
@@ -247,6 +354,7 @@ pub async fn cancel(state: &AppState, id: &str) -> AppResult<()> {
 }
 
 pub async fn delete(state: &AppState, id: &str) -> AppResult<()> {
+    cancel_active(state, id).await;
     if let Some(record) = state.db.get_download(id)? {
         remove_if_inside(&state.download_dir(), Path::new(&record.file_path)).await;
         state.db.delete_download(id)?;
@@ -263,6 +371,29 @@ pub async fn clear_completed(state: &AppState) -> AppResult<u64> {
 }
 
 pub async fn clear_all(state: &AppState) -> AppResult<u64> {
+    // Cancel active transfers first so they cannot recreate files after the
+    // cleanup below. Wait briefly for the workers to observe the tokens.
+    let ids: Vec<String> = match state.downloads.lock() {
+        Ok(map) => map
+            .iter()
+            .map(|(id, token)| {
+                token.cancel();
+                id.clone()
+            })
+            .collect(),
+        Err(_) => Vec::new(),
+    };
+    for _ in 0..20 {
+        let active = state
+            .downloads
+            .lock()
+            .map(|map| map.keys().any(|id| ids.contains(id)))
+            .unwrap_or(false);
+        if !active {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
     let records = state.db.clear_all_downloads()?;
     for record in &records {
         remove_if_inside(&state.download_dir(), Path::new(&record.file_path)).await;
@@ -302,7 +433,7 @@ pub async fn download_post(
         post.title.clone()
     };
     let files = post_files(&state.cfg, &post);
-    let count = files.len() as u64;
+    let mut count = 0u64;
     let post_thumbnail = files
         .iter()
         .find_map(|(attachment, _)| attachment.thumbnail_url.clone());
@@ -324,6 +455,8 @@ pub async fn download_post(
         };
         if let Err(error) = enqueue(state, app, request).await {
             tracing::warn!(%error, "could not queue post attachment");
+        } else {
+            count += 1;
         }
     }
     Ok(count)
@@ -335,7 +468,7 @@ pub async fn download_playlist(
     playlist_id: i64,
 ) -> AppResult<u64> {
     let items = state.db.list_playlist_items(playlist_id)?;
-    let count = items.len() as u64;
+    let mut count = 0u64;
     for item in items {
         let request = DownloadRequest {
             url: item.media_url,
@@ -356,6 +489,8 @@ pub async fn download_playlist(
         };
         if let Err(error) = enqueue(state, app, request).await {
             tracing::warn!(%error, "could not queue playlist item");
+        } else {
+            count += 1;
         }
     }
     Ok(count)
@@ -375,28 +510,71 @@ fn post_files(cfg: &crate::config::PawchiveConfig, post: &Post) -> Vec<(Attachme
         .collect()
 }
 
-fn unique_name(dir: &Path, name: &str) -> String {
+/// Atomically reserve a destination filename by creating it with
+/// `create_new`. Two concurrent queue operations can therefore never pick the
+/// same name and truncate a completed download.
+async fn reserve_unique_path(dir: &Path, name: &str) -> AppResult<(String, PathBuf)> {
     let candidate = if name.trim().is_empty() {
         "media".to_string()
     } else {
         name.to_string()
     };
-    let path = dir.join(&candidate);
-    if !path.exists() {
-        return candidate;
-    }
     let (stem, ext) = split_name(&candidate);
-    for index in 1..10_000 {
-        let next = if ext.is_empty() {
+    for index in 0..10_000 {
+        let next = if index == 0 {
+            candidate.clone()
+        } else if ext.is_empty() {
             format!("{stem}-{index}")
         } else {
             format!("{stem}-{index}.{ext}")
         };
-        if !dir.join(&next).exists() {
-            return next;
+        let path = dir.join(&next);
+        match tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .await
+        {
+            Ok(file) => {
+                drop(file);
+                return Ok((next, path));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(AppError::Io(format!(
+                    "could not reserve download file: {error}"
+                )))
+            }
         }
     }
-    format!("{stem}-{}.{}", uuid::Uuid::new_v4(), ext)
+    for _ in 0..10 {
+        let next = if ext.is_empty() {
+            format!("{stem}-{}", uuid::Uuid::new_v4())
+        } else {
+            format!("{stem}-{}.{ext}", uuid::Uuid::new_v4())
+        };
+        let path = dir.join(&next);
+        match tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .await
+        {
+            Ok(file) => {
+                drop(file);
+                return Ok((next, path));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(AppError::Io(format!(
+                    "could not reserve download file: {error}"
+                )))
+            }
+        }
+    }
+    Err(AppError::Io(
+        "could not find a unique filename for the download".into(),
+    ))
 }
 
 fn split_name(name: &str) -> (String, String) {
@@ -496,11 +674,15 @@ mod tests {
         assert_eq!(files[0].0.name, "full.png");
     }
 
-    #[test]
-    fn unique_names_do_not_overwrite() {
+    #[tokio::test]
+    async fn reserved_names_do_not_overwrite() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("clip.mp4"), b"x").unwrap();
-        assert_eq!(unique_name(dir.path(), "clip.mp4"), "clip-1.mp4");
+        let (name, path) = reserve_unique_path(dir.path(), "clip.mp4").await.unwrap();
+        assert_eq!(name, "clip-1.mp4");
+        assert!(path.exists());
+        let (second, _) = reserve_unique_path(dir.path(), "clip.mp4").await.unwrap();
+        assert_eq!(second, "clip-2.mp4");
     }
 
     #[test]

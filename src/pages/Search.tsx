@@ -33,6 +33,26 @@ import type { CreatorSummary, MediaKind, PostSummary } from "../types";
 
 type ContentFilter = "all" | "posts" | "creators";
 
+/**
+ * Keep the last search filters in memory so navigating into a creator or post
+ * and pressing Back restores the same view instead of resetting everything.
+ */
+const savedSearchView: {
+  draft: string;
+  content: ContentFilter;
+  service: string;
+  media: MediaKind[];
+  sort: string;
+  creatorSort: string;
+} = {
+  draft: "",
+  content: "all",
+  service: "",
+  media: [],
+  sort: "relevance",
+  creatorSort: "popular",
+};
+
 const MEDIA_OPTIONS: Array<{
   kind: MediaKind;
   label: string;
@@ -45,21 +65,33 @@ const MEDIA_OPTIONS: Array<{
 ];
 
 export function SearchPage({ query }: { query: string }) {
-  const [draft, setDraft] = useState(query);
-  const [content, setContent] = useState<ContentFilter>("all");
-  const [service, setService] = useState("");
-  const [media, setMedia] = useState<MediaKind[]>([]);
-  const [sort, setSort] = useState("relevance");
-  const [creatorSort, setCreatorSort] = useState("popular");
+  const [draft, setDraft] = useState(query || savedSearchView.draft);
+  const [content, setContent] = useState<ContentFilter>(savedSearchView.content);
+  const [service, setService] = useState(savedSearchView.service);
+  const [media, setMedia] = useState<MediaKind[]>(savedSearchView.media);
+  const [sort, setSort] = useState(savedSearchView.sort);
+  const [creatorSort, setCreatorSort] = useState(savedSearchView.creatorSort);
   const debounced = useDebouncedValue(draft.trim(), 350);
   const postCardSize = useAppStore((state) => state.settings.postCardSize);
   const postMetrics = postGridMetrics(postCardSize);
   const creatorMetrics = creatorGridMetrics(postCardSize);
   const searchStarted = useRef(0);
+  const queryRef = useRef(query);
 
   useEffect(() => {
+    if (queryRef.current === query) return;
+    queryRef.current = query;
     setDraft(query);
   }, [query]);
+
+  useEffect(() => {
+    savedSearchView.draft = draft;
+    savedSearchView.content = content;
+    savedSearchView.service = service;
+    savedSearchView.media = media;
+    savedSearchView.sort = sort;
+    savedSearchView.creatorSort = creatorSort;
+  }, [draft, content, service, media, sort, creatorSort]);
 
   useEffect(() => {
     const focus = () => {

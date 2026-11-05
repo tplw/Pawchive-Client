@@ -271,6 +271,10 @@ export function Player() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const stageContainerRef = useRef<HTMLDivElement>(null);
   const resumeRef = useRef(0);
+  // Which queue item the media element currently holds. `progressKey` can
+  // change before the element has switched sources, so seek/save operations
+  // must confirm the element really belongs to the item they refer to.
+  const loadedItemRef = useRef<string | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -407,10 +411,17 @@ export function Player() {
 
   useEffect(() => {
     transcodeAttemptedRef.current = null;
-    transcodeRequestRef.current = null;
-    hlsFallbackRef.current = null;
     setTranscodeProgress(null);
     setTranscodePhase(null);
+    return () => {
+      const pending = transcodeRequestRef.current;
+      transcodeRequestRef.current = null;
+      if (pending) void api.cancelRequest(pending).catch(() => undefined);
+    };
+  }, [item?.id]);
+
+  useEffect(() => {
+    hlsFallbackRef.current = null;
   }, [item?.id]);
 
   useEffect(() => {
@@ -447,7 +458,7 @@ export function Player() {
   }, []);
 
   const saveProgress = useCallback(() => {
-    if (!progressKey) return;
+    if (!progressKey || !item || loadedItemRef.current !== item.id) return;
     const video = videoRef.current;
     const state = usePlayerStore.getState();
     const position =
@@ -465,7 +476,7 @@ export function Player() {
     };
     rememberProgress(progress);
     void api.saveProgress(progress).catch(() => undefined);
-  }, [progressKey]);
+  }, [item, progressKey]);
 
   const startTranscode = useCallback(async () => {
     if (!item) return;
@@ -513,14 +524,19 @@ export function Player() {
       setLoading(false);
       setError(null);
       setVideoAspect(null);
+      loadedItemRef.current = null;
       return;
     }
     let cancelled = false;
+    // Read at load time so changing these settings does not restart the
+    // current source and lose the playback position.
+    const { cacheMedia, resumePlayback } = useAppStore.getState().settings;
     setSource(null);
     setError(null);
     setLoading(true);
     setVideoAspect(null);
     resumeRef.current = 0;
+    loadedItemRef.current = null;
 
     const loadRemote = () => {
       void api
@@ -545,7 +561,7 @@ export function Player() {
           if (!cancelled) loadRemote();
         });
     } else if (
-      settings.cacheMedia &&
+      cacheMedia &&
       !isHlsUrl(item.url) &&
       item.url.startsWith("https://")
     ) {
@@ -568,7 +584,7 @@ export function Player() {
       loadRemote();
     }
 
-    if (settings.resumePlayback && progressKeys.length > 0) {
+    if (resumePlayback && progressKeys.length > 0) {
       void (async () => {
         for (const key of progressKeys) {
           const progress =
@@ -577,20 +593,26 @@ export function Player() {
           if (cancelled) return;
           if (!progress) continue;
           rememberProgress(progress);
+          if (progress.position <= 5) continue;
           const video = videoRef.current;
-          const total =
-            video && Number.isFinite(video.duration) ? video.duration : 0;
-          const canResume =
-            progress.position > 5 && (!total || progress.position < total - 8);
-          if (video && video.readyState >= 1 && canResume) {
-            try {
-              video.currentTime = progress.position;
-              setPosition(progress.position, total);
-            } catch {
-              // Seeking can fail for unusual containers; start from the beginning.
-            }
-          } else {
+          // The element still holds the outgoing item until its metadata
+          // loads. Only seek directly when it belongs to this item; otherwise
+          // stash the position for onLoadedMetadata to apply.
+          if (
+            !video ||
+            loadedItemRef.current !== item.id ||
+            video.readyState < 1
+          ) {
             resumeRef.current = progress.position;
+            return;
+          }
+          const total = Number.isFinite(video.duration) ? video.duration : 0;
+          if (total && progress.position >= total - 8) return;
+          try {
+            video.currentTime = progress.position;
+            setPosition(progress.position, total);
+          } catch {
+            // Seeking can fail for unusual containers; start from the beginning.
           }
           return;
         }
@@ -600,14 +622,7 @@ export function Player() {
     return () => {
       cancelled = true;
     };
-  }, [
-    item,
-    progressKeys,
-    setPosition,
-    settings.cacheMedia,
-    settings.resumePlayback,
-    toast,
-  ]);
+  }, [item, progressKeys, setPosition]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -679,7 +694,23 @@ export function Player() {
   useEffect(() => {
     const win = currentWindow();
     if (!win) return;
-    void win.isFullscreen().then(setFullscreen).catch(() => undefined);
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const sync = () => {
+      void win.isFullscreen().then(setFullscreen).catch(() => undefined);
+    };
+    sync();
+    void win
+      .onResized(sync)
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => undefined);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -716,7 +747,8 @@ export function Player() {
       return;
     }
     try {
-      const next = !fullscreen;
+      const current = await win.isFullscreen().catch(() => fullscreen);
+      const next = !current;
       await win.setFullscreen(next);
       setFullscreen(next);
     } catch (fullscreenError) {
@@ -770,11 +802,13 @@ export function Player() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!usePlayerStore.getState().currentId) return;
+      const state = usePlayerStore.getState();
+      // Only capture media keys while the player is expanded. A collapsed
+      // mini-player must not steal Space/arrows from the page underneath.
+      if (!state.currentId || !state.expanded) return;
       if (isEditableTarget(event.target)) return;
       if (document.querySelector('[data-modal-open="true"]')) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const state = usePlayerStore.getState();
       switch (event.key.toLowerCase()) {
         case " ":
           event.preventDefault();
@@ -878,9 +912,20 @@ export function Player() {
     });
   };
 
+  const openCreator = () => {
+    if (!item.service || !item.creatorId) return;
+    if (expanded) collapse();
+    navigate({
+      name: "creator",
+      service: item.service,
+      creatorId: item.creatorId,
+    });
+  };
+
   const onLoadedMetadata = () => {
     const video = videoRef.current;
     if (!video) return;
+    loadedItemRef.current = item.id;
     if (video.videoWidth > 0 && video.videoHeight > 0) {
       setVideoAspect(video.videoWidth / video.videoHeight);
     }
@@ -1370,9 +1415,14 @@ export function Player() {
               >
                 {item.title || item.fileName}
               </button>
-              <span className="shrink-0 text-[9px] text-muted">
+              <button
+                type="button"
+                onClick={openCreator}
+                title="Open creator profile"
+                className="shrink-0 truncate text-left text-[9px] text-muted transition hover:text-accent"
+              >
                 {item.creatorName || item.fileName}
-              </span>
+              </button>
               <span className="ml-auto shrink-0 text-[9px] uppercase tracking-wider text-muted">
                 {isAudio ? "Audio" : "Video"}
               </span>
@@ -1405,9 +1455,14 @@ export function Player() {
                   {item.title || item.fileName}
                 </p>
               )}
-              <p className="truncate text-[9px] text-white/40">
+              <button
+                type="button"
+                onClick={openCreator}
+                title="Open creator profile"
+                className="block max-w-full truncate text-left text-[9px] text-white/40 transition hover:text-accent"
+              >
                 {item.creatorName || item.fileName}
-              </p>
+              </button>
             </div>
             <div className="flex items-center gap-1">{expandedActions}</div>
           </div>

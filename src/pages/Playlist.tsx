@@ -155,7 +155,22 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
       return;
     }
     const index = playableItems.findIndex((entry) => entry.id === item.id);
-    if (index >= 0) playItems(queue, index);
+    if (index >= 0) {
+      playItems(queue, index);
+      return;
+    }
+    // Documents cannot be rendered by the player. Open their original post
+    // instead, or start a download when the item has no post route.
+    if (item.postId) {
+      navigate({
+        name: "post",
+        service: item.service,
+        creatorId: item.creatorId,
+        postId: item.postId,
+      });
+      return;
+    }
+    downloadItem(item);
   };
 
   const addToQueue = (item: PlaylistItem) => {
@@ -334,7 +349,9 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
                     aria-label={
                       item.mediaKind === "image"
                         ? `View ${item.title || playlistFileName(item)}`
-                        : `Play ${item.title || playlistFileName(item)}`
+                        : playable
+                          ? `Play ${item.title || playlistFileName(item)}`
+                          : `Open post for ${item.title || playlistFileName(item)}`
                     }
                     onClick={() => openItem(item)}
                     className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-1 py-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/70"

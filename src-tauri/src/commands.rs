@@ -344,19 +344,59 @@ pub async fn get_creator_posts(
     service: String,
     creator_id: String,
     offset: Option<i64>,
+    query: Option<String>,
     request_id: Option<String>,
 ) -> AppResult<PostPage> {
     let st = st(&state);
     let offset = offset.unwrap_or(0);
+    let query = query.filter(|value| !value.trim().is_empty());
     let token = request_id.as_deref().map(|id| st.register_cancel(id));
     let result = st
         .api
-        .creator_posts(&service, &creator_id, offset, token.as_ref())
+        .creator_posts(
+            &service,
+            &creator_id,
+            offset,
+            query.as_deref(),
+            token.as_ref(),
+        )
         .await;
     if let Some(id) = request_id.as_deref() {
         st.finish_cancel(id);
     }
     build_post_page(&st, result?, offset)
+}
+
+#[tauri::command]
+pub async fn get_similar_creators(
+    state: State<'_, AppState>,
+    service: String,
+    creator_id: String,
+    request_id: Option<String>,
+) -> AppResult<Vec<CreatorSummary>> {
+    let st = st(&state);
+    let token = request_id.as_deref().map(|id| st.register_cancel(id));
+    let result = st
+        .api
+        .similar_creators_html(&service, &creator_id, token.as_ref())
+        .await;
+    if let Some(id) = request_id.as_deref() {
+        st.finish_cancel(id);
+    }
+    let items = crate::similar::parse_similar_creators(&result?);
+    let db = Arc::clone(&st.db);
+    blocking(move || {
+        Ok(items
+            .into_iter()
+            .map(|item| {
+                db.get_creator(&item.service, &item.id)
+                    .ok()
+                    .flatten()
+                    .unwrap_or(item)
+            })
+            .collect())
+    })
+    .await
 }
 
 /* --------------------------------- posts -------------------------------- */
@@ -1011,6 +1051,16 @@ pub async fn delete_download(state: State<'_, AppState>, id: String) -> AppResul
 }
 
 #[tauri::command]
+pub async fn retry_download(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> AppResult<DownloadRecord> {
+    let st = st(&state);
+    crate::downloads::retry(&st, &app, &id).await
+}
+
+#[tauri::command]
 pub async fn clear_completed_downloads(state: State<'_, AppState>) -> AppResult<u64> {
     let st = st(&state);
     crate::downloads::clear_completed(&st).await
@@ -1269,7 +1319,13 @@ pub async fn cache_media(
     request_id: Option<String>,
 ) -> AppResult<String> {
     let st = st(&state);
-    crate::media_cache::cache_media(&app, &st, &url, request_id).await
+    let token = request_id.as_deref().map(|id| st.register_cancel(id));
+    let result =
+        crate::media_cache::cache_media(&app, &st, &url, request_id.clone(), token.as_ref()).await;
+    if let Some(id) = request_id.as_deref() {
+        st.finish_cancel(id);
+    }
+    result
 }
 
 #[tauri::command]
@@ -1291,7 +1347,14 @@ pub async fn transcode_media(
     request_id: Option<String>,
 ) -> AppResult<String> {
     let st = st(&state);
-    crate::transcode::transcode_media(&app, &st, &url, request_id).await
+    let token = request_id.as_deref().map(|id| st.register_cancel(id));
+    let result =
+        crate::transcode::transcode_media(&app, &st, &url, request_id.clone(), token.as_ref())
+            .await;
+    if let Some(id) = request_id.as_deref() {
+        st.finish_cancel(id);
+    }
+    result
 }
 
 #[derive(serde::Serialize)]
@@ -1318,7 +1381,7 @@ pub async fn get_image_dimensions(
     )
     .await
     .map_err(|_| AppError::Network("image dimensions request timed out".into()))?
-    .map_err(|error| AppError::Network(error.to_string()))?;
+    .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
     if !response.status().is_success() && response.status() != reqwest::StatusCode::PARTIAL_CONTENT
     {
         return Ok(None);
@@ -1327,10 +1390,10 @@ pub async fn get_image_dimensions(
     let mut bytes = Vec::with_capacity(MAX_HEADER_BYTES);
     let mut response = response;
     while bytes.len() < MAX_HEADER_BYTES {
-        let chunk = response
-            .chunk()
+        let chunk = tokio::time::timeout(Duration::from_secs(12), response.chunk())
             .await
-            .map_err(|error| AppError::Network(error.to_string()))?;
+            .map_err(|_| AppError::Timeout)?
+            .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
         let Some(chunk) = chunk else {
             break;
         };
@@ -1376,7 +1439,7 @@ pub async fn get_media_size(state: State<'_, AppState>, url: String) -> AppResul
     )
     .await
     .map_err(|_| AppError::Network("media size request timed out".into()))?
-    .map_err(|error| AppError::Network(error.to_string()))?;
+    .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
     if !response.status().is_success() && response.status() != reqwest::StatusCode::PARTIAL_CONTENT
     {
         return Ok(None);

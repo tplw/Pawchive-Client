@@ -250,9 +250,14 @@ export const usePlayerStore = create<PlayerStore>()(
         currentId: state.currentId,
       }),
       merge: (persisted, current) => {
-        const saved = persisted as Partial<PlayerStore>;
-        const queue = (saved.queue ?? []).filter((entry) =>
-          isPlayableMediaKind(entry.mediaKind),
+        const saved = (persisted ?? {}) as Partial<PlayerStore>;
+        const savedQueue = Array.isArray(saved.queue) ? saved.queue : [];
+        const queue = savedQueue.filter(
+          (entry) =>
+            entry &&
+            typeof entry === "object" &&
+            typeof entry.id === "string" &&
+            isPlayableMediaKind(entry.mediaKind),
         );
         const currentId = queue.some((entry) => entry.id === saved.currentId)
           ? saved.currentId ?? null

@@ -6,6 +6,7 @@ import {
   FolderOpen,
   ListPlus,
   LoaderCircle,
+  RefreshCw,
   Trash2,
   X,
 } from "lucide-react";
@@ -50,6 +51,7 @@ const DownloadRow = memo(function DownloadRow({
   const playItems = usePlayerStore((state) => state.playItems);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const active = record.status === "queued" || record.status === "downloading";
   const playable = isPlayableMediaKind(record.mediaKind);
   const canOpen = record.status === "completed" && (playable || record.mediaKind === "image");
@@ -110,6 +112,15 @@ const DownloadRow = memo(function DownloadRow({
       void queryClient.invalidateQueries({ queryKey: ["downloads"] });
     },
     onError: (error) => reportError(error, "Could not delete download"),
+  });
+
+  const retry = useMutation({
+    mutationFn: () => api.retryDownload(record.id),
+    onSuccess: () => {
+      toast("info", "Download requeued", record.fileName);
+      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+    },
+    onError: (error) => reportError(error, "Could not retry download"),
   });
 
   const play = async () => {
@@ -239,12 +250,22 @@ const DownloadRow = memo(function DownloadRow({
               onClick={() => cancel.mutate()}
             />
           ) : (
-            <IconButton
-              label="Delete record"
-              icon={Trash2}
-              size="sm"
-              onClick={() => remove.mutate()}
-            />
+            <>
+              {record.status === "failed" || record.status === "cancelled" ? (
+                <IconButton
+                  label="Retry download"
+                  icon={RefreshCw}
+                  size="sm"
+                  onClick={() => retry.mutate()}
+                />
+              ) : null}
+              <IconButton
+                label="Delete file"
+                icon={Trash2}
+                size="sm"
+                onClick={() => setConfirmDelete(true)}
+              />
+            </>
           )}
         </div>
       </div>
@@ -257,6 +278,16 @@ const DownloadRow = memo(function DownloadRow({
           onClose={() => setViewerOpen(false)}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete downloaded file?"
+        message={`This permanently deletes "${record.fileName}" from disk and removes its download record. This cannot be undone.`}
+        confirmLabel="Delete file"
+        danger
+        onConfirm={() => remove.mutate()}
+        onClose={() => setConfirmDelete(false)}
+      />
     </article>
   );
 });

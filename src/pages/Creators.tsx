@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { LoaderCircle, RefreshCw, Search, Users, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
 import { cn, shortNumber } from "../lib/format";
@@ -12,20 +12,36 @@ import { CardGrid } from "../components/CardGrid";
 import { Button, EmptyState, SectionHeader } from "../components/ui";
 import type { CreatorSummary } from "../types";
 
+/** Preserve directory filters when navigating to a creator and back. */
+const savedCreatorsView = {
+  search: "",
+  service: "",
+  sort: "popular",
+};
+
 export function CreatorsPage({ query = "" }: { query?: string }) {
-  const [search, setSearch] = useState(query);
-  const [service, setService] = useState("");
-  const [sort, setSort] = useState("popular");
+  const [search, setSearch] = useState(query || savedCreatorsView.search);
+  const [service, setService] = useState(savedCreatorsView.service);
+  const [sort, setSort] = useState(savedCreatorsView.sort);
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   const indexState = useAppStore((state) => state.indexState);
   const indexCount = useAppStore((state) => state.indexCount);
   const ensureCreatorIndex = useAppStore((state) => state.ensureCreatorIndex);
   const cardSize = useAppStore((state) => state.settings.postCardSize);
   const creatorMetrics = creatorGridMetrics(cardSize);
+  const queryRef = useRef(query);
 
   useEffect(() => {
+    if (queryRef.current === query) return;
+    queryRef.current = query;
     setSearch(query);
   }, [query]);
+
+  useEffect(() => {
+    savedCreatorsView.search = search;
+    savedCreatorsView.service = service;
+    savedCreatorsView.sort = sort;
+  }, [search, service, sort]);
 
   const creators = useInfiniteQuery({
     queryKey: ["creators", "directory", debouncedSearch, service, sort],

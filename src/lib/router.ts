@@ -77,7 +77,9 @@ export function routeToHash(route: Route): string {
     case "creators":
       return `#/creators${route.query ? `?q=${encodeURIComponent(route.query)}` : ""}`;
     case "playlist":
-      return route.playlistId ? `#/playlist/${route.playlistId}` : "#/home";
+      return route.playlistId !== undefined && route.playlistId !== null
+        ? `#/playlist/${route.playlistId}`
+        : "#/home";
     default:
       return `#/${route.name}`;
   }
