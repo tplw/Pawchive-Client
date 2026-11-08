@@ -85,8 +85,30 @@ impl PawchiveConfig {
         format!(
             "{}/thumbnail/data/{}",
             self.image_base.trim_end_matches('/'),
-            path.trim_start_matches('/')
+            thumbnail_path(path)
         )
+    }
+}
+
+/// Archive file paths sometimes carry a one-character storage prefix in their
+/// first shard (`/25f/c7/...`). The thumbnail host stores the same object
+/// without that prefix (`/5f/c7/...`). Paths that already start with a plain
+/// two-character shard are unchanged.
+fn thumbnail_path(path: &str) -> String {
+    let trimmed = path.trim_start_matches('/');
+    let mut segments = trimmed.splitn(2, '/');
+    let first = segments.next().unwrap_or_default();
+    let rest = segments.next().unwrap_or_default();
+    if first.len() == 3
+        && first
+            .as_bytes()
+            .first()
+            .is_some_and(|byte| byte.is_ascii_digit())
+        && !rest.is_empty()
+    {
+        format!("{}/{}", &first[1..], rest)
+    } else {
+        trimmed.to_string()
     }
 }
 
@@ -126,5 +148,25 @@ mod tests {
             PawchiveConfig::default().app_version,
             crate::version::APP_VERSION
         );
+    }
+
+    #[test]
+    fn strips_legacy_storage_prefixes_from_thumbnail_paths() {
+        let cfg = PawchiveConfig::default();
+        assert!(cfg
+            .thumbnail_url("/25f/c7/5fc7af9788a855a7df9cfac586e64f549741796d71ef5e960fc429d04dadefce.jpg")
+            .ends_with("/thumbnail/data/5f/c7/5fc7af9788a855a7df9cfac586e64f549741796d71ef5e960fc429d04dadefce.jpg"));
+        assert!(cfg
+            .thumbnail_url("/16a/08/clip.gif")
+            .ends_with("/thumbnail/data/6a/08/clip.gif"));
+        assert!(cfg
+            .thumbnail_url("/ac/21/clip.png")
+            .ends_with("/thumbnail/data/ac/21/clip.png"));
+        assert!(cfg
+            .thumbnail_url("aa/bb/clip.png")
+            .ends_with("/thumbnail/data/aa/bb/clip.png"));
+        assert!(cfg
+            .thumbnail_url("/abc/21/clip.png")
+            .ends_with("/thumbnail/data/abc/21/clip.png"));
     }
 }
