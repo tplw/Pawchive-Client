@@ -13,12 +13,13 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage, serviceLabel } from "../lib/constants";
 import {
   creatorFilterActive,
   detectAsmrCreator,
+  getGlobalHideNoMediaDefault,
   loadCreatorFilter,
   parseFilterKeywords,
   postMatchesCreatorFilter,
@@ -78,9 +79,13 @@ export function CreatorProfilePage({
   const postQuery = debouncedPostSearch.length >= 3 ? debouncedPostSearch : "";
   const postCardSize = useAppStore((state) => state.settings.postCardSize);
   const autoDetectAsmr = useAppStore((state) => state.settings.autoDetectAsmr);
+  const hideNoMediaDefault = useAppStore(
+    (state) => state.settings.hideNoMedia,
+  );
   const hideUnavailablePosts = useAppStore(
     (state) => state.settings.hideUnavailablePosts,
   );
+  const lastHideNoMediaDefault = useRef(hideNoMediaDefault);
   const postMetrics = postGridMetrics(postCardSize);
   const creatorMetrics = creatorGridMetrics(postCardSize);
   const queryClient = useQueryClient();
@@ -153,6 +158,18 @@ export function CreatorProfilePage({
     setFilter(next);
     saveCreatorFilter(service, creatorId, next);
   };
+
+  // Keep an already-open creator profile in sync when the main Settings
+  // toggle changes. The updated value is also persisted for this creator.
+  useEffect(() => {
+    if (lastHideNoMediaDefault.current === hideNoMediaDefault) return;
+    lastHideNoMediaDefault.current = hideNoMediaDefault;
+    setFilter((current) => {
+      const next = { ...current, hideNoMedia: hideNoMediaDefault };
+      saveCreatorFilter(service, creatorId, next);
+      return next;
+    });
+  }, [hideNoMediaDefault, service, creatorId]);
 
   const loadMore = useCallback(() => {
     if (posts.hasNextPage && !posts.isFetchingNextPage) {
@@ -407,7 +424,7 @@ export function CreatorProfilePage({
                     onClick={() => {
                       updateFilter({
                         audioOnly: false,
-                        hideNoMedia: false,
+                        hideNoMedia: getGlobalHideNoMediaDefault(),
                         hideUnavailable: false,
                         keywords: [],
                         asmr: false,
@@ -653,7 +670,7 @@ export function CreatorProfilePage({
               onClick={() => {
                 updateFilter({
                   audioOnly: false,
-                  hideNoMedia: false,
+                  hideNoMedia: getGlobalHideNoMediaDefault(),
                   hideUnavailable: false,
                   keywords: [],
                   asmr: false,
@@ -708,7 +725,7 @@ export function CreatorProfilePage({
               updateFilter({ ...filter, hideNoMedia: checked })
             }
             label="Hide posts without media"
-            description="Hide text-only posts that have no attachment or link."
+            description="Hide text-only posts that have no attachment or link. Follows the main Settings toggle until you override it here."
           />
           <Toggle
             checked={filter.hideUnavailable}

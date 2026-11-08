@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { PostSummary } from "../types";
 import {
+  applyHideNoMediaToCreators,
   creatorFilterActive,
   detectAsmrCreator,
+  loadCreatorFilter,
   parseFilterKeywords,
   postMatchesCreatorFilter,
+  saveCreatorFilter,
+  setGlobalHideNoMediaDefault,
 } from "./creatorFilters";
 
 function post(overrides: Partial<PostSummary> = {}): PostSummary {
@@ -106,5 +110,58 @@ describe("creator filters", () => {
       "sketch",
       "commission",
     ]);
+  });
+});
+
+describe("global hide-no-media setting", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    setGlobalHideNoMediaDefault(false);
+  });
+
+  it("defaults creators without a saved filter to the global value", () => {
+    setGlobalHideNoMediaDefault(true);
+    expect(loadCreatorFilter("patreon", "1").hideNoMedia).toBe(true);
+  });
+
+  it("applies the global toggle to every saved creator filter", () => {
+    saveCreatorFilter("patreon", "1", {
+      audioOnly: false,
+      hideNoMedia: false,
+      hideUnavailable: false,
+      keywords: ["sketch"],
+    });
+    saveCreatorFilter("patreon", "2", {
+      audioOnly: true,
+      hideNoMedia: false,
+      hideUnavailable: false,
+      keywords: [],
+    });
+
+    applyHideNoMediaToCreators(true);
+
+    expect(loadCreatorFilter("patreon", "1")).toMatchObject({
+      hideNoMedia: true,
+      keywords: ["sketch"],
+    });
+    expect(loadCreatorFilter("patreon", "2")).toMatchObject({
+      hideNoMedia: true,
+      audioOnly: true,
+    });
+    expect(loadCreatorFilter("patreon", "3").hideNoMedia).toBe(true);
+  });
+
+  it("persists an explicit per-creator override after the global toggle", () => {
+    applyHideNoMediaToCreators(true);
+    saveCreatorFilter("patreon", "1", {
+      audioOnly: false,
+      hideNoMedia: false,
+      hideUnavailable: false,
+      keywords: [],
+    });
+    expect(loadCreatorFilter("patreon", "1").hideNoMedia).toBe(false);
+
+    applyHideNoMediaToCreators(false);
+    expect(loadCreatorFilter("patreon", "1").hideNoMedia).toBe(false);
   });
 });

@@ -16,8 +16,79 @@ const EMPTY_FILTER: CreatorFilter = {
   keywords: [],
 };
 
+const FILTER_PREFIX = "pawchive-creator-filter:";
+
+/**
+ * The main Settings toggle acts as the default for creators that have not
+ * customized their filter. It is kept in memory and refreshed whenever the
+ * persisted app settings load or change.
+ */
+let globalHideNoMediaDefault = false;
+
+export function setGlobalHideNoMediaDefault(value: boolean): void {
+  globalHideNoMediaDefault = value;
+}
+
+export function getGlobalHideNoMediaDefault(): boolean {
+  return globalHideNoMediaDefault;
+}
+
+/**
+ * Apply the main "Hide posts without media" toggle to every saved creator
+ * filter. This intentionally overwrites existing per-creator overrides so the
+ * setting is consistent across all creators, then leaves the new value as the
+ * default for creators without a saved filter.
+ */
+export function applyHideNoMediaToCreators(value: boolean): void {
+  globalHideNoMediaDefault = value;
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key?.startsWith(FILTER_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw) as Partial<CreatorFilter>;
+        const next: CreatorFilter = {
+          audioOnly: Boolean(parsed.audioOnly),
+          hideNoMedia: value,
+          hideUnavailable: Boolean(parsed.hideUnavailable),
+          keywords: Array.isArray(parsed.keywords)
+            ? parsed.keywords.filter(
+                (keyword): keyword is string => typeof keyword === "string",
+              )
+            : [],
+          ...(typeof parsed.asmr === "boolean" ? { asmr: parsed.asmr } : {}),
+        };
+        if (filterHasStoredRules(next)) {
+          window.localStorage.setItem(key, JSON.stringify(next));
+        } else {
+          window.localStorage.removeItem(key);
+        }
+      } catch {
+        // Ignore malformed entries; they will be replaced on the next save.
+      }
+    }
+  } catch {
+    // Filters still work for the current session if storage is unavailable.
+  }
+}
+
+function filterHasStoredRules(filter: CreatorFilter): boolean {
+  return (
+    filter.audioOnly ||
+    filter.hideNoMedia !== globalHideNoMediaDefault ||
+    filter.hideUnavailable ||
+    filter.keywords.length > 0 ||
+    typeof filter.asmr === "boolean"
+  );
+}
+
 function storageKey(service: string, creatorId: string): string {
-  return `pawchive-creator-filter:${service}:${creatorId}`;
+  return `${FILTER_PREFIX}${service}:${creatorId}`;
 }
 
 export function loadCreatorFilter(
@@ -26,11 +97,16 @@ export function loadCreatorFilter(
 ): CreatorFilter {
   try {
     const raw = window.localStorage.getItem(storageKey(service, creatorId));
-    if (!raw) return EMPTY_FILTER;
+    if (!raw) {
+      return { ...EMPTY_FILTER, hideNoMedia: globalHideNoMediaDefault };
+    }
     const parsed = JSON.parse(raw) as Partial<CreatorFilter>;
     return {
       audioOnly: Boolean(parsed.audioOnly),
-      hideNoMedia: Boolean(parsed.hideNoMedia),
+      hideNoMedia:
+        typeof parsed.hideNoMedia === "boolean"
+          ? parsed.hideNoMedia
+          : globalHideNoMediaDefault,
       hideUnavailable: Boolean(parsed.hideUnavailable),
       keywords: Array.isArray(parsed.keywords)
         ? parsed.keywords.filter((keyword): keyword is string => typeof keyword === "string")
@@ -38,7 +114,7 @@ export function loadCreatorFilter(
       ...(typeof parsed.asmr === "boolean" ? { asmr: parsed.asmr } : {}),
     };
   } catch {
-    return EMPTY_FILTER;
+    return { ...EMPTY_FILTER, hideNoMedia: globalHideNoMediaDefault };
   }
 }
 
@@ -48,13 +124,7 @@ export function saveCreatorFilter(
   filter: CreatorFilter,
 ): void {
   try {
-    if (
-      filter.audioOnly ||
-      filter.hideNoMedia ||
-      filter.hideUnavailable ||
-      filter.keywords.length > 0 ||
-      typeof filter.asmr === "boolean"
-    ) {
+    if (filterHasStoredRules(filter)) {
       window.localStorage.setItem(
         storageKey(service, creatorId),
         JSON.stringify(filter),

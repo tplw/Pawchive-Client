@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { waitFor } from "@testing-library/react";
 import { DEFAULT_SETTINGS, FALLBACK_CONFIG } from "../lib/constants";
+import {
+  loadCreatorFilter,
+  saveCreatorFilter,
+  setGlobalHideNoMediaDefault,
+} from "../lib/creatorFilters";
 import { switchTab } from "../lib/router";
 import { api } from "../services/api";
 import { pendingUpdateVersion, useAppStore } from "./app";
@@ -21,6 +26,8 @@ vi.mock("../services/api", () => ({
 describe("app store", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    setGlobalHideNoMediaDefault(false);
     useAppStore.setState({
       settings: DEFAULT_SETTINGS,
       route: { name: "home" },
@@ -129,6 +136,21 @@ describe("app store", () => {
     );
     expect(useAppStore.getState().settings.sidebarVisible).toBe(false);
     expect(useAppStore.getState().settings.volume).toBe(0.4);
+  });
+
+  it("applies the global hideNoMedia toggle to every creator filter", async () => {
+    saveCreatorFilter("patreon", "1", {
+      audioOnly: false,
+      hideNoMedia: false,
+      hideUnavailable: false,
+      keywords: ["sketch"],
+    });
+    vi.mocked(api.saveSettings).mockImplementation(async (settings) => settings);
+    await useAppStore.getState().saveSettings({ hideNoMedia: true });
+    expect(loadCreatorFilter("patreon", "1")).toMatchObject({
+      hideNoMedia: true,
+      keywords: ["sketch"],
+    });
   });
 
   it("serializes rapid settings updates without stale overwrites", async () => {

@@ -322,6 +322,7 @@ export function SettingsPage() {
                 void saveSettings({ hideNoMedia: checked }).then(invalidateFilters);
               }}
               label="Hide posts without media"
+              description="Also applies to every creator's filter. You can still override it per creator."
             />
             <Toggle
               compact

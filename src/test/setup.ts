@@ -43,6 +43,38 @@ if (!URL.revokeObjectURL) {
   URL.revokeObjectURL = vi.fn();
 }
 
+// jsdom can be configured without a usable storage area (opaque origin). The
+// app relies on localStorage for creator filters and player progress, so give
+// tests a small in-memory implementation when the environment lacks one.
+try {
+  void window.localStorage.length;
+} catch {
+  const values = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      get length() {
+        return values.size;
+      },
+      clear() {
+        values.clear();
+      },
+      getItem(key: string) {
+        return values.get(String(key)) ?? null;
+      },
+      key(index: number) {
+        return [...values.keys()][index] ?? null;
+      },
+      removeItem(key: string) {
+        values.delete(String(key));
+      },
+      setItem(key: string, value: string) {
+        values.set(String(key), String(value));
+      },
+    },
+  });
+}
+
 if (!("PictureInPicture" in window)) {
   Object.defineProperty(document, "pictureInPictureElement", {
     configurable: true,
