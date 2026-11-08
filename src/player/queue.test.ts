@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { playbackProgressKey } from "./queue";
+import { isMegaFileUrl, playbackProgressKey } from "./queue";
 
 describe("playback progress key", () => {
   it("uses the archive-relative path for post, playlist and download entries", () => {
@@ -25,5 +25,25 @@ describe("playback progress key", () => {
         filePath: "C:\\Users\\Ada\\Downloads\\clip.mp4",
       }),
     ).toBe("C:/Users/Ada/Downloads/clip.mp4");
+  });
+});
+
+describe("MEGA links", () => {
+  it("recognises current and legacy file links", () => {
+    expect(
+      isMegaFileUrl(
+        "https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30",
+      ),
+    ).toBe(true);
+    expect(
+      isMegaFileUrl(
+        "https://mega.nz/#!Ue5VRSIQ!kC2E4a4JwfWWCWYNJovGFHlbz8FN-ISsBAGPzvTjT6k",
+      ),
+    ).toBe(true);
+  });
+
+  it("ignores folders and ordinary media", () => {
+    expect(isMegaFileUrl("https://mega.nz/folder/abc#def")).toBe(false);
+    expect(isMegaFileUrl("https://cdn.example.com/clip.mp4")).toBe(false);
   });
 });

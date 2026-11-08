@@ -13,6 +13,7 @@ import { currentWindow } from "../lib/window";
 import { useIsLandscape } from "../lib/orientation";
 import { api } from "../services/api";
 import { isMobile } from "../lib/platform";
+import { isMegaFileUrl } from "../player/queue";
 import { useAppStore } from "../stores/app";
 import type { Attachment } from "../types";
 import { IconButton, lockBodyScroll, unlockBodyScroll } from "./ui";
@@ -147,7 +148,12 @@ export function ImageViewer({
 
     const loadFromNetwork = async () => {
       try {
-        const response = await fetch(image.url, {
+        // MEGA links are encrypted file pages. Resolve them to the loopback
+        // decrypting server before fetching, just like the player does.
+        const src = isMegaFileUrl(image.url)
+          ? (await api.resolveMegaMedia(image.url)).url
+          : image.url;
+        const response = await fetch(src, {
           signal: controller.signal,
           cache: "force-cache",
         });
@@ -204,7 +210,7 @@ export function ImageViewer({
 
     let unlisten: (() => void) | undefined;
     let cacheRequestId: string | null = null;
-    if (cacheMedia && image.url.startsWith("https://")) {
+    if (cacheMedia && image.url.startsWith("https://") && !isMegaFileUrl(image.url)) {
       const requestId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()

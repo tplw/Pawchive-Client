@@ -8,16 +8,23 @@ use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
+#[derive(Clone)]
+enum MediaSource {
+    File(PathBuf),
+    Mega(Arc<crate::mega::MegaStream>),
+}
+
 /// A tiny loopback HTTP server for downloaded media.
 ///
 /// WKWebView's custom asset protocol does not reliably support the Range
 /// requests used by HTML video. Serving local files over localhost gives the
 /// webview normal HTTP range support, which is required for seeking and for
-/// large offline videos.
+/// large offline videos. Registered MEGA streams use the same route so the
+/// player does not need a separate code path.
 #[derive(Clone)]
 pub struct LocalMediaServer {
     base_url: String,
-    tokens: Arc<Mutex<HashMap<String, PathBuf>>>,
+    tokens: Arc<Mutex<HashMap<String, MediaSource>>>,
 }
 
 impl LocalMediaServer {
@@ -68,7 +75,17 @@ impl LocalMediaServer {
     pub fn url_for(&self, path: &Path) -> String {
         let token = uuid::Uuid::new_v4().simple().to_string();
         if let Ok(mut tokens) = self.tokens.lock() {
-            tokens.insert(token.clone(), path.to_path_buf());
+            tokens.insert(token.clone(), MediaSource::File(path.to_path_buf()));
+        }
+        format!("{}/media/{token}", self.base_url)
+    }
+
+    /// Register a decrypted MEGA range stream and return the loopback URL the
+    /// webview can play just like any other media file.
+    pub fn register_mega(&self, stream: crate::mega::MegaStream) -> String {
+        let token = uuid::Uuid::new_v4().simple().to_string();
+        if let Ok(mut tokens) = self.tokens.lock() {
+            tokens.insert(token.clone(), MediaSource::Mega(Arc::new(stream)));
         }
         format!("{}/media/{token}", self.base_url)
     }
@@ -106,10 +123,14 @@ async fn handle_connection(mut socket: TcpStream, server: LocalMediaServer) -> s
     let Some(request) = read_request(&mut socket).await? else {
         return Ok(());
     };
-    let request_line = request.lines().next().unwrap_or_default();
-    let mut parts = request_line.split_whitespace();
-    let method = parts.next().unwrap_or_default();
-    let target = parts.next().unwrap_or_default();
+    let (method, target) = {
+        let request_line = request.lines().next().unwrap_or_default();
+        let mut parts = request_line.split_whitespace();
+        (
+            parts.next().unwrap_or_default().to_string(),
+            parts.next().unwrap_or_default().to_string(),
+        )
+    };
 
     if method == "OPTIONS" {
         let response = "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, HEAD, OPTIONS\r\nAccess-Control-Allow-Headers: Range, If-None-Match\r\nAccess-Control-Max-Age: 86400\r\nConnection: close\r\n\r\n";
@@ -122,16 +143,29 @@ async fn handle_connection(mut socket: TcpStream, server: LocalMediaServer) -> s
     let token = target
         .strip_prefix("/media/")
         .and_then(|rest| rest.split('?').next())
-        .unwrap_or_default();
-    let path = server
+        .unwrap_or_default()
+        .to_string();
+    let source = server
         .tokens
         .lock()
         .ok()
-        .and_then(|tokens| tokens.get(token).cloned());
-    let Some(path) = path else {
+        .and_then(|tokens| tokens.get(&token).cloned());
+    let Some(source) = source else {
         return respond_status(&mut socket, "404 Not Found", "media not found").await;
     };
 
+    match source {
+        MediaSource::File(path) => serve_file(socket, request, &method, path).await,
+        MediaSource::Mega(stream) => serve_mega(socket, request, &method, stream).await,
+    }
+}
+
+async fn serve_file(
+    mut socket: TcpStream,
+    request: String,
+    method: &str,
+    path: PathBuf,
+) -> std::io::Result<()> {
     let mut file = match File::open(&path).await {
         Ok(file) => file,
         Err(_) => return respond_status(&mut socket, "404 Not Found", "media not found").await,
@@ -145,23 +179,8 @@ async fn handle_connection(mut socket: TcpStream, server: LocalMediaServer) -> s
         .map(|duration| duration.as_secs())
         .unwrap_or(0);
     let etag = format!("\"{length:x}-{modified:x}\"");
-    let has_range = request
-        .lines()
-        .any(|line| line.to_ascii_lowercase().starts_with("range:"));
-    if !has_range
-        && request
-            .lines()
-            .find_map(|line| {
-                line.split_once(':')
-                    .filter(|(name, _)| name.eq_ignore_ascii_case("if-none-match"))
-                    .map(|(_, value)| value.trim() == etag)
-            })
-            .unwrap_or(false)
-    {
-        let response = format!(
-            "HTTP/1.1 304 Not Modified\r\nETag: {etag}\r\nCache-Control: public, max-age=31536000, immutable\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n"
-        );
-        return socket.write_all(response.as_bytes()).await;
+    if is_not_modified(&request, &etag) {
+        return respond_not_modified(&mut socket, &etag).await;
     }
 
     let range = parse_range(&request, length);
@@ -176,14 +195,15 @@ async fn handle_connection(mut socket: TcpStream, server: LocalMediaServer) -> s
     } else {
         end.saturating_sub(start) + 1
     };
-    let mut headers = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {body_length}\r\nAccept-Ranges: bytes\r\nCache-Control: public, max-age=31536000, immutable\r\nETag: {etag}\r\nContent-Disposition: inline\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Range, If-None-Match\r\nAccess-Control-Expose-Headers: Content-Length, Content-Range, Accept-Ranges, ETag\r\nConnection: close\r\n"
-    );
-    if status.starts_with("206") {
-        headers.push_str(&format!("Content-Range: bytes {start}-{end}/{length}\r\n"));
-    }
-    headers.push_str("\r\n");
-    socket.write_all(headers.as_bytes()).await?;
+    write_media_headers(
+        &mut socket,
+        status,
+        content_type,
+        body_length,
+        &etag,
+        Some((start, end, length)),
+    )
+    .await?;
 
     if method == "GET" && body_length > 0 {
         file.seek(SeekFrom::Start(start)).await?;
@@ -191,6 +211,117 @@ async fn handle_connection(mut socket: TcpStream, server: LocalMediaServer) -> s
         tokio::io::copy(&mut limited, &mut socket).await?;
     }
     Ok(())
+}
+
+async fn serve_mega(
+    mut socket: TcpStream,
+    request: String,
+    method: &str,
+    stream: Arc<crate::mega::MegaStream>,
+) -> std::io::Result<()> {
+    let length = stream.file.size;
+    let etag = format!("\"mega-{}-{length:x}\"", stream.link.handle);
+    if is_not_modified(&request, &etag) {
+        return respond_not_modified(&mut socket, &etag).await;
+    }
+
+    let range = parse_range(&request, length);
+    let content_type = content_type_for_name(&stream.file.name);
+
+    let (status, start, end) = match range {
+        Some((start, end)) => ("206 Partial Content", start, end),
+        None => ("200 OK", 0, length.saturating_sub(1)),
+    };
+    let body_length = if length == 0 {
+        0
+    } else {
+        end.saturating_sub(start) + 1
+    };
+
+    // Open the upstream range before writing headers so an expired link or
+    // MEGA error still produces a real HTTP error instead of a truncated 200.
+    let mut reader = if method == "GET" && body_length > 0 {
+        match stream.open(start, end).await {
+            Ok(reader) => Some(reader),
+            Err(error) => {
+                tracing::warn!(%error, "could not open MEGA media range");
+                return respond_status(&mut socket, "502 Bad Gateway", "MEGA media is unavailable")
+                    .await;
+            }
+        }
+    } else {
+        None
+    };
+
+    write_media_headers(
+        &mut socket,
+        status,
+        content_type,
+        body_length,
+        &etag,
+        if length == 0 {
+            None
+        } else {
+            Some((start, end, length))
+        },
+    )
+    .await?;
+
+    if let Some(reader) = reader.as_mut() {
+        loop {
+            match reader.next_chunk().await {
+                Ok(Some(chunk)) => socket.write_all(&chunk).await?,
+                Ok(None) => break,
+                Err(error) => {
+                    tracing::warn!(%error, "MEGA media stream ended early");
+                    break;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn is_not_modified(request: &str, etag: &str) -> bool {
+    let has_range = request
+        .lines()
+        .any(|line| line.to_ascii_lowercase().starts_with("range:"));
+    !has_range
+        && request
+            .lines()
+            .find_map(|line| {
+                line.split_once(':')
+                    .filter(|(name, _)| name.eq_ignore_ascii_case("if-none-match"))
+                    .map(|(_, value)| value.trim() == etag)
+            })
+            .unwrap_or(false)
+}
+
+async fn respond_not_modified(socket: &mut TcpStream, etag: &str) -> std::io::Result<()> {
+    let response = format!(
+        "HTTP/1.1 304 Not Modified\r\nETag: {etag}\r\nCache-Control: public, max-age=31536000, immutable\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n"
+    );
+    socket.write_all(response.as_bytes()).await
+}
+
+async fn write_media_headers(
+    socket: &mut TcpStream,
+    status: &str,
+    content_type: &str,
+    body_length: u64,
+    etag: &str,
+    range: Option<(u64, u64, u64)>,
+) -> std::io::Result<()> {
+    let mut headers = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {body_length}\r\nAccept-Ranges: bytes\r\nCache-Control: public, max-age=31536000, immutable\r\nETag: {etag}\r\nContent-Disposition: inline\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Range, If-None-Match\r\nAccess-Control-Expose-Headers: Content-Length, Content-Range, Accept-Ranges, ETag\r\nConnection: close\r\n"
+    );
+    if status.starts_with("206") {
+        if let Some((start, end, length)) = range {
+            headers.push_str(&format!("Content-Range: bytes {start}-{end}/{length}\r\n"));
+        }
+    }
+    headers.push_str("\r\n");
+    socket.write_all(headers.as_bytes()).await
 }
 
 async fn respond_status(
@@ -245,7 +376,13 @@ fn parse_range(request: &str, length: u64) -> Option<(u64, u64)> {
 }
 
 fn content_type(path: &Path) -> &'static str {
-    match path
+    content_type_for_name(&path.to_string_lossy())
+}
+
+/// Map a filename (including a MEGA attribute name) to the content type the
+/// loopback server reports to the webview.
+pub fn content_type_for_name(name: &str) -> &'static str {
+    match Path::new(name)
         .extension()
         .and_then(|extension| extension.to_str())
         .unwrap_or_default()
@@ -309,6 +446,60 @@ mod tests {
             "bytes 2-5/10"
         );
         assert_eq!(response.bytes().await.unwrap().as_ref(), b"2345");
+    }
+
+    #[tokio::test]
+    async fn streams_a_decrypted_mega_range() {
+        use wiremock::matchers::{header, method};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let plaintext = b"MEGA CTR test vector: 0123456789 abcdefghijklmnopqrstuvwxyz";
+        let encrypted = [
+            192u8, 163, 159, 129, 253, 24, 152, 202, 255, 50, 95, 185, 148, 213, 92, 16, 252, 64,
+            172, 210, 211, 24, 55, 142, 141, 158, 118, 255, 64, 34, 114, 18, 56, 90, 250, 148, 188,
+            98, 173, 143, 155, 52, 126, 19, 33, 186, 152, 245, 144, 57, 221, 28, 221, 248, 211,
+            210, 160, 186, 157,
+        ];
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(header("range", "bytes=16-50"))
+            .respond_with(
+                ResponseTemplate::new(206)
+                    .insert_header("Content-Range", "bytes 16-50/59")
+                    .set_body_bytes(encrypted[16..51].to_vec()),
+            )
+            .mount(&mock)
+            .await;
+
+        let file = crate::mega::MegaFile {
+            name: "clip.mp4".into(),
+            size: plaintext.len() as u64,
+            download_url: format!("{}/dl", mock.uri()),
+            key: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            nonce: [16, 17, 18, 19, 20, 21, 22, 23],
+        };
+        let link = crate::mega::MegaLink {
+            handle: "testhandle".into(),
+            key: "test".into(),
+        };
+        let server = LocalMediaServer::start().unwrap();
+        let url = server.register_mega(crate::mega::MegaStream::new(
+            reqwest::Client::new(),
+            link,
+            file,
+        ));
+        let response = reqwest::Client::new()
+            .get(url)
+            .header(reqwest::header::RANGE, "bytes=20-50")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::PARTIAL_CONTENT);
+        assert_eq!(
+            response.headers()[reqwest::header::CONTENT_RANGE],
+            "bytes 20-50/59"
+        );
+        assert_eq!(response.bytes().await.unwrap().as_ref(), &plaintext[20..51]);
     }
 
     #[tokio::test]

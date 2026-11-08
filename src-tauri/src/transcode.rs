@@ -175,102 +175,128 @@ pub async fn transcode_media(
     // The intermediate source is usually larger than the transcoded result.
     let source_max_bytes = max_bytes.saturating_mul(4).max(1024 * 1024 * 1024);
     let source_path = cache_dir.join(format!(".transcode-source-{}.bin", uuid::Uuid::new_v4()));
+    let is_mega = crate::mega::is_file_url(raw_url);
     let result = async {
-        let request = tokio::time::timeout(
-            Duration::from_secs(120),
-            state
-                .http
-                .get(url.clone())
-                .header(reqwest::header::REFERER, "https://pawchive.pw/")
-                .header(reqwest::header::RANGE, "bytes=0-")
-                .send(),
-        );
-        let response = if let Some(token) = token {
-            tokio::select! {
-                _ = token.cancelled() => return Err(AppError::Cancelled),
-                response = request => match response {
+        if is_mega {
+            let mut last_emit = Instant::now();
+            crate::mega::download_to_path(
+                &state.mega,
+                raw_url,
+                &source_path,
+                source_max_bytes,
+                token,
+                |downloaded, total| {
+                    if last_emit.elapsed() >= Duration::from_millis(150) {
+                        last_emit = Instant::now();
+                        emit(
+                            app,
+                            &request_id,
+                            "download",
+                            total.map(|total| (downloaded as f64 / total as f64) * 100.0),
+                            Some(downloaded),
+                            total,
+                        );
+                    }
+                },
+            )
+            .await?;
+        } else {
+            let request = tokio::time::timeout(
+                Duration::from_secs(120),
+                state
+                    .http
+                    .get(url.clone())
+                    .header(reqwest::header::REFERER, "https://pawchive.pw/")
+                    .header(reqwest::header::RANGE, "bytes=0-")
+                    .send(),
+            );
+            let response = if let Some(token) = token {
+                tokio::select! {
+                    _ = token.cancelled() => return Err(AppError::Cancelled),
+                    response = request => match response {
+                        Ok(response) => response.map_err(|error| {
+                            AppError::Network(crate::security::network_error_message(&error))
+                        })?,
+                        Err(_) => return Err(AppError::Timeout),
+                    },
+                }
+            } else {
+                match request.await {
                     Ok(response) => response.map_err(|error| {
                         AppError::Network(crate::security::network_error_message(&error))
                     })?,
                     Err(_) => return Err(AppError::Timeout),
-                },
-            }
-        } else {
-            match request.await {
-                Ok(response) => response.map_err(|error| {
-                    AppError::Network(crate::security::network_error_message(&error))
-                })?,
-                Err(_) => return Err(AppError::Timeout),
-            }
-        };
-        if !response.status().is_success() {
-            return Err(AppError::Unavailable(format!(
-                "media source answered HTTP {}",
-                response.status().as_u16()
-            )));
-        }
-        let total = response.content_length();
-        if total.is_some_and(|length| length > source_max_bytes) {
-            return Err(AppError::Validation(
-                "media source exceeds the transcode limit".into(),
-            ));
-        }
-        let file = tokio::fs::File::create(&source_path)
-            .await
-            .map_err(|error| AppError::Io(format!("could not create transcode source: {error}")))?;
-        let mut file = BufWriter::with_capacity(1024 * 1024, file);
-        let mut downloaded = 0u64;
-        let mut last_emit = Instant::now();
-        let mut response = response;
-        loop {
-            let chunk = if let Some(token) = token {
-                tokio::select! {
-                    _ = token.cancelled() => return Err(AppError::Cancelled),
-                    chunk = tokio::time::timeout(CHUNK_TIMEOUT, response.chunk()) => {
-                        match chunk {
-                            Ok(chunk) => chunk.map_err(|error| {
-                                AppError::Network(crate::security::network_error_message(&error))
-                            })?,
-                            Err(_) => return Err(AppError::Timeout),
-                        }
-                    }
-                }
-            } else {
-                match tokio::time::timeout(CHUNK_TIMEOUT, response.chunk()).await {
-                    Ok(chunk) => chunk.map_err(|error| {
-                        AppError::Network(crate::security::network_error_message(&error))
-                    })?,
-                    Err(_) => return Err(AppError::Timeout),
                 }
             };
-            let Some(chunk) = chunk else {
-                break;
-            };
-            downloaded += chunk.len() as u64;
-            if downloaded > source_max_bytes {
+            if !response.status().is_success() {
+                return Err(AppError::Unavailable(format!(
+                    "media source answered HTTP {}",
+                    response.status().as_u16()
+                )));
+            }
+            let total = response.content_length();
+            if total.is_some_and(|length| length > source_max_bytes) {
                 return Err(AppError::Validation(
                     "media source exceeds the transcode limit".into(),
                 ));
             }
-            file.write_all(&chunk).await.map_err(|error| {
-                AppError::Io(format!("could not write transcode source: {error}"))
-            })?;
-            if last_emit.elapsed() >= Duration::from_millis(150) {
-                emit(
-                    app,
-                    &request_id,
-                    "download",
-                    total.map(|total| (downloaded as f64 / total as f64) * 100.0),
-                    Some(downloaded),
-                    total,
-                );
-                last_emit = Instant::now();
+            let file = tokio::fs::File::create(&source_path)
+                .await
+                .map_err(|error| AppError::Io(format!("could not create transcode source: {error}")))?;
+            let mut file = BufWriter::with_capacity(1024 * 1024, file);
+            let mut downloaded = 0u64;
+            let mut last_emit = Instant::now();
+            let mut response = response;
+            loop {
+                let chunk = if let Some(token) = token {
+                    tokio::select! {
+                        _ = token.cancelled() => return Err(AppError::Cancelled),
+                        chunk = tokio::time::timeout(CHUNK_TIMEOUT, response.chunk()) => {
+                            match chunk {
+                                Ok(chunk) => chunk.map_err(|error| {
+                                    AppError::Network(crate::security::network_error_message(&error))
+                                })?,
+                                Err(_) => return Err(AppError::Timeout),
+                            }
+                        }
+                    }
+                } else {
+                    match tokio::time::timeout(CHUNK_TIMEOUT, response.chunk()).await {
+                        Ok(chunk) => chunk.map_err(|error| {
+                            AppError::Network(crate::security::network_error_message(&error))
+                        })?,
+                        Err(_) => return Err(AppError::Timeout),
+                    }
+                };
+                let Some(chunk) = chunk else {
+                    break;
+                };
+                downloaded += chunk.len() as u64;
+                if downloaded > source_max_bytes {
+                    return Err(AppError::Validation(
+                        "media source exceeds the transcode limit".into(),
+                    ));
+                }
+                file.write_all(&chunk).await.map_err(|error| {
+                    AppError::Io(format!("could not write transcode source: {error}"))
+                })?;
+                if last_emit.elapsed() >= Duration::from_millis(150) {
+                    emit(
+                        app,
+                        &request_id,
+                        "download",
+                        total.map(|total| (downloaded as f64 / total as f64) * 100.0),
+                        Some(downloaded),
+                        total,
+                    );
+                    last_emit = Instant::now();
+                }
             }
+            file.flush()
+                .await
+                .map_err(|error| AppError::Io(format!("could not flush transcode source: {error}")))?;
+            drop(file);
         }
-        file.flush()
-            .await
-            .map_err(|error| AppError::Io(format!("could not flush transcode source: {error}")))?;
-        drop(file);
         emit(app, &request_id, "transcode", Some(0.0), None, None);
 
         let duration = if let Some(ffprobe) = ffprobe_path(&ffmpeg) {

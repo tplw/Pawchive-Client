@@ -13,6 +13,16 @@ fn media_url_regex() -> &'static Regex {
     })
 }
 
+fn mega_url_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?i)(?:https?://)?(?:www\.)?mega\.(?:nz|co\.nz|io)/(?:file/[a-z0-9_-]{6,16}#[a-z0-9_\-+/=]+|#![a-z0-9_-]{6,16}![a-z0-9_\-+/=]+)"#,
+        )
+        .expect("valid MEGA link regex")
+    })
+}
+
 fn normalize(raw: &str) -> Option<String> {
     let trimmed = raw
         .trim()
@@ -53,6 +63,19 @@ pub fn extract(text: &str) -> Vec<String> {
             out.push(url);
         }
     }
+    // MEGA links have no media extension, so they need their own pass. Only
+    // keep links whose key actually decodes as a MEGA file share.
+    for found in mega_url_regex().find_iter(text) {
+        let Some(url) = normalize(found.as_str()) else {
+            continue;
+        };
+        if !crate::mega::is_file_url(&url) {
+            continue;
+        }
+        if seen.insert(url.clone()) {
+            out.push(url);
+        }
+    }
     out
 }
 
@@ -82,5 +105,23 @@ mod tests {
     #[test]
     fn ignores_non_media_links() {
         assert!(extract("https://example.com/about https://example.com/file.pdf").is_empty());
+    }
+
+    #[test]
+    fn extracts_mega_file_links() {
+        let text = r#"
+            <a href="https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30">clip</a>
+            <a href="https://mega.nz/#!Ue5VRSIQ!kC2E4a4JwfWWCWYNJovGFHlbz8FN-ISsBAGPzvTjT6k">old</a>
+            <a href="https://mega.nz/folder/abc#def">folder</a>
+        "#;
+        assert_eq!(
+            extract(text),
+            vec![
+                "https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30"
+                    .to_string(),
+                "https://mega.nz/#!Ue5VRSIQ!kC2E4a4JwfWWCWYNJovGFHlbz8FN-ISsBAGPzvTjT6k"
+                    .to_string(),
+            ]
+        );
     }
 }

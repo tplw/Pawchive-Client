@@ -27,6 +27,7 @@ import {
   formatDate,
   formatDateTime,
   formatRelative,
+  MEDIA_PROVIDER_LABELS,
 } from "../lib/format";
 import { goBack, navigate } from "../lib/router";
 import { useAppStore } from "../stores/app";
@@ -136,10 +137,9 @@ function AttachmentMeta({
     };
   }, [attachment.kind, attachment.thumbnailUrl, attachment.url]);
 
-  const parts: string[] = [];
+  const parts: string[] = [MEDIA_PROVIDER_LABELS[attachment.provider]];
   if (resolution) parts.push(`${resolution.width}×${resolution.height}`);
   if (size) parts.push(formatBytes(size));
-  if (parts.length === 0) return null;
   return (
     <span
       className={cn(

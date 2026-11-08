@@ -560,11 +560,34 @@ pub async fn get_post(
     let next = post.next.clone();
     let prev = post.prev.clone();
     post.content = sanitize_html(&post.content);
-    let attachments: Vec<Attachment> = post
+    let mut attachments: Vec<Attachment> = post
         .all_files_including_direct()
         .into_iter()
         .filter_map(|file| Attachment::new(&st.cfg, &file))
         .collect();
+    // MEGA links hide their filename, size and media kind behind encrypted
+    // attributes. Resolve them now so the player queue and attachment list
+    // classify them like any other archive file. Failures stay non-fatal: the
+    // link is still visible and the player reports the error on demand.
+    for attachment in attachments.iter_mut() {
+        if !crate::mega::is_file_url(&attachment.url) {
+            continue;
+        }
+        if let Ok(file) = st.mega.resolve(&attachment.url).await {
+            attachment.name = file.name.clone();
+            attachment.ext = crate::security::file_extension(&file.name);
+            attachment.kind = file.kind();
+            // Images need a real image URL for the thumbnail grid. Videos and
+            // audio resolve to a loopback URL when the player opens them.
+            if attachment.kind == MediaKind::Image {
+                if let Some(link) = crate::mega::parse_file_link(&attachment.url) {
+                    let stream =
+                        crate::mega::MegaStream::new(st.mega.client_clone(), link, file.clone());
+                    attachment.thumbnail_url = Some(st.media_server.register_mega(stream));
+                }
+            }
+        }
+    }
     let creator = st.db.get_creator(&post.service, &post.user)?.or_else(|| {
         Some(CreatorSummary {
             id: post.user.clone(),
@@ -1312,6 +1335,35 @@ pub async fn get_progress(
     blocking(move || st.db.get_progress(&file_path)).await
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MegaMediaInfo {
+    /// Loopback URL that streams the decrypted MEGA file with Range support.
+    pub url: String,
+    pub name: String,
+    pub size: u64,
+    pub kind: MediaKind,
+}
+
+#[tauri::command]
+pub async fn resolve_mega_media(
+    state: State<'_, AppState>,
+    url: String,
+) -> AppResult<MegaMediaInfo> {
+    let st = st(&state);
+    let link = crate::mega::parse_file_link(&url)
+        .ok_or_else(|| AppError::Validation("not a MEGA file link".into()))?;
+    let file = st.mega.resolve(&url).await?;
+    let stream = crate::mega::MegaStream::new(st.mega.client_clone(), link, file.clone());
+    let local_url = st.media_server.register_mega(stream);
+    Ok(MegaMediaInfo {
+        url: local_url,
+        name: file.name.clone(),
+        size: file.size,
+        kind: file.kind(),
+    })
+}
+
 #[tauri::command]
 pub fn validate_media(state: State<'_, AppState>, url: String) -> AppResult<String> {
     let st = st(&state);
@@ -1428,6 +1480,9 @@ pub async fn get_image_dimensions(
 #[tauri::command]
 pub async fn get_media_size(state: State<'_, AppState>, url: String) -> AppResult<Option<u64>> {
     let st = st(&state);
+    if crate::mega::is_file_url(&url) {
+        return Ok(st.mega.resolve(&url).await.ok().map(|file| file.size));
+    }
     let url = crate::media::validate_media_url(&st.cfg, &url)?;
     if let Ok(Ok(response)) = tokio::time::timeout(
         Duration::from_secs(12),
@@ -1515,6 +1570,7 @@ mod tests {
             downloads: Arc::new(Mutex::new(Default::default())),
             download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
             http: reqwest::Client::new(),
+            mega: crate::mega::MegaResolver::new(reqwest::Client::new()),
             app_data_dir: std::env::temp_dir(),
             default_download_dir: std::env::temp_dir(),
             media_server: crate::local_media::LocalMediaServer::test_instance(),

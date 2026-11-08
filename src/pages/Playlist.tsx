@@ -14,6 +14,7 @@ import { errorMessage } from "../lib/constants";
 import { navigate, switchTab } from "../lib/router";
 import { useAppStore } from "../stores/app";
 import { usePlayerStore } from "../player/store";
+import { providerForUrl } from "../player/queue";
 import {
   isPlayableMediaKind,
   queueItemFromPlaylistItem,
@@ -104,6 +105,7 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
           url: localImageUrls[item.id] ?? item.mediaUrl,
           thumbnailUrl: item.thumbnailUrl ?? item.mediaUrl,
           kind: "image",
+          provider: providerForUrl(localImageUrls[item.id] ?? item.mediaUrl),
           ext: fileName.split(".").pop() ?? "",
           previewOnly: false,
         };

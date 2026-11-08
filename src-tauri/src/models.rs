@@ -217,6 +217,11 @@ impl FileRef {
 /// The archive occasionally gives a cover image a video-looking `name`.
 /// Prefer the actual path extension when it is a recognised media type.
 pub fn media_kind_for_file(file: &FileRef) -> MediaKind {
+    if crate::mega::is_file_url(&file.path) {
+        // The real name lives in encrypted MEGA metadata. Treat links as
+        // video until `get_post` resolves the extension so they stay playable.
+        return MediaKind::Video;
+    }
     let path_kind = media_kind_for(&file.path);
     if path_kind != MediaKind::Other {
         return path_kind;
@@ -322,8 +327,14 @@ impl Post {
             if existing_paths.contains(path) {
                 continue;
             }
-            let file_name = path.rsplit('/').next().unwrap_or("media");
-            let name = safe_filename(file_name);
+            let name = if let Some(link) = crate::mega::parse_file_link(&raw) {
+                // `get_post` replaces this placeholder with the real filename
+                // from the encrypted MEGA attributes.
+                safe_filename(&format!("mega-{}", link.handle))
+            } else {
+                let file_name = path.rsplit('/').next().unwrap_or("media");
+                safe_filename(file_name)
+            };
             if existing_names.contains(&name) || !seen.insert(raw.clone()) {
                 continue;
             }
@@ -456,6 +467,8 @@ pub struct Attachment {
     pub download_url: String,
     pub thumbnail_url: Option<String>,
     pub kind: MediaKind,
+    /// Host that actually serves the file (Pawchive, MEGA, Google Drive…).
+    pub provider: crate::providers::MediaProvider,
     pub ext: String,
     pub preview_only: bool,
 }
@@ -510,6 +523,7 @@ impl Attachment {
             None
         };
         let ext = file_extension(&name);
+        let provider = crate::providers::provider_for_url(&url);
         Some(Self {
             url,
             download_url,
@@ -517,6 +531,7 @@ impl Attachment {
             path,
             thumbnail_url,
             kind,
+            provider,
             ext,
             preview_only: file.preview_only.unwrap_or(false)
                 && temp_url.is_none()

@@ -21,6 +21,7 @@ pub struct AppState {
     pub downloads: Arc<Mutex<HashMap<String, CancellationToken>>>,
     pub download_gate: Arc<Semaphore>,
     pub http: reqwest::Client,
+    pub mega: crate::mega::MegaResolver,
     pub app_data_dir: PathBuf,
     pub default_download_dir: PathBuf,
     pub media_server: LocalMediaServer,

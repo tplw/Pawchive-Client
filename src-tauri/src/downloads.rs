@@ -14,9 +14,23 @@ const CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
 pub async fn enqueue(
     state: &AppState,
     app: &AppHandle,
-    request: DownloadRequest,
+    mut request: DownloadRequest,
 ) -> AppResult<DownloadRecord> {
     let url = crate::media::validate_media_url(&state.cfg, &request.url)?;
+    // MEGA filenames only exist in the encrypted attributes. Resolve them
+    // before reserving the destination so the saved file has its real name
+    // and extension instead of the node handle.
+    let mega_file = if crate::mega::is_file_url(url.as_str()) {
+        Some(state.mega.resolve(url.as_str()).await?)
+    } else {
+        None
+    };
+    if let Some(file) = &mega_file {
+        // The archive/playlist only sees the node handle, so always use the
+        // real filename and media kind from the encrypted attributes.
+        request.file_name = file.name.clone();
+        request.media_kind = file.kind().as_str().to_string();
+    }
     let dir = state.download_dir();
     tokio::fs::create_dir_all(&dir)
         .await
@@ -199,6 +213,9 @@ async fn download_file(
     record: &mut DownloadRecord,
     token: &CancellationToken,
 ) -> AppResult<()> {
+    if crate::mega::is_file_url(&record.url) {
+        return download_mega_file(state, app, record, token).await;
+    }
     let response = fetch_with_retry(state, record, token).await?;
     record.total_bytes = response.content_length().map(|v| v as i64);
     state
@@ -244,6 +261,46 @@ async fn download_file(
     file.flush()
         .await
         .map_err(|e| AppError::Io(format!("could not flush file: {e}")))?;
+    Ok(())
+}
+
+async fn download_mega_file(
+    state: &AppState,
+    app: &AppHandle,
+    record: &mut DownloadRecord,
+    token: &CancellationToken,
+) -> AppResult<()> {
+    let file = state.mega.resolve(&record.url).await?;
+    record.total_bytes = Some(file.size as i64);
+    state
+        .db
+        .update_download(&record.id, 0, record.total_bytes, "downloading", None)?;
+    let path = PathBuf::from(&record.file_path);
+    let url = record.url.clone();
+    let mut last_emit = Instant::now();
+    let (_, downloaded) = crate::mega::download_to_path(
+        &state.mega,
+        &url,
+        &path,
+        u64::MAX,
+        Some(token),
+        |downloaded, _total| {
+            record.downloaded_bytes = downloaded as i64;
+            if last_emit.elapsed() >= Duration::from_millis(220) {
+                last_emit = Instant::now();
+                let _ = state.db.update_download(
+                    &record.id,
+                    record.downloaded_bytes,
+                    record.total_bytes,
+                    "downloading",
+                    None,
+                );
+                let _ = app.emit("download://progress", record.clone());
+            }
+        },
+    )
+    .await?;
+    record.downloaded_bytes = downloaded as i64;
     Ok(())
 }
 
@@ -619,6 +676,7 @@ mod tests {
             downloads: Arc::new(Mutex::new(Default::default())),
             download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
             http: reqwest::Client::new(),
+            mega: crate::mega::MegaResolver::new(reqwest::Client::new()),
             app_data_dir: std::env::temp_dir(),
             default_download_dir: std::env::temp_dir(),
             media_server: crate::local_media::LocalMediaServer::test_instance(),

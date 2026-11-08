@@ -29,7 +29,11 @@ import { useIsLandscape } from "../lib/orientation";
 import { isIos, isMobile } from "../lib/platform";
 import { navigate } from "../lib/router";
 import { useAppStore } from "../stores/app";
-import { isPlayableMediaKind, playbackProgressKey } from "./queue";
+import {
+  isMegaFileUrl,
+  isPlayableMediaKind,
+  playbackProgressKey,
+} from "./queue";
 import { cachedProgress, rememberProgress } from "./progress";
 import { usePlayerStore } from "./store";
 import type { PlaylistItemInput } from "../types";
@@ -539,6 +543,22 @@ export function Player() {
     loadedItemRef.current = null;
 
     const loadRemote = () => {
+      // MEGA links are encrypted web pages. The backend resolves the file and
+      // returns a loopback URL that supports the same HTTP Range requests as
+      // locally cached Pawchive media.
+      if (isMegaFileUrl(item.url)) {
+        void api
+          .resolveMegaMedia(item.url)
+          .then((media) => {
+            if (!cancelled) setSource(media.url);
+          })
+          .catch((validationError) => {
+            if (cancelled) return;
+            setLoading(false);
+            setError(errorMessage(validationError));
+          });
+        return;
+      }
       void api
         .validateMedia(item.url)
         .then((url) => {
@@ -560,6 +580,8 @@ export function Player() {
         .catch(() => {
           if (!cancelled) loadRemote();
         });
+    } else if (isMegaFileUrl(item.url)) {
+      loadRemote();
     } else if (
       cacheMedia &&
       !isHlsUrl(item.url) &&
@@ -1130,6 +1152,7 @@ export function Player() {
           if (
             settings.cacheMedia &&
             !isHlsUrl(item.url) &&
+            !isMegaFileUrl(cacheUrl) &&
             cacheUrl.startsWith("https://") &&
             !item.localPath
           ) {

@@ -54,6 +54,7 @@ describe("post detail", () => {
           thumbnailUrl:
             "https://img.pawchive.pw/thumbnail/data/aa/bb/image.jpg",
           kind: "image",
+          provider: "pawchive",
           ext: "jpg",
           previewOnly: false,
         },

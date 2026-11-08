@@ -1,3 +1,14 @@
+import type { MediaProvider } from "../types";
+
+export const MEDIA_PROVIDER_LABELS: Record<MediaProvider, string> = {
+  pawchive: "Pawchive",
+  mega: "MEGA",
+  googleDrive: "Google Drive",
+  dropbox: "Dropbox",
+  gofile: "GoFile",
+  external: "External",
+};
+
 export function cn(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(" ");
 }

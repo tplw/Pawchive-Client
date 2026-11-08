@@ -1,4 +1,11 @@
 export type MediaKind = "image" | "video" | "audio" | "document" | "other";
+export type MediaProvider =
+  | "pawchive"
+  | "mega"
+  | "googleDrive"
+  | "dropbox"
+  | "gofile"
+  | "external";
 export type Service = "patreon" | "fanbox" | "discord" | string;
 
 export interface FileRef {
@@ -59,8 +66,17 @@ export interface Attachment {
   downloadUrl?: string | null;
   thumbnailUrl: string | null;
   kind: MediaKind;
+  provider: MediaProvider;
   ext: string;
   previewOnly: boolean;
+}
+
+export interface MegaMedia {
+  /** Loopback URL that streams the decrypted MEGA file. */
+  url: string;
+  name: string;
+  size: number;
+  kind: MediaKind;
 }
 
 export interface PostSummary {

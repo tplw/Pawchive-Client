@@ -16,7 +16,7 @@ import { errorMessage } from "../lib/constants";
 import { cn, formatBytes, formatRelative } from "../lib/format";
 import { useAppStore } from "../stores/app";
 import { usePlayerStore } from "../player/store";
-import { isPlayableMediaKind } from "../player/queue";
+import { isPlayableMediaKind, providerForUrl } from "../player/queue";
 import { isMobile } from "../lib/platform";
 import { ImageViewer } from "../components/ImageViewer";
 import { MediaThumbnail } from "../components/MediaThumbnail";
@@ -84,6 +84,7 @@ const DownloadRow = memo(function DownloadRow({
       url: localUrl ?? record.thumbnailUrl ?? record.url,
       thumbnailUrl: record.thumbnailUrl ?? record.url,
       kind: "image",
+      provider: providerForUrl(record.url),
       ext: record.fileName.split(".").pop() ?? "",
       previewOnly: false,
     }),
