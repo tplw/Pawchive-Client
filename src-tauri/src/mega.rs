@@ -121,7 +121,7 @@ fn decode_base64_url(raw: &str) -> Option<Vec<u8>> {
         return None;
     }
     let mut padded = cleaned;
-    while padded.len() % 4 != 0 {
+    while !padded.len().is_multiple_of(4) {
         padded.push('=');
     }
     base64::engine::general_purpose::URL_SAFE
@@ -158,11 +158,10 @@ pub fn parse_file_link(raw: &str) -> Option<MegaLink> {
         .unwrap_or_default();
     let (handle, key) = if segments.len() >= 2 && segments[0].eq_ignore_ascii_case("file") {
         (segments[1].to_string(), fragment.to_string())
-    } else if let Some(rest) = fragment.strip_prefix('!') {
+    } else {
+        let rest = fragment.strip_prefix('!')?;
         let (handle, key) = rest.split_once('!')?;
         (handle.to_string(), key.to_string())
-    } else {
-        return None;
     };
     let handle = handle.trim();
     let key = key.trim();
@@ -321,7 +320,7 @@ fn decrypt_key_blocks(encrypted: &[u8], key: &[u8; 16]) -> Option<Vec<u8>> {
     }
     let cipher = Aes128::new_from_slice(key).ok()?;
     let mut out = Vec::with_capacity(encrypted.len());
-    for chunk in encrypted.chunks_exact(16) {
+    for chunk in encrypted.as_chunks::<16>().0 {
         let mut block = GenericArray::clone_from_slice(chunk);
         cipher.decrypt_block(&mut block);
         out.extend_from_slice(&block);
@@ -345,14 +344,14 @@ fn derive_keys(link_key: &[u8]) -> Option<([u8; 16], [u8; 8])> {
 /// MEGA attributes are AES-CBC encrypted with a zero IV and padded with NULs.
 /// The plaintext starts with the literal `MEGA` followed by JSON.
 fn decrypt_attributes(encrypted: &[u8], key: &[u8; 16]) -> Option<Value> {
-    if encrypted.is_empty() || encrypted.len() % 16 != 0 {
+    if encrypted.is_empty() || !encrypted.len().is_multiple_of(16) {
         return None;
     }
     let cipher = Aes128::new_from_slice(key).ok()?;
     let mut data = encrypted.to_vec();
     let mut previous = [0u8; 16];
-    for chunk in data.chunks_exact_mut(16) {
-        let current: [u8; 16] = chunk.try_into().ok()?;
+    for chunk in data.as_chunks_mut::<16>().0 {
+        let current: [u8; 16] = *chunk;
         let mut block = GenericArray::clone_from_slice(chunk);
         cipher.decrypt_block(&mut block);
         for index in 0..16 {

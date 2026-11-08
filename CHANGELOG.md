@@ -39,6 +39,57 @@ project follows [Semantic Versioning](https://semver.org/).
 - Windows finds ffmpeg from `PATH`, Program Files and common install folders,
   and downloaded files avoid reserved DOS device names and trailing dots.
 
+## 1.0.5 - 2026-11-08
+
+This release adds MEGA playback and Google Drive, Dropbox and GoFile media
+support, provider folder imports, creator blocking and archive availability
+indicators, plus a set of content-filter, thumbnail and media-resolution fixes.
+
+### Added
+
+- MEGA playback, downloads and transcoding through the built-in player, with
+  decrypted range streaming and provider labels on attachment cards.
+- Google Drive, Dropbox and GoFile link support. Provider files are resolved to
+  a loopback stream so playback, downloads and transcoding get normal HTTP
+  range support.
+- Google Drive and MEGA folder links now expand into their individual files.
+  MEGA folder support decrypts child node keys and uses the folder-scoped
+  download API.
+- Provider labels on attachments: Pawchive, MEGA, Google Drive, Dropbox,
+  GoFile and External.
+- Creator blocking. Profiles have a Block action, Settings shows every blocked
+  creator with an Unblock button, and blocked creators are filtered from
+  feeds, search, creator lists, linked accounts, playlists, downloads and the
+  player queue.
+- Archive import and size-limit indicators on creator and post cards, plus a
+  **Hide unavailable posts** content filter.
+- Per-creator filter controls can now be reset to the global defaults.
+
+### Changed
+
+- **Hide posts without media** now applies to Recent, Popular and Search as
+  well as creator feeds. Empty embeds and arbitrary links no longer count as
+  media.
+- **Hide unavailable posts** keeps posts that still have playable or
+  downloadable non-image media. Deferred files, primary media files and cloud
+  links count; images do not.
+- The main **Hide posts without media** toggle now updates every creator filter
+  and is the default for creators without an override.
+- Discover Popular now honors all content filters, not only unavailable posts.
+
+### Fixed
+
+- Archive thumbnail URLs now strip the legacy one-character storage prefix, so
+  post cards and attachment grids load the correct thumbnail instead of a
+  placeholder.
+- Attachment previews fall back to the full image when the archive thumbnail is
+  missing.
+- GoFile resolution handles guest accounts and its rotating website token.
+- MEGA folder files download through the correct folder-scoped API, and MEGA
+  child keys and attributes are decrypted correctly.
+- Existing downloads and playlists hide content from blocked creators without
+  deleting any files.
+
 ## 1.0.4 - 2026-11-04
 
 This release adds creator post search, similar-creator discovery and download
