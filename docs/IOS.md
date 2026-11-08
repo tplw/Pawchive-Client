@@ -108,6 +108,20 @@ The IPA is written to
 until it is signed with an Apple development certificate and provisioning
 profile.
 
+## Install with KSign
+
+KSign can install the official unsigned IPA directly from the project's
+AltStore-compatible source:
+
+```text
+https://raw.githubusercontent.com/tplw/Pawchive-Client/main/docs/ksign-source.json
+```
+
+Add that URL as a source in KSign, ESign or another AltStore-compatible client,
+then sign the Pawchive entry with your Apple ID or certificate. The source's
+version, IPA URL and file size live in
+[`docs/ksign-source.json`](ksign-source.json) and are updated with each release.
+
 ## What works on iOS
 
 - Browsing, search, creator profiles and post detail.

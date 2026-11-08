@@ -126,6 +126,48 @@ in `.github/workflows/release.yml`):
 For Windows signing, configure the certificate in the workflow's environment
 according to the Tauri code-signing documentation.
 
+## Homebrew cask
+
+The macOS DMG is published through the
+[`tplw/homebrew-pawchive`](https://github.com/tplw/homebrew-pawchive) tap.
+The source-of-truth cask is kept at
+[`packaging/homebrew/Casks/pawchive.rb`](../packaging/homebrew/Casks/pawchive.rb)
+and copied to the tap's `Casks/pawchive.rb`.
+
+After each macOS release, update both files:
+
+```ruby
+version "1.0.5"
+sha256 "SHA256_OF_Pawchive_1.0.5_universal.dmg"
+```
+
+The download URL uses the version automatically. Validate with:
+
+```bash
+brew audit --cask tplw/pawchive/pawchive
+brew fetch --cask pawchive
+```
+
+## KSign source
+
+The KSign/ESign/AltStore-compatible iOS source is
+[`docs/ksign-source.json`](ksign-source.json). It is served from:
+
+```text
+https://raw.githubusercontent.com/tplw/Pawchive-Client/main/docs/ksign-source.json
+```
+
+After each iOS release, update the app's `versions` entry with:
+
+- `version` and `buildVersion`
+- `date` in ISO 8601 UTC
+- `downloadURL` pointing at the release's `Pawchive_<version>_ios-unsigned.ipa`
+- the exact IPA `size` in bytes
+- `minOSVersion`
+
+Add new versions at the top of the `versions` array so existing clients see the
+latest build first.
+
 ## Versioning
 
 The version is declared in three places and must stay in sync:

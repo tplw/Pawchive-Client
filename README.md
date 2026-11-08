@@ -18,6 +18,32 @@ Prebuilt desktop and mobile builds are available on the
 are debug-signed for testing and sideloading; the iOS IPA is unsigned and must
 be signed with your Apple ID/team before installation.
 
+### macOS via Homebrew
+
+```bash
+brew install --cask tplw/pawchive/pawchive
+```
+
+Or tap first:
+
+```bash
+brew tap tplw/pawchive
+brew install --cask pawchive
+```
+
+The cask downloads the universal macOS DMG from the latest official release.
+
+### iOS via KSign
+
+KSign, ESign and other AltStore-compatible clients can use the official source:
+
+```text
+https://raw.githubusercontent.com/tplw/Pawchive-Client/main/docs/ksign-source.json
+```
+
+The source points at the official unsigned IPA. Sign it with your own Apple ID
+or certificate before installing. See [docs/IOS.md](docs/IOS.md) for details.
+
 ## Features
 
 - **Discover & search** Popular, Recent and Creators feeds, unified

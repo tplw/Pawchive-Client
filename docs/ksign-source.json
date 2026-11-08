@@ -1,0 +1,38 @@
+{
+  "name": "Pawchive",
+  "identifier": "pw.pawchive.client.source",
+  "subtitle": "Official unsigned Pawchive iOS builds",
+  "description": "Official KSign, ESign and AltStore-compatible source for Pawchive Client on iOS. The IPA is unsigned and must be signed with your own Apple ID or certificate.",
+  "iconURL": "https://raw.githubusercontent.com/tplw/Pawchive-Client/main/src-tauri/icons/icon.png",
+  "website": "https://github.com/tplw/Pawchive-Client",
+  "tintColor": "#d6aea8",
+  "featuredApps": [
+    "pw.pawchive.client"
+  ],
+  "apps": [
+    {
+      "name": "Pawchive",
+      "bundleID": "pw.pawchive.client",
+      "bundleIdentifier": "pw.pawchive.client",
+      "developerName": "tplw",
+      "subtitle": "Native client for the Pawchive archive",
+      "localizedDescription": "Browse and search creators and posts, play audio and video, organize playlists and download media for offline use. The IPA is unsigned; sign it with your own certificate before installing.",
+      "iconURL": "https://raw.githubusercontent.com/tplw/Pawchive-Client/main/src-tauri/icons/icon.png",
+      "icon": "https://raw.githubusercontent.com/tplw/Pawchive-Client/main/src-tauri/icons/icon.png",
+      "tintColor": "#d6aea8",
+      "category": "entertainment",
+      "appPermissions": {},
+      "versions": [
+        {
+          "version": "1.0.5",
+          "buildVersion": "1.0.5",
+          "date": "2026-11-08T20:38:17Z",
+          "downloadURL": "https://github.com/tplw/Pawchive-Client/releases/download/v1.0.5/Pawchive_1.0.5_ios-unsigned.ipa",
+          "size": 4908031,
+          "minOSVersion": "15.0",
+          "localizedDescription": "Adds MEGA, Google Drive, Dropbox and GoFile playback, provider folder imports, creator blocking, archive availability indicators and content-filter fixes."
+        }
+      ]
+    }
+  ]
+}
