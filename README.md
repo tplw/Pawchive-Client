@@ -21,6 +21,7 @@ be signed with your Apple ID/team before installation.
 ### macOS via Homebrew
 
 ```bash
+brew trust tplw/pawchive
 brew install --cask tplw/pawchive/pawchive
 ```
 
@@ -28,8 +29,11 @@ Or tap first:
 
 ```bash
 brew tap tplw/pawchive
+brew trust tplw/pawchive
 brew install --cask pawchive
 ```
+
+Homebrew 7 asks you to trust third-party taps before installing from them.
 
 The cask downloads the universal macOS DMG from the latest official release.
 
