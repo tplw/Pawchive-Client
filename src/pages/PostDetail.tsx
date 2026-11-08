@@ -593,6 +593,12 @@ export function PostDetailPage({
                               loading="lazy"
                               decoding="async"
                               className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                              onError={(event) => {
+                                const image = event.currentTarget;
+                                if (image.dataset.fallback === "1") return;
+                                image.dataset.fallback = "1";
+                                image.src = attachment.url;
+                              }}
                             />
                           ) : (
                             <span className="grid h-full w-full place-items-center">

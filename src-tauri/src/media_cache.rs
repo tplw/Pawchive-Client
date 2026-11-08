@@ -83,7 +83,7 @@ fn remote_cache_path(
 pub fn cached_url(state: &AppState, raw: &str) -> AppResult<Option<String>> {
     // MEGA files are decrypted while streaming and never stored in the plain
     // media cache. The player uses the MEGA range server instead.
-    if crate::mega::is_file_url(raw) {
+    if crate::mega::is_media_url(raw) {
         return Ok(None);
     }
     // Provider links are cached under the resolved filename's extension, but
@@ -121,7 +121,7 @@ pub async fn cache_media(
     request_id: Option<String>,
     token: Option<&CancellationToken>,
 ) -> AppResult<String> {
-    if crate::mega::is_file_url(raw) {
+    if crate::mega::is_media_url(raw) {
         return Err(AppError::Validation(
             "MEGA media is decrypted while streaming and cannot be cached directly".into(),
         ));

@@ -40,6 +40,11 @@ describe("MEGA links", () => {
         "https://mega.nz/#!Ue5VRSIQ!kC2E4a4JwfWWCWYNJovGFHlbz8FN-ISsBAGPzvTjT6k",
       ),
     ).toBe(true);
+    expect(
+      isMegaFileUrl(
+        "https://mega.nz/folder/RBA1wbzZ#9JumpYIWHYvgZ0RyL6wIBQ/file/UQZkxRhB",
+      ),
+    ).toBe(true);
   });
 
   it("ignores folders and ordinary media", () => {

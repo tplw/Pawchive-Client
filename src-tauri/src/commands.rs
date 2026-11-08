@@ -560,11 +560,15 @@ pub async fn get_post(
     let next = post.next.clone();
     let prev = post.prev.clone();
     post.content = sanitize_html(&post.content);
-    let mut attachments: Vec<Attachment> = post
+    let attachments: Vec<Attachment> = post
         .all_files_including_direct()
         .into_iter()
         .filter_map(|file| Attachment::new(&st.cfg, &file))
         .collect();
+    // Public Drive and MEGA folder links are expanded into their individual
+    // files so they can be played, queued and downloaded like direct links.
+    let mut attachments =
+        crate::remote_media::expand_folders(&st.mega, &st.remote, attachments).await;
     // MEGA links hide their filename, size and media kind behind encrypted
     // attributes. Google Drive, Dropbox and GoFile links have no media
     // extension either. Resolve them now so the player queue and attachment
@@ -572,7 +576,7 @@ pub async fn get_post(
     // non-fatal: the link is still visible and the player reports the error on
     // demand.
     for attachment in attachments.iter_mut() {
-        if crate::mega::is_file_url(&attachment.url) {
+        if crate::mega::is_media_url(&attachment.url) {
             if let Ok(file) = st.mega.resolve(&attachment.url).await {
                 attachment.name = file.name.clone();
                 attachment.ext = crate::security::file_extension(&file.name);
@@ -600,7 +604,7 @@ pub async fn get_post(
     let gate = Arc::new(tokio::sync::Semaphore::new(4));
     let mut jobs = tokio::task::JoinSet::new();
     for (index, attachment) in attachments.iter().enumerate() {
-        if crate::mega::is_file_url(&attachment.url)
+        if crate::mega::is_media_url(&attachment.url)
             || !crate::remote_media::needs_resolution(&attachment.url)
         {
             continue;
@@ -1393,7 +1397,7 @@ pub async fn resolve_media(
     url: String,
 ) -> AppResult<ResolvedMediaInfo> {
     let st = st(&state);
-    if crate::mega::is_file_url(&url) {
+    if crate::mega::is_media_url(&url) {
         let link = crate::mega::parse_file_link(&url)
             .ok_or_else(|| AppError::Validation("not a MEGA file link".into()))?;
         let file = st.mega.resolve(&url).await?;
@@ -1544,7 +1548,7 @@ pub async fn get_image_dimensions(
 #[tauri::command]
 pub async fn get_media_size(state: State<'_, AppState>, url: String) -> AppResult<Option<u64>> {
     let st = st(&state);
-    if crate::mega::is_file_url(&url) {
+    if crate::mega::is_media_url(&url) {
         return Ok(st.mega.resolve(&url).await.ok().map(|file| file.size));
     }
     if crate::remote_media::needs_resolution(&url) {

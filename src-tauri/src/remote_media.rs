@@ -425,6 +425,87 @@ impl RemoteResolver {
     }
 }
 
+/// Build an attachment for a file discovered inside a provider folder.
+fn folder_file_attachment(
+    url: String,
+    name: String,
+    provider: MediaProvider,
+) -> crate::models::Attachment {
+    crate::models::Attachment {
+        name: name.clone(),
+        path: url.clone(),
+        url: url.clone(),
+        download_url: url,
+        thumbnail_url: None,
+        kind: crate::security::media_kind_for(&name),
+        provider,
+        ext: crate::security::file_extension(&name),
+        preview_only: false,
+    }
+}
+
+/// Expand public Google Drive and MEGA folder links into individual file
+/// attachments. Failures keep the folder link visible (and marked preview-only
+/// so the UI does not offer a download that cannot work).
+pub async fn expand_folders(
+    mega: &crate::mega::MegaResolver,
+    remote: &RemoteResolver,
+    attachments: Vec<crate::models::Attachment>,
+) -> Vec<crate::models::Attachment> {
+    let mut expanded = Vec::with_capacity(attachments.len());
+    let mut seen_urls: std::collections::HashSet<String> =
+        attachments.iter().map(|file| file.url.clone()).collect();
+    for mut attachment in attachments {
+        if let Some(folder_id) = drive_folder_id(&attachment.url) {
+            if let Ok(files) = list_drive_folder(remote.client(), &folder_id).await {
+                if !files.is_empty() {
+                    for file in files {
+                        let url = format!("https://drive.google.com/file/d/{}/view", file.id);
+                        if !seen_urls.insert(url.clone()) {
+                            continue;
+                        }
+                        expanded.push(folder_file_attachment(
+                            url,
+                            file.name,
+                            MediaProvider::GoogleDrive,
+                        ));
+                    }
+                    continue;
+                }
+            }
+            attachment.name = "Google Drive folder".into();
+            attachment.kind = crate::models::MediaKind::Other;
+            attachment.preview_only = true;
+            expanded.push(attachment);
+            continue;
+        }
+        if let Some(folder) = crate::mega::parse_folder_link(&attachment.url) {
+            if let Ok(files) = mega.list_folder(&folder).await {
+                if !files.is_empty() {
+                    for file in files {
+                        let url = format!(
+                            "https://mega.nz/folder/{}#{}/file/{}",
+                            folder.handle, folder.key, file.handle
+                        );
+                        if !seen_urls.insert(url.clone()) {
+                            continue;
+                        }
+                        expanded.push(folder_file_attachment(url, file.name, MediaProvider::Mega));
+                    }
+                    continue;
+                }
+            }
+            attachment.name = "MEGA folder".into();
+            attachment.kind = crate::models::MediaKind::Other;
+            attachment.preview_only = true;
+            expanded.push(attachment);
+            continue;
+        }
+        expanded.push(attachment);
+    }
+    expanded
+}
+
 /// Providers that need a resolution pass before the webview can play them.
 pub fn needs_resolution(raw: &str) -> bool {
     matches!(
@@ -548,6 +629,134 @@ pub fn drive_file_id(raw: &str) -> Option<String> {
         .find(|(name, _)| name == "id")
         .map(|(_, value)| value.into_owned());
     valid_drive_id(query_id.as_deref())
+}
+
+/// Extract the folder id from a `drive.google.com/drive/folders/<id>` link.
+pub fn drive_folder_id(raw: &str) -> Option<String> {
+    let url = url::Url::parse(raw).ok()?;
+    let host = url.host_str()?.to_ascii_lowercase();
+    if !matches!(host.as_str(), "drive.google.com" | "docs.google.com") {
+        return None;
+    }
+    let segments: Vec<_> = url
+        .path_segments()?
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    let position = segments.iter().position(|segment| *segment == "folders")?;
+    valid_drive_id(segments.get(position + 1).copied())
+}
+
+/// A file (or subfolder) listed inside a public Google Drive folder.
+#[derive(Debug, Clone)]
+pub struct DriveFolderFile {
+    pub id: String,
+    pub name: String,
+    pub is_folder: bool,
+}
+
+/// List the files in a public Google Drive folder using the lightweight
+/// `embeddedfolderview` page. Subfolders are walked up to a small depth.
+pub async fn list_drive_folder(
+    client: &reqwest::Client,
+    folder_id: &str,
+) -> AppResult<Vec<DriveFolderFile>> {
+    let mut pending = vec![(folder_id.to_string(), 0usize)];
+    let mut files = Vec::new();
+    let mut first = true;
+    while let Some((id, depth)) = pending.pop() {
+        let entries = match fetch_drive_folder_page(client, &id).await {
+            Ok(entries) => entries,
+            Err(error) => {
+                if first {
+                    return Err(error);
+                }
+                continue;
+            }
+        };
+        first = false;
+        for entry in entries {
+            if entry.is_folder {
+                if depth < 3 {
+                    pending.push((entry.id, depth + 1));
+                }
+            } else {
+                files.push(entry);
+            }
+        }
+    }
+    Ok(files)
+}
+
+async fn fetch_drive_folder_page(
+    client: &reqwest::Client,
+    folder_id: &str,
+) -> AppResult<Vec<DriveFolderFile>> {
+    let request = client
+        .get(format!(
+            "https://drive.google.com/embeddedfolderview?id={folder_id}"
+        ))
+        .header(reqwest::header::REFERER, "https://drive.google.com/");
+    let response = tokio::time::timeout(REQUEST_TIMEOUT, request.send())
+        .await
+        .map_err(|_| AppError::Timeout)?
+        .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
+    if !response.status().is_success() {
+        return Err(AppError::Unavailable(format!(
+            "Google Drive folder answered HTTP {}",
+            response.status().as_u16()
+        )));
+    }
+    let html = response
+        .text()
+        .await
+        .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
+    let entries = parse_drive_folder_html(&html);
+    if entries.is_empty()
+        && !html.contains("flip-entry")
+        && html.to_ascii_lowercase().contains("<title>")
+    {
+        // A valid but empty folder still has an entries container; a 404-like
+        // or sign-in page does not. Treat the latter as unavailable.
+        return Err(AppError::Unavailable(
+            "Google Drive did not return a public folder listing".into(),
+        ));
+    }
+    Ok(entries)
+}
+
+fn parse_drive_folder_html(html: &str) -> Vec<DriveFolderFile> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        Regex::new(
+            r#"(?s)<div class="flip-entry"[^>]*id="entry-([A-Za-z0-9_-]+)".*?<a href="([^"]+)"[^>]*>.*?<div class="flip-entry-title">([^<]*)</div>"#,
+        )
+        .expect("valid Drive folder regex")
+    });
+    let mut entries = Vec::new();
+    for captures in re.captures_iter(html) {
+        let id = captures[1].to_string();
+        let href = &captures[2];
+        let name = html_unescape(captures[3].trim());
+        entries.push(DriveFolderFile {
+            id,
+            name: if name.is_empty() {
+                "drive-file".to_string()
+            } else {
+                name
+            },
+            is_folder: href.contains("/folders/"),
+        });
+    }
+    entries
+}
+
+fn html_unescape(raw: &str) -> String {
+    raw.replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
 }
 
 fn valid_drive_id(value: Option<&str>) -> Option<String> {
@@ -1034,6 +1243,43 @@ mod tests {
             drive_file_id("https://drive.google.com/drive/folders/abc"),
             None
         );
+    }
+
+    #[test]
+    fn extracts_drive_folder_ids() {
+        assert_eq!(
+            drive_folder_id(
+                "https://drive.google.com/drive/folders/1megyDZ_AK9oFl-OzFzIz7NcZ_s1l9wz-?usp=sharing"
+            )
+            .as_deref(),
+            Some("1megyDZ_AK9oFl-OzFzIz7NcZ_s1l9wz-")
+        );
+        assert_eq!(
+            drive_folder_id(
+                "https://drive.google.com/file/d/13Ln54rOyA7C98ACx-k6KASb4OVYSF9iv/view"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn parses_drive_folder_listing_entries() {
+        let html = r#"
+            <div class="flip-entry" id="entry-1Q511Gx2k6T7B6TNVZnZjwjulr2N-yEP4" tabindex="0">
+              <div class="flip-entry-info"><a href="https://drive.google.com/file/d/1Q511Gx2k6T7B6TNVZnZjwjulr2N-yEP4/view?usp=drive_web">
+                <div class="flip-entry-title">1080 Nude.zip</div></a></div>
+            </div>
+            <div class="flip-entry" id="entry-1wBv63qrlEP0jXi5533jYqdpuTzwRDN38" tabindex="0">
+              <div class="flip-entry-info"><a href="https://drive.google.com/drive/folders/1wBv63qrlEP0jXi5533jYqdpuTzwRDN38">
+                <div class="flip-entry-title">More files</div></a></div>
+            </div>
+        "#;
+        let entries = parse_drive_folder_html(html);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].name, "1080 Nude.zip");
+        assert!(!entries[0].is_folder);
+        assert_eq!(entries[1].name, "More files");
+        assert!(entries[1].is_folder);
     }
 
     #[test]

@@ -217,7 +217,7 @@ impl FileRef {
 /// The archive occasionally gives a cover image a video-looking `name`.
 /// Prefer the actual path extension when it is a recognised media type.
 pub fn media_kind_for_file(file: &FileRef) -> MediaKind {
-    if crate::mega::is_file_url(&file.path) {
+    if crate::mega::is_media_url(&file.path) {
         // The real name lives in encrypted MEGA metadata. Treat links as
         // video until `get_post` resolves the extension so they stay playable.
         return MediaKind::Video;
@@ -331,8 +331,12 @@ impl Post {
                 // `get_post` replaces this placeholder with the real filename
                 // from the encrypted MEGA attributes.
                 safe_filename(&format!("mega-{}", link.handle))
+            } else if let Some(link) = crate::mega::parse_folder_link(&raw) {
+                safe_filename(&format!("mega-folder-{}", link.handle))
             } else if let Some(id) = crate::remote_media::drive_file_id(&raw) {
                 safe_filename(&format!("drive-{id}"))
+            } else if let Some(id) = crate::remote_media::drive_folder_id(&raw) {
+                safe_filename(&format!("drive-folder-{id}"))
             } else if let Some(id) = crate::remote_media::gofile_content_id(&raw) {
                 safe_filename(&format!("gofile-{id}"))
             } else {

@@ -175,7 +175,7 @@ pub async fn transcode_media(
     // The intermediate source is usually larger than the transcoded result.
     let source_max_bytes = max_bytes.saturating_mul(4).max(1024 * 1024 * 1024);
     let source_path = cache_dir.join(format!(".transcode-source-{}.bin", uuid::Uuid::new_v4()));
-    let is_mega = crate::mega::is_file_url(raw_url);
+    let is_mega = crate::mega::is_media_url(raw_url);
     let is_remote = crate::remote_media::needs_resolution(raw_url);
     let result = async {
         if is_mega {

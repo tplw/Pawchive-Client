@@ -23,6 +23,16 @@ fn mega_url_regex() -> &'static Regex {
     })
 }
 
+fn mega_folder_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?i)(?:https?://)?(?:www\.)?mega\.(?:nz|co\.nz|io)/(?:folder/[a-z0-9_-]{6,16}#[a-z0-9_\-+/=]+|#F![a-z0-9_-]{6,16}![a-z0-9_\-+/=]+)"#,
+        )
+        .expect("valid MEGA folder regex")
+    })
+}
+
 /// Drive, Dropbox and GoFile links do not end in a media extension, so the
 /// direct-media pass above cannot see them. Keep the match tight enough that
 /// ordinary profile/folder pages are not turned into attachments.
@@ -30,7 +40,7 @@ fn provider_url_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r#"(?i)(?:https?://)?(?:www\.)?(?:drive\.google\.com/(?:file/d/|open\?|uc\?)|docs\.google\.com/(?:file/d/|uc\?)|dropbox\.com/(?:scl/fi/|s/|sh/)|gofile\.io/d/)[^\s"'<>]+"#,
+            r#"(?i)(?:https?://)?(?:www\.)?(?:drive\.google\.com/(?:file/d/|open\?|uc\?|drive/folders/)|docs\.google\.com/(?:file/d/|uc\?)|dropbox\.com/(?:scl/fi/|s/|sh/)|gofile\.io/d/)[^\s"'<>]+"#,
         )
         .expect("valid provider link regex")
     })
@@ -89,6 +99,18 @@ pub fn extract(text: &str) -> Vec<String> {
             out.push(url);
         }
     }
+    // MEGA folders are expanded into their files by `get_post`.
+    for found in mega_folder_regex().find_iter(text) {
+        let Some(url) = normalize(found.as_str()) else {
+            continue;
+        };
+        if !crate::mega::is_folder_url(&url) {
+            continue;
+        }
+        if seen.insert(url.clone()) {
+            out.push(url);
+        }
+    }
     // Google Drive, Dropbox and GoFile share links also lack media
     // extensions. Their provider-specific resolvers decide whether the link
     // points at a playable file.
@@ -96,7 +118,18 @@ pub fn extract(text: &str) -> Vec<String> {
         let Some(url) = normalize(found.as_str()) else {
             continue;
         };
-        if crate::providers::provider_for_url(&url) == crate::providers::MediaProvider::External {
+        let valid = match crate::providers::provider_for_url(&url) {
+            crate::providers::MediaProvider::GoogleDrive => {
+                crate::remote_media::drive_file_id(&url).is_some()
+                    || crate::remote_media::drive_folder_id(&url).is_some()
+            }
+            crate::providers::MediaProvider::Dropbox => true,
+            crate::providers::MediaProvider::Gofile => {
+                crate::remote_media::gofile_content_id(&url).is_some()
+            }
+            _ => false,
+        };
+        if !valid {
             continue;
         }
         if seen.insert(url.clone()) {
@@ -144,6 +177,23 @@ mod tests {
                 "https://drive.google.com/file/d/13Ln54rOyA7C98ACx-k6KASb4OVYSF9iv/view?usp=sharing"
                     .to_string(),
                 "https://gofile.io/d/41qLzaRk".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn extracts_provider_folder_links() {
+        let text = r#"
+            Gdrive: https://drive.google.com/drive/folders/1megyDZ_AK9oFl-OzFzIz7NcZ_s1l9wz-?usp=sharing
+            Mega: https://mega.nz/folder/RBA1wbzZ#9JumpYIWHYvgZ0RyL6wIBQ
+            Bad: https://drive.google.com/drive/folders/abc
+        "#;
+        assert_eq!(
+            extract(text),
+            vec![
+                "https://mega.nz/folder/RBA1wbzZ#9JumpYIWHYvgZ0RyL6wIBQ".to_string(),
+                "https://drive.google.com/drive/folders/1megyDZ_AK9oFl-OzFzIz7NcZ_s1l9wz-?usp=sharing"
+                    .to_string(),
             ]
         );
     }

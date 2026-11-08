@@ -8,10 +8,12 @@ import type {
 
 const MEGA_FILE_PATTERN =
   /^https:\/\/(?:www\.)?mega\.(?:nz|co\.nz|io)\/(?:file\/[a-z0-9_-]+#|#![a-z0-9_-]+!)/i;
+const MEGA_FOLDER_FILE_PATTERN =
+  /^https:\/\/(?:www\.)?mega\.(?:nz|co\.nz|io)\/(?:folder\/[a-z0-9_-]+#[^/]+\/file\/[a-z0-9_-]+|#F![a-z0-9_-]+![^!]+![a-z0-9_-]+)/i;
 
 /** MEGA links need backend decryption before the webview can play them. */
 export function isMegaFileUrl(url: string): boolean {
-  return MEGA_FILE_PATTERN.test(url);
+  return MEGA_FILE_PATTERN.test(url) || MEGA_FOLDER_FILE_PATTERN.test(url);
 }
 
 /** Providers whose links need a backend lookup before playback. */

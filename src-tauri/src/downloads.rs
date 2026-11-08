@@ -1,5 +1,7 @@
 use crate::error::{AppError, AppResult};
-use crate::models::{now_ts, Attachment, DownloadRecord, DownloadRequest, MediaKind, Post};
+#[cfg(test)]
+use crate::models::Post;
+use crate::models::{now_ts, Attachment, DownloadRecord, DownloadRequest, MediaKind};
 use crate::security::safe_filename;
 use crate::state::AppState;
 use std::path::{Path, PathBuf};
@@ -20,7 +22,7 @@ pub async fn enqueue(
     // MEGA filenames only exist in the encrypted attributes. Resolve them
     // before reserving the destination so the saved file has its real name
     // and extension instead of the node handle.
-    let mega_file = if crate::mega::is_file_url(url.as_str()) {
+    let mega_file = if crate::mega::is_media_url(url.as_str()) {
         Some(state.mega.resolve(url.as_str()).await?)
     } else {
         None
@@ -31,7 +33,7 @@ pub async fn enqueue(
         request.file_name = file.name.clone();
         request.media_kind = file.kind().as_str().to_string();
     }
-    if !crate::mega::is_file_url(url.as_str())
+    if !crate::mega::is_media_url(url.as_str())
         && crate::remote_media::needs_resolution(url.as_str())
     {
         let media = state.remote.resolve(url.as_str()).await?;
@@ -220,7 +222,7 @@ async fn download_file(
     record: &mut DownloadRecord,
     token: &CancellationToken,
 ) -> AppResult<()> {
-    if crate::mega::is_file_url(&record.url) {
+    if crate::mega::is_media_url(&record.url) {
         return download_mega_file(state, app, record, token).await;
     }
     if crate::remote_media::needs_resolution(&record.url) {
@@ -543,7 +545,23 @@ pub async fn download_post(
     } else {
         post.title.clone()
     };
-    let files = post_files(&state.cfg, &post);
+    let attachments: Vec<Attachment> = post
+        .all_files_including_direct()
+        .into_iter()
+        .filter_map(|file| Attachment::new(&state.cfg, &file))
+        .collect();
+    // A post may link a Drive or MEGA folder instead of individual files.
+    // Expand it before queueing so every contained file is downloaded.
+    let attachments =
+        crate::remote_media::expand_folders(&state.mega, &state.remote, attachments).await;
+    let files: Vec<(Attachment, MediaKind)> = attachments
+        .into_iter()
+        .filter(|attachment| !attachment.preview_only)
+        .map(|attachment| {
+            let kind = attachment.kind;
+            (attachment, kind)
+        })
+        .collect();
     let mut count = 0u64;
     let post_thumbnail = files
         .iter()
@@ -607,6 +625,7 @@ pub async fn download_playlist(
     Ok(count)
 }
 
+#[cfg(test)]
 fn post_files(cfg: &crate::config::PawchiveConfig, post: &Post) -> Vec<(Attachment, MediaKind)> {
     post.all_files_including_direct()
         .into_iter()
