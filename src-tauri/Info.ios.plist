@@ -7,9 +7,9 @@
 	     installed app in sync with four-part release versions like 1.0.3.1.
 	     scripts/push.py updates it for each release. -->
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.4</string>
+	<string>1.0.5</string>
 	<key>CFBundleVersion</key>
-	<string>1.0.4</string>
+	<string>1.0.5</string>
 	<key>CFBundleDisplayName</key>
 	<string>Pawchive</string>
 	<key>NSAppTransportSecurity</key>
