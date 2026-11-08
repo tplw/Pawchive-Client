@@ -212,6 +212,15 @@ impl FileRef {
             || self.temp_download_url().is_some()
             || self.is_deferred()
     }
+
+    /// A source that can actually be played or downloaded now. The deferred
+    /// marker alone is not enough: over-limit files carry `deferred` without a
+    /// path or signed URL, and those are not real media.
+    pub fn has_real_source(&self) -> bool {
+        !self.path.trim().is_empty()
+            || self.temp_url().is_some()
+            || self.temp_download_url().is_some()
+    }
 }
 
 /// The archive occasionally gives a cover image a video-looking `name`.
@@ -388,7 +397,7 @@ impl Post {
         self.all_files_including_direct().iter().any(|file| {
             media_kind_for_file(file) != MediaKind::Image
                 && !file.preview_only.unwrap_or(false)
-                && file.has_source()
+                && file.has_real_source()
         })
     }
 
@@ -1081,6 +1090,20 @@ mod tests {
         assert!(deferred_only.exceeds_archive_limit());
         assert!(deferred_only.has_available_non_image_attachment());
         assert!(!deferred_only.is_unavailable());
+
+        let dropped_only: Post = serde_json::from_value(serde_json::json!({
+            "id": "8",
+            "origin": "import",
+            "has_full": false,
+            "file": {"name": "cover.webp", "path": "/aa/cover.webp"},
+            "attachments": [
+                {"name": "audio.wav", "deferred": true}
+            ]
+        }))
+        .unwrap();
+        assert!(dropped_only.exceeds_archive_limit());
+        assert!(!dropped_only.has_available_non_image_attachment());
+        assert!(dropped_only.is_unavailable());
 
         let cloud_media: Post = serde_json::from_value(serde_json::json!({
             "id": "6",

@@ -49,10 +49,12 @@ pub fn is_hidden(post: &Post, creator_name: Option<&str>, settings: &AppSettings
 }
 
 fn has_media(post: &Post) -> bool {
-    // `embed` is an empty object for most API posts, so only non-empty values
-    // count as media. Direct media and provider links are already included in
-    // `all_files_including_direct`.
-    !post.all_files_including_direct().is_empty()
+    // Deferred markers without a path or signed URL are not real media; the
+    // archive uses them for files that exceeded the size limit and were not
+    // saved. Direct media and provider links are included in this list.
+    post.all_files_including_direct()
+        .iter()
+        .any(|file| file.has_real_source())
         || value_has_content(&post.embed)
         || value_has_content(&post.poll)
 }
@@ -268,6 +270,17 @@ mod tests {
         );
         assert!(!is_hidden(&cloud_post, None, &no_media_settings));
 
+        let mut dropped_media = post("A post with a dropped file", "");
+        dropped_media.attachments = vec![FileRef {
+            name: "episode.wav".into(),
+            path: String::new(),
+            extra: [("deferred".to_string(), serde_json::Value::Bool(true))]
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        }];
+        assert!(is_hidden(&dropped_media, None, &no_media_settings));
+
         let keyword_settings = AppSettings {
             hidden_keywords: vec!["spoiler".into()],
             ..Default::default()
@@ -399,9 +412,15 @@ mod tests {
             FileRef {
                 name: "set.zip".into(),
                 path: String::new(),
-                extra: [("deferred".to_string(), serde_json::Value::Bool(true))]
-                    .into_iter()
-                    .collect(),
+                extra: [
+                    ("deferred".to_string(), serde_json::Value::Bool(true)),
+                    (
+                        "temp_url".to_string(),
+                        serde_json::Value::String("https://cdn.example.com/set.zip".into()),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
                 ..Default::default()
             },
         ];
@@ -421,6 +440,18 @@ mod tests {
             ..Default::default()
         }];
         assert!(!is_hidden(&deferred_audio, None, &settings));
+
+        let mut dropped_audio = post("An over-limit post with a dropped audio file", "");
+        dropped_audio.has_full = Some(false);
+        dropped_audio.attachments = vec![FileRef {
+            name: "episode.wav".into(),
+            path: String::new(),
+            extra: [("deferred".to_string(), serde_json::Value::Bool(true))]
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        }];
+        assert!(is_hidden(&dropped_audio, None, &settings));
 
         let mut primary_audio = post("An over-limit post with a primary audio file", "");
         primary_audio.has_full = Some(false);
