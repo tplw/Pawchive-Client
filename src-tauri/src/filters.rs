@@ -29,6 +29,9 @@ pub fn is_hidden(post: &Post, creator_name: Option<&str>, settings: &AppSettings
     if settings.hide_no_media && !has_media_or_link(post) {
         return true;
     }
+    if settings.hide_unavailable_posts && post.is_unavailable() {
+        return true;
+    }
     settings
         .hidden_keywords
         .iter()
@@ -213,6 +216,71 @@ mod tests {
             None,
             &keyword_settings
         ));
+    }
+
+    #[test]
+    fn hides_unavailable_posts_unless_a_non_image_attachment_survives() {
+        let settings = AppSettings {
+            hide_unavailable_posts: true,
+            ..Default::default()
+        };
+
+        let mut over_limit = post("An over-limit post", "");
+        over_limit.has_full = Some(false);
+        over_limit.attachments = vec![FileRef {
+            name: "image.png".into(),
+            path: "/aa/bb/image.png".into(),
+            preview_only: Some(true),
+            ..Default::default()
+        }];
+        assert!(is_hidden(&over_limit, None, &settings));
+
+        let mut mixed = post("An over-limit post with a zip", "");
+        mixed.has_full = Some(false);
+        mixed.attachments = vec![
+            FileRef {
+                name: "image.png".into(),
+                path: "/aa/bb/image.png".into(),
+                preview_only: Some(true),
+                ..Default::default()
+            },
+            FileRef {
+                name: "set.zip".into(),
+                path: "/cc/dd/set.zip".into(),
+                ..Default::default()
+            },
+        ];
+        assert!(!is_hidden(&mixed, None, &settings));
+
+        let mut deferred_zip = post("An over-limit post with a temporary zip", "");
+        deferred_zip.has_full = Some(false);
+        deferred_zip.attachments = vec![
+            FileRef {
+                name: "image.png".into(),
+                path: "/aa/bb/image.png".into(),
+                preview_only: Some(true),
+                ..Default::default()
+            },
+            FileRef {
+                name: "set.zip".into(),
+                path: String::new(),
+                extra: [("deferred".to_string(), serde_json::Value::Bool(true))]
+                    .into_iter()
+                    .collect(),
+                ..Default::default()
+            },
+        ];
+        assert!(is_hidden(&deferred_zip, None, &settings));
+
+        let preview: Post = serde_json::from_value(serde_json::json!({
+            "title": "A Kemono preview",
+            "origin": "kemono"
+        }))
+        .unwrap();
+        assert!(is_hidden(&preview, None, &settings));
+
+        let complete = post("A complete post", "");
+        assert!(!is_hidden(&complete, None, &settings));
     }
 
     #[test]

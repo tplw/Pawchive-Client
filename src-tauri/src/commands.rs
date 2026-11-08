@@ -220,6 +220,7 @@ pub async fn sync_creators(
     let count = blocking(move || db.sync_creators(&creators)).await?;
     st.db
         .set_raw_setting("creators_synced_at", &now_ts().to_string())?;
+    st.db.set_raw_setting("creators_import_state_synced", "1")?;
     let _ = app.emit("creators://synced", count);
     Ok(count as i64)
 }
@@ -227,6 +228,16 @@ pub async fn sync_creators(
 #[tauri::command]
 pub async fn get_creator_count(state: State<'_, AppState>) -> AppResult<i64> {
     let st = st(&state);
+    // Creator rows that predate import-state tracking were migrated with
+    // `ever_imported = 1`. Force one refresh so cards stop treating archived
+    // and unimported creators the same.
+    if st
+        .db
+        .get_raw_setting("creators_import_state_synced")?
+        .is_none()
+    {
+        return Ok(0);
+    }
     let count = blocking(move || st.db.creator_count()).await?;
     tracing::debug!(count, "creator index count requested");
     Ok(count)
@@ -384,6 +395,7 @@ pub async fn get_similar_creators(
         st.finish_cancel(id);
     }
     let items = crate::similar::parse_similar_creators(&result?);
+    let hide_unavailable = st.settings().hide_unavailable_posts;
     let db = Arc::clone(&st.db);
     blocking(move || {
         Ok(items
@@ -394,6 +406,7 @@ pub async fn get_similar_creators(
                     .flatten()
                     .unwrap_or(item)
             })
+            .filter(|item| !hide_unavailable || item.ever_imported != Some(false))
             .collect())
     })
     .await
@@ -639,7 +652,7 @@ pub async fn get_popular_posts(
         st.finish_cancel(id);
     }
     let html = result?;
-    let items = crate::popular::parse_popular_posts(&html, |service, user| {
+    let mut items = crate::popular::parse_popular_posts(&html, |service, user| {
         st.db
             .get_creator(service, user)
             .ok()
@@ -647,6 +660,9 @@ pub async fn get_popular_posts(
             .map(|creator| creator.name)
     });
     let has_more = items.len() as i64 >= PAGE_SIZE;
+    if st.settings().hide_unavailable_posts {
+        items.retain(|item| !item.unavailable);
+    }
     Ok(PostPage {
         items,
         offset,

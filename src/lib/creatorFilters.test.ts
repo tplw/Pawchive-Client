@@ -22,6 +22,9 @@ function post(overrides: Partial<PostSummary> = {}): PostSummary {
     mediaKinds: ["image"],
     previewState: null,
     hasFull: true,
+    imported: true,
+    exceedsLimit: false,
+    unavailable: false,
     ...overrides,
   };
 }
@@ -31,6 +34,7 @@ describe("creator filters", () => {
     const filter = {
       audioOnly: true,
       hideNoMedia: false,
+      hideUnavailable: false,
       keywords: ["sketch"],
     };
     expect(postMatchesCreatorFilter(post(), filter)).toBe(false);
@@ -48,6 +52,7 @@ describe("creator filters", () => {
       creatorFilterActive({
         audioOnly: false,
         hideNoMedia: false,
+        hideUnavailable: false,
         keywords: [],
       }),
     ).toBe(false);
@@ -55,6 +60,7 @@ describe("creator filters", () => {
       postMatchesCreatorFilter(post({ attachmentCount: 0, mediaKinds: [] }), {
         audioOnly: false,
         hideNoMedia: true,
+        hideUnavailable: false,
         keywords: [],
       }),
     ).toBe(false);
@@ -65,7 +71,7 @@ describe("creator filters", () => {
           mediaKinds: [],
           excerpt: "https://example.com",
         }),
-        { audioOnly: false, hideNoMedia: true, keywords: [] },
+        { audioOnly: false, hideNoMedia: true, hideUnavailable: false, keywords: [] },
       ),
     ).toBe(true);
   });
@@ -78,6 +84,21 @@ describe("creator filters", () => {
       ]),
     ).toBe(true);
     expect(detectAsmrCreator("Ai", "", [])).toBe(false);
+  });
+
+  it("hides unavailable posts when the creator filter asks for it", () => {
+    const filter = {
+      audioOnly: false,
+      hideNoMedia: false,
+      hideUnavailable: true,
+      keywords: [],
+    };
+    expect(
+      postMatchesCreatorFilter(post({ unavailable: true }), filter),
+    ).toBe(false);
+    expect(
+      postMatchesCreatorFilter(post({ unavailable: false }), filter),
+    ).toBe(true);
   });
 
   it("deduplicates and trims keywords", () => {

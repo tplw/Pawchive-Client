@@ -73,6 +73,7 @@ export function SettingsPage() {
     void queryClient.invalidateQueries({ queryKey: ["posts"] });
     void queryClient.invalidateQueries({ queryKey: ["search"] });
     void queryClient.invalidateQueries({ queryKey: ["creator-posts"] });
+    void queryClient.invalidateQueries({ queryKey: ["creator-similar"] });
   }, [queryClient]);
 
   useEffect(() => {
@@ -321,6 +322,17 @@ export function SettingsPage() {
                 void saveSettings({ hideNoMedia: checked }).then(invalidateFilters);
               }}
               label="Hide posts without media"
+            />
+            <Toggle
+              compact
+              checked={settings.hideUnavailablePosts}
+              onChange={(checked) => {
+                void saveSettings({ hideUnavailablePosts: checked }).then(
+                  invalidateFilters,
+                );
+              }}
+              label="Hide unavailable posts"
+              description="Hide posts that aren't imported or exceed the archive file-size limit. Posts with other downloadable files stay visible."
             />
             <Toggle
               compact

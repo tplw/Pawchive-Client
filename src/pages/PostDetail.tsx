@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../services/api";
-import { errorMessage, serviceLabel } from "../lib/constants";
+import { errorMessage, isAppError, serviceLabel } from "../lib/constants";
 import {
   cn,
   formatBytes,
@@ -31,7 +31,11 @@ import {
 import { goBack, navigate } from "../lib/router";
 import { useAppStore } from "../stores/app";
 import { usePlayerStore } from "../player/store";
-import { CreatorAvatar, ServiceBadge } from "../components/cards";
+import {
+  CreatorAvatar,
+  NotImportedBadge,
+  ServiceBadge,
+} from "../components/cards";
 import { ImageViewer } from "../components/ImageViewer";
 import { PlaylistPicker } from "../components/PlaylistPicker";
 import { SanitizedHtml } from "../components/SanitizedHtml";
@@ -167,6 +171,7 @@ export function PostDetailPage({
 }) {
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
+  const config = useAppStore((state) => state.config);
   const previousRoute = useAppStore((state) => state.previousRoute);
   const playItems = usePlayerStore((state) => state.playItems);
   const enqueue = usePlayerStore((state) => state.enqueue);
@@ -338,6 +343,23 @@ export function PostDetailPage({
     }
   };
 
+  const openImporter = async () => {
+    try {
+      await api.openExternal(
+        `${config.staticBase.replace(/\/$/, "")}/importer`,
+      );
+    } catch (error) {
+      reportError(error, "Could not open the importer");
+    }
+  };
+
+  const postNotFound = isAppError(post.error) && post.error.code === "not_found";
+  const isNotImportedPost =
+    detail?.post.origin?.trim().toLowerCase() === "kemono";
+  const exceedsLimit = Boolean(
+    detail && !isNotImportedPost && detail.post.has_full === false,
+  );
+
   if (navigating || post.isLoading) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-muted">
@@ -348,6 +370,37 @@ export function PostDetailPage({
   }
 
   if (post.isError || !detail) {
+    if (postNotFound) {
+      return (
+        <div className="pb-10">
+          <button
+            type="button"
+            onClick={() => goBack({ name: "creator", service, creatorId })}
+            className="mb-4 inline-flex items-center gap-1.5 text-[11px] text-muted transition hover:text-ink"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> {backLabel}
+          </button>
+          <EmptyState
+            icon={AlertTriangle}
+            title="This post hasn't been archived yet"
+            message="haven't archived this post yet. have a subscription? use the importer!"
+            action={
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button variant="primary" onClick={() => void openImporter()}>
+                  <ExternalLink className="h-3.5 w-3.5" /> Open importer
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => goBack({ name: "creator", service, creatorId })}
+                >
+                  {backLabel}
+                </Button>
+              </div>
+            }
+          />
+        </div>
+      );
+    }
     return (
       <EmptyState
         icon={AlertTriangle}
@@ -439,6 +492,9 @@ export function PostDetailPage({
                 size="xs"
               />
               {creatorName}
+              {detail.creator?.ever_imported === false ? (
+                <NotImportedBadge creator />
+              ) : null}
             </button>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
@@ -455,6 +511,32 @@ export function PostDetailPage({
           </div>
         </div>
 
+        {isNotImportedPost ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-line/70 bg-base/30 px-4 py-3 text-xs text-muted">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-favorite" />
+            <span>
+              haven't archived this post yet. have a subscription? use the{" "}
+              <button
+                type="button"
+                onClick={() => void openImporter()}
+                className="font-semibold text-accent underline underline-offset-2 transition hover:text-ink"
+              >
+                importer
+              </button>
+              !
+            </span>
+          </div>
+        ) : null}
+
+        {exceedsLimit ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-[#e0483d]/35 bg-[#e0483d]/10 px-4 py-3 text-xs text-[#e0483d]">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>
+              Some files exceed the archive size limit and weren't saved
+            </span>
+          </div>
+        ) : null}
+
         <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
           <div className="min-w-0">
             {detail.post.content ? (
@@ -469,11 +551,14 @@ export function PostDetailPage({
             )}
 
             {detail.attachments.length > 0 ? (
-              <section className="mt-7">
+              <section
+                className={cn(
+                  "mt-7",
+                  isNotImportedPost && "pointer-events-none select-none opacity-40",
+                )}
+              >
                 <SectionHeader
                   eyebrow={`${detail.attachments.length} attachment${detail.attachments.length === 1 ? "" : "s"}`}
-                  title="Attachments"
-                  description="Images open in the viewer; audio and video play in the built-in player."
                 />
 
                 {images.length > 0 ? (

@@ -35,6 +35,7 @@ import {
   CreatorBanner,
   CreatorCard,
   CreatorCardSkeleton,
+  NotImportedBadge,
   PostCard,
   PostCardSkeleton,
   ServiceBadge,
@@ -77,6 +78,9 @@ export function CreatorProfilePage({
   const postQuery = debouncedPostSearch.length >= 3 ? debouncedPostSearch : "";
   const postCardSize = useAppStore((state) => state.settings.postCardSize);
   const autoDetectAsmr = useAppStore((state) => state.settings.autoDetectAsmr);
+  const hideUnavailablePosts = useAppStore(
+    (state) => state.settings.hideUnavailablePosts,
+  );
   const postMetrics = postGridMetrics(postCardSize);
   const creatorMetrics = creatorGridMetrics(postCardSize);
   const queryClient = useQueryClient();
@@ -178,8 +182,11 @@ export function CreatorProfilePage({
     () =>
       (similar.data ?? []).filter(
         (entry) => !(entry.service === service && entry.id === creatorId),
+      ).filter(
+        (entry) =>
+          !hideUnavailablePosts || entry.ever_imported !== false,
       ),
-    [similar.data, service, creatorId],
+    [similar.data, service, creatorId, hideUnavailablePosts],
   );
 
   const favorite = useMutation({
@@ -205,6 +212,7 @@ export function CreatorProfilePage({
   });
   const updated = details?.updated ?? summary?.updated;
   const favorited = summary?.favorited;
+  const everImported = details?.ever_imported ?? summary?.ever_imported;
   const backTarget =
     previousRoute && previousRoute.name !== "creator"
       ? previousRoute
@@ -248,6 +256,7 @@ export function CreatorProfilePage({
                   {isAsmr ? (
                     <Badge tone="accent">ASMR</Badge>
                   ) : null}
+                  {everImported === false ? <NotImportedBadge creator /> : null}
                   {summary?.public_id ? (
                     <span className="text-[10px] text-muted">
                       @{summary.public_id}
@@ -399,6 +408,7 @@ export function CreatorProfilePage({
                       updateFilter({
                         audioOnly: false,
                         hideNoMedia: false,
+                        hideUnavailable: false,
                         keywords: [],
                         asmr: false,
                       });
@@ -644,6 +654,7 @@ export function CreatorProfilePage({
                 updateFilter({
                   audioOnly: false,
                   hideNoMedia: false,
+                  hideUnavailable: false,
                   keywords: [],
                   asmr: false,
                 });
@@ -698,6 +709,14 @@ export function CreatorProfilePage({
             }
             label="Hide posts without media"
             description="Hide text-only posts that have no attachment or link."
+          />
+          <Toggle
+            checked={filter.hideUnavailable}
+            onChange={(checked) =>
+              updateFilter({ ...filter, hideUnavailable: checked })
+            }
+            label="Hide unavailable posts"
+            description="Hide posts that aren't imported or exceed the archive file-size limit. Posts with other downloadable files stay visible."
           />
           <Field
             label="Hide keywords"

@@ -176,7 +176,7 @@ export function SectionHeader({
   action,
 }: {
   eyebrow?: string;
-  title: string;
+  title?: string;
   description?: string;
   action?: ReactNode;
 }) {

@@ -122,6 +122,11 @@ pub struct CreatorSummary {
     /// Whether the local user has starred this creator.
     #[serde(default)]
     pub is_favorite: bool,
+    /// The archive relays creator metadata before any of their posts have been
+    /// imported. `None` means the archive did not report the field, which we
+    /// treat as imported so older data never shows a false warning.
+    #[serde(default)]
+    pub ever_imported: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -145,6 +150,10 @@ pub struct CreatorProfile {
     pub description: Option<String>,
     #[serde(default)]
     pub banner: Option<String>,
+    /// Whether the archive has ever imported this creator. Mirrors
+    /// `CreatorSummary::ever_imported`.
+    #[serde(default)]
+    pub ever_imported: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -334,6 +343,43 @@ impl Post {
         files.extend(self.direct_media_files());
         files
     }
+
+    /// Posts relayed from Kemono are previews that Pawchive has not archived.
+    /// Everything else (including older records with no `origin`) is imported.
+    pub fn is_imported(&self) -> bool {
+        self.origin
+            .as_deref()
+            .map(|origin| !origin.trim().eq_ignore_ascii_case("kemono"))
+            .unwrap_or(true)
+    }
+
+    /// Imported posts with `has_full: false` are missing at least one file
+    /// because it exceeded the archive's size limit. Unimported previews also
+    /// report `has_full: false`, but they are handled separately.
+    pub fn exceeds_archive_limit(&self) -> bool {
+        self.is_imported() && self.has_full == Some(false)
+    }
+
+    /// A post that exceeded the size limit is still useful when it has a
+    /// non-image attachment that was saved normally. Images are ignored here
+    /// because over-limit image sets are exactly what the filter targets.
+    /// Over-limit files have no stored path, so a deferred-only attachment
+    /// (even a ZIP) does not count.
+    pub fn has_available_non_image_attachment(&self) -> bool {
+        self.attachments.iter().any(|file| {
+            media_kind_for_file(file) != MediaKind::Image
+                && !file.preview_only.unwrap_or(false)
+                && !file.path.trim().is_empty()
+        })
+    }
+
+    /// Whether this post should be hidden by the optional unavailable-content
+    /// filter: it was never imported, or it lost files to the size limit and
+    /// has no usable non-image attachment left.
+    pub fn is_unavailable(&self) -> bool {
+        !self.is_imported()
+            || (self.exceeds_archive_limit() && !self.has_available_non_image_attachment())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -495,6 +541,12 @@ pub struct PostSummary {
     pub media_kinds: Vec<MediaKind>,
     pub preview_state: Option<String>,
     pub has_full: Option<bool>,
+    /// False when the post is a Kemono preview the archive has not imported.
+    pub imported: bool,
+    /// True when imported files were dropped for exceeding the archive limit.
+    pub exceeds_limit: bool,
+    /// True when the optional unavailable-post filter should hide this post.
+    pub unavailable: bool,
 }
 
 impl PostSummary {
@@ -544,6 +596,9 @@ impl PostSummary {
             media_kinds: kinds,
             preview_state: post.preview_state.clone(),
             has_full: post.has_full,
+            imported: post.is_imported(),
+            exceeds_limit: post.exceeds_archive_limit(),
+            unavailable: post.is_unavailable(),
         }
     }
 }
@@ -704,6 +759,9 @@ pub struct AppSettings {
     pub reduce_motion: bool,
     pub accent_color: String,
     pub hide_no_media: bool,
+    /// Hide posts the archive has not imported or that lost files to the
+    /// archive size limit without a usable non-image attachment.
+    pub hide_unavailable_posts: bool,
     pub auto_detect_asmr: bool,
     pub auto_sync_favorites: bool,
     pub cache_size_mb: u64,
@@ -738,6 +796,7 @@ impl Default for AppSettings {
             reduce_motion: false,
             accent_color: "#d6aea8".into(),
             hide_no_media: false,
+            hide_unavailable_posts: false,
             auto_detect_asmr: true,
             auto_sync_favorites: false,
             cache_size_mb: 64,
@@ -906,6 +965,89 @@ mod tests {
         assert_eq!(post.title, "");
         assert!(post.attachments.is_empty());
         assert!(post.all_files().is_empty());
+    }
+
+    #[test]
+    fn treats_kemono_previews_as_unimported() {
+        let preview: Post = serde_json::from_value(serde_json::json!({
+            "id": "1",
+            "origin": "kemono"
+        }))
+        .unwrap();
+        assert!(!preview.is_imported());
+
+        let imported: Post = serde_json::from_value(serde_json::json!({
+            "id": "2",
+            "origin": "import"
+        }))
+        .unwrap();
+        assert!(imported.is_imported());
+
+        let legacy: Post = serde_json::from_value(serde_json::json!({"id": "3"})).unwrap();
+        assert!(legacy.is_imported());
+    }
+
+    #[test]
+    fn flags_imported_posts_that_lost_files_to_the_size_limit() {
+        let all_images: Post = serde_json::from_value(serde_json::json!({
+            "id": "1",
+            "origin": "import",
+            "has_full": false,
+            "attachments": [
+                {"name": "1.png", "path": "/aa/1.png", "preview_only": true},
+                {"name": "2.png", "path": "/bb/2.png", "preview_only": true}
+            ]
+        }))
+        .unwrap();
+        assert!(all_images.exceeds_archive_limit());
+        assert!(all_images.is_unavailable());
+
+        let mixed: Post = serde_json::from_value(serde_json::json!({
+            "id": "2",
+            "origin": "import",
+            "has_full": false,
+            "attachments": [
+                {"name": "1.png", "path": "/aa/1.png", "preview_only": true},
+                {"name": "clip.mp4", "path": "/bb/clip.mp4"}
+            ]
+        }))
+        .unwrap();
+        assert!(mixed.exceeds_archive_limit());
+        assert!(mixed.has_available_non_image_attachment());
+        assert!(!mixed.is_unavailable());
+
+        let deferred_only: Post = serde_json::from_value(serde_json::json!({
+            "id": "5",
+            "origin": "import",
+            "has_full": false,
+            "attachments": [
+                {"name": "1.png", "path": "/aa/1.png", "preview_only": true},
+                {"name": "set.zip", "deferred": true, "temp_url": "https://example.com/set.zip"}
+            ]
+        }))
+        .unwrap();
+        assert!(deferred_only.exceeds_archive_limit());
+        assert!(!deferred_only.has_available_non_image_attachment());
+        assert!(deferred_only.is_unavailable());
+
+        let complete: Post = serde_json::from_value(serde_json::json!({
+            "id": "3",
+            "origin": "import",
+            "has_full": true,
+            "attachments": [{"name": "1.png", "path": "/aa/1.png", "preview_only": true}]
+        }))
+        .unwrap();
+        assert!(!complete.exceeds_archive_limit());
+        assert!(!complete.is_unavailable());
+
+        let preview: Post = serde_json::from_value(serde_json::json!({
+            "id": "4",
+            "origin": "kemono",
+            "has_full": false
+        }))
+        .unwrap();
+        assert!(!preview.exceeds_archive_limit());
+        assert!(preview.is_unavailable());
     }
 
     #[test]

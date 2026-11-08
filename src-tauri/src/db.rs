@@ -12,6 +12,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0002_core_scope.sql"),
     include_str!("../migrations/0003_features.sql"),
     include_str!("../migrations/0004_download_thumbnails.sql"),
+    include_str!("../migrations/0005_creator_imported.sql"),
 ];
 
 /// Preserve the raw corrupt settings row before the app falls back to defaults.
@@ -160,14 +161,15 @@ impl Db {
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
-                "INSERT INTO creators(service, id, name, public_id, indexed, updated, favorited)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                "INSERT INTO creators(service, id, name, public_id, indexed, updated, favorited, ever_imported)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                  ON CONFLICT(service, id) DO UPDATE SET
                     name = excluded.name,
                     public_id = excluded.public_id,
                     indexed = excluded.indexed,
                     updated = excluded.updated,
-                    favorited = excluded.favorited",
+                    favorited = excluded.favorited,
+                    ever_imported = excluded.ever_imported",
             )?;
             for item in items {
                 stmt.execute(params![
@@ -178,6 +180,7 @@ impl Db {
                     item.indexed,
                     item.updated,
                     item.favorited.unwrap_or(0),
+                    item.ever_imported.unwrap_or(true),
                 ])?;
             }
         }
@@ -239,7 +242,7 @@ impl Db {
             page_values.push(SqlValue::Integer(limit.max(1)));
             page_values.push(SqlValue::Integer(offset.max(0)));
             let mut stmt = conn.prepare(&format!(
-                "SELECT service, id, name, public_id, indexed, updated, favorited,
+                "SELECT service, id, name, public_id, indexed, updated, favorited, ever_imported,
                         EXISTS(SELECT 1 FROM favorite_creators f
                                WHERE f.service = creators.service AND f.creator_id = creators.id)
                  FROM creators {where_sql} ORDER BY {order_sql} LIMIT ? OFFSET ?"
@@ -255,7 +258,7 @@ impl Db {
         self.with_conn(|conn| {
             Ok(conn
                 .query_row(
-                    "SELECT service, id, name, public_id, indexed, updated, favorited,
+                    "SELECT service, id, name, public_id, indexed, updated, favorited, ever_imported,
                             EXISTS(SELECT 1 FROM favorite_creators f
                                    WHERE f.service = creators.service AND f.creator_id = creators.id)
                      FROM creators WHERE service = ?1 AND id = ?2",
@@ -306,7 +309,8 @@ impl Db {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT f.service, f.creator_id, f.name, f.public_id,
-                        c.indexed, c.updated, COALESCE(c.favorited, 0), 1
+                        c.indexed, c.updated, COALESCE(c.favorited, 0),
+                        COALESCE(c.ever_imported, 1), 1
                  FROM favorite_creators f
                  LEFT JOIN creators c ON c.service = f.service AND c.id = f.creator_id
                  ORDER BY f.added_at DESC",
@@ -814,7 +818,8 @@ fn map_creator(row: &Row<'_>) -> rusqlite::Result<CreatorSummary> {
         indexed: row.get(4)?,
         updated: row.get(5)?,
         favorited: row.get(6)?,
-        is_favorite: row.get::<_, i64>(7)? != 0,
+        ever_imported: Some(row.get::<_, i64>(7)? != 0),
+        is_favorite: row.get::<_, i64>(8)? != 0,
     })
 }
 
@@ -839,6 +844,7 @@ mod tests {
             updated: Some(updated),
             favorited: Some(favorited),
             is_favorite: false,
+            ever_imported: Some(true),
         }
     }
 
@@ -921,6 +927,22 @@ mod tests {
         assert_eq!(creator.updated, Some(20));
         assert_eq!(creator.favorited, Some(2));
         assert_eq!(db.creator_count().unwrap(), 1);
+    }
+
+    #[test]
+    fn creator_sync_preserves_import_state() {
+        let db = Db::open_in_memory().unwrap();
+        let mut unimported = sample_creator("1", "Indexed only", 10, 1);
+        unimported.ever_imported = Some(false);
+        db.sync_creators(&[unimported]).unwrap();
+
+        let creator = db.get_creator("fanbox", "1").unwrap().unwrap();
+        assert_eq!(creator.ever_imported, Some(false));
+
+        db.set_favorite_creator("fanbox", "1", "Indexed only", Some("indexed"), true)
+            .unwrap();
+        let favorites = db.list_favorite_creators().unwrap();
+        assert_eq!(favorites[0].ever_imported, Some(false));
     }
 
     #[test]

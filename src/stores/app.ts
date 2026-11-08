@@ -256,6 +256,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ indexState: "ready", indexCount: total });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["creators"] }),
+        queryClient.invalidateQueries({ queryKey: ["creator"] }),
+        queryClient.invalidateQueries({ queryKey: ["creator-similar"] }),
+        queryClient.invalidateQueries({ queryKey: ["favorites", "creators"] }),
         queryClient.invalidateQueries({ queryKey: ["posts"] }),
         queryClient.invalidateQueries({ queryKey: ["search"] }),
         queryClient.invalidateQueries({ queryKey: ["creator-posts"] }),

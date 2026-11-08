@@ -3,6 +3,7 @@ import type { PostSummary } from "../types";
 export interface CreatorFilter {
   audioOnly: boolean;
   hideNoMedia: boolean;
+  hideUnavailable: boolean;
   keywords: string[];
   /** undefined = auto-detect, true = manually tagged, false = manually rejected. */
   asmr?: boolean;
@@ -11,6 +12,7 @@ export interface CreatorFilter {
 const EMPTY_FILTER: CreatorFilter = {
   audioOnly: false,
   hideNoMedia: false,
+  hideUnavailable: false,
   keywords: [],
 };
 
@@ -29,6 +31,7 @@ export function loadCreatorFilter(
     return {
       audioOnly: Boolean(parsed.audioOnly),
       hideNoMedia: Boolean(parsed.hideNoMedia),
+      hideUnavailable: Boolean(parsed.hideUnavailable),
       keywords: Array.isArray(parsed.keywords)
         ? parsed.keywords.filter((keyword): keyword is string => typeof keyword === "string")
         : [],
@@ -48,6 +51,7 @@ export function saveCreatorFilter(
     if (
       filter.audioOnly ||
       filter.hideNoMedia ||
+      filter.hideUnavailable ||
       filter.keywords.length > 0 ||
       typeof filter.asmr === "boolean"
     ) {
@@ -67,6 +71,7 @@ export function creatorFilterActive(filter: CreatorFilter): boolean {
   return (
     filter.audioOnly ||
     filter.hideNoMedia ||
+    filter.hideUnavailable ||
     filter.keywords.length > 0 ||
     filter.asmr === true
   );
@@ -104,6 +109,9 @@ export function postMatchesCreatorFilter(
   if (filter.hideNoMedia && post.attachmentCount === 0) {
     const hasLink = /https?:\/\//i.test(`${post.title} ${post.excerpt}`);
     if (!hasLink) return false;
+  }
+  if (filter.hideUnavailable && post.unavailable) {
+    return false;
   }
   if (filter.keywords.length === 0) return true;
   const haystack = `${post.title} ${post.excerpt} ${post.creatorName ?? ""}`.toLowerCase();

@@ -80,6 +80,9 @@ where
             .and_then(|c| c.get(1))
             .and_then(|m| m.as_str().parse::<usize>().ok())
             .unwrap_or(0);
+        // The popular page renders imported cards normally, while posts the
+        // archive has not imported carry a preview state badge on the card.
+        let imported = !body.contains("state-badge--preview");
         let creator = creator_name(service, user);
         out.push(PostSummary {
             id: id.to_string(),
@@ -95,6 +98,9 @@ where
             media_kinds: Vec::new(),
             preview_state: None,
             has_full: None,
+            imported,
+            exceeds_limit: false,
+            unavailable: !imported,
         });
     }
     out
@@ -124,5 +130,21 @@ mod tests {
         assert_eq!(posts[0].creator_name.as_deref(), Some("Ada"));
         assert_eq!(posts[0].attachment_count, 3);
         assert!(posts[0].thumbnail_url.is_some());
+        assert!(posts[0].imported);
+    }
+
+    #[test]
+    fn marks_preview_cards_as_not_imported() {
+        let html = r#"
+        <article class="post-card post-card--preview" data-id="123" data-service="patreon" data-user="456">
+          <span class="state-badge state-badge--preview" title="haven't archived this post yet"></span>
+          <a href="/patreon/user/456/post/123">
+            <header class="post-card__header">Preview only</header>
+            <div>1 attachment</div>
+          </a>
+        </article>"#;
+        let posts = parse_popular_posts(html, |_, _| None);
+        assert_eq!(posts.len(), 1);
+        assert!(!posts[0].imported);
     }
 }

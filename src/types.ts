@@ -42,6 +42,8 @@ export interface CreatorSummary {
   updated?: number | null;
   favorited?: number | null;
   is_favorite?: boolean;
+  /** False when the archive has indexed the creator but never imported posts. */
+  ever_imported?: boolean | null;
 }
 
 export interface CreatorProfile extends CreatorSummary {
@@ -75,6 +77,12 @@ export interface PostSummary {
   mediaKinds: MediaKind[];
   previewState: string | null;
   hasFull: boolean | null;
+  /** False for Kemono previews the archive has not imported yet. */
+  imported: boolean;
+  /** True when imported files were dropped for exceeding the archive limit. */
+  exceedsLimit: boolean;
+  /** True when the unavailable-post filter should hide this post. */
+  unavailable: boolean;
 }
 
 export interface PostDetail {
@@ -160,6 +168,7 @@ export interface AppSettings {
   reduceMotion: boolean;
   accentColor: string;
   hideNoMedia: boolean;
+  hideUnavailablePosts: boolean;
   autoDetectAsmr: boolean;
   autoSyncFavorites: boolean;
   cacheSizeMb: number;

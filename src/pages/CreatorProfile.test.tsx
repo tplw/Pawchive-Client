@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../services/api";
+import { DEFAULT_SETTINGS } from "../lib/constants";
 import { useAppStore } from "../stores/app";
 import type { CreatorSummary, PostSummary } from "../types";
 import { CreatorProfilePage } from "./CreatorProfile";
@@ -27,6 +28,7 @@ const creator: CreatorSummary = {
   updated: 2,
   favorited: 10,
   is_favorite: false,
+  ever_imported: true,
 };
 
 const post: PostSummary = {
@@ -43,6 +45,9 @@ const post: PostSummary = {
   mediaKinds: [],
   previewState: null,
   hasFull: null,
+  imported: true,
+  exceedsLimit: false,
+  unavailable: false,
 };
 
 function wrapper(ui: React.ReactNode) {
@@ -55,7 +60,11 @@ function wrapper(ui: React.ReactNode) {
 describe("creator profile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAppStore.setState({ route: { name: "creator" }, previousRoute: null });
+    useAppStore.setState({
+      route: { name: "creator" },
+      previousRoute: null,
+      settings: DEFAULT_SETTINGS,
+    });
     vi.mocked(api.getCreator).mockResolvedValue(creator);
     vi.mocked(api.getCreatorProfile).mockResolvedValue({
       ...creator,
@@ -104,5 +113,47 @@ describe("creator profile", () => {
       "42",
       expect.anything(),
     );
+  });
+
+  it("marks creators the archive has not imported", async () => {
+    vi.mocked(api.getCreator).mockResolvedValue({
+      ...creator,
+      ever_imported: false,
+    });
+    vi.mocked(api.getCreatorProfile).mockResolvedValue({
+      ...creator,
+      description: "An artist",
+      ever_imported: false,
+    });
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    expect(
+      await screen.findByTitle("haven't imported this creator yet"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides unimported creators from similar creators when unavailable posts are hidden", async () => {
+    useAppStore.setState({
+      settings: { ...DEFAULT_SETTINGS, hideUnavailablePosts: true },
+    });
+    vi.mocked(api.getSimilarCreators).mockResolvedValue([
+      {
+        id: "98",
+        name: "Imported Artist",
+        service: "patreon",
+        ever_imported: true,
+      },
+      {
+        id: "99",
+        name: "Unimported Artist",
+        service: "patreon",
+        ever_imported: false,
+      },
+    ]);
+
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Similar Creators" }));
+
+    expect(await screen.findByText("Imported Artist")).toBeInTheDocument();
+    expect(screen.queryByText("Unimported Artist")).not.toBeInTheDocument();
   });
 });

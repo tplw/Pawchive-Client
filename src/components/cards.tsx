@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   FileText,
   Film,
   Headphones,
@@ -162,6 +163,49 @@ export function ServiceBadge({ service }: { service: string }) {
   );
 }
 
+/** Mirrors Pawchive's warning marker for content the archive has not imported. */
+export function NotImportedBadge({
+  creator = false,
+  className,
+}: {
+  creator?: boolean;
+  className?: string;
+}) {
+  const title = creator
+    ? "haven't imported this creator yet"
+    : "haven't archived this post yet";
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      className={cn(
+        "inline-flex items-center rounded border border-favorite/25 bg-favorite/10 px-1 py-0.5 text-favorite",
+        className,
+      )}
+    >
+      <AlertTriangle className="h-3 w-3" />
+    </span>
+  );
+}
+
+/** Pawchive's red warning marker for posts that lost files to the size limit. */
+export function ExceedsLimitBadge({ className }: { className?: string }) {
+  const title =
+    "Some files exceed the archive size limit and weren't saved";
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      className={cn(
+        "inline-flex items-center rounded border border-[#e0483d]/35 bg-[#e0483d]/12 px-1 py-0.5 text-[#e0483d]",
+        className,
+      )}
+    >
+      <AlertTriangle className="h-3 w-3" />
+    </span>
+  );
+}
+
 export function CreatorCard({ creator }: { creator: CreatorSummary }) {
   const queryClient = useQueryClient();
   const cardSize = useAppStore((state) => state.settings.postCardSize);
@@ -238,6 +282,12 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
                 <Badge tone="accent" className="shrink-0 px-1 py-0 text-[8px]">
                   ASMR
                 </Badge>
+              ) : null}
+              {creator.ever_imported === false ? (
+                <NotImportedBadge
+                  creator
+                  className="shrink-0 px-1 py-0 text-[8px]"
+                />
               ) : null}
               <span className="truncate text-[10px] text-white/60">
                 {showCreatorUpdated && creator.updated
@@ -338,6 +388,9 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
             <Badge tone="accent" className="shrink-0 px-1 py-0 text-[8px]">
               ASMR
             </Badge>
+          ) : null}
+          {creator.ever_imported === false ? (
+            <NotImportedBadge creator className="shrink-0 px-1 py-0 text-[8px]" />
           ) : null}
           {creator.updated ? (
             <span className="truncate text-[10px] text-muted">
@@ -517,6 +570,12 @@ export function PostCard({
             <span className="truncate">
               {post.creatorName ?? "Unknown creator"}
             </span>
+            {post.imported === false ? (
+              <NotImportedBadge className="shrink-0 px-1 py-0 text-[8px]" />
+            ) : null}
+            {post.exceedsLimit ? (
+              <ExceedsLimitBadge className="shrink-0 px-1 py-0 text-[8px]" />
+            ) : null}
           </div>
         </div>
       </article>
@@ -554,11 +613,17 @@ export function PostCard({
           cardSize === "large" ? "p-4" : "p-3.5",
         )}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ServiceBadge service={post.service} />
           <span className="text-[10px] text-muted">
             {formatDate(post.published ?? post.added)}
           </span>
+          {post.imported === false ? (
+            <NotImportedBadge className="px-1 py-0 text-[8px]" />
+          ) : null}
+          {post.exceedsLimit ? (
+            <ExceedsLimitBadge className="px-1 py-0 text-[8px]" />
+          ) : null}
         </div>
         <h3
           className={cn(

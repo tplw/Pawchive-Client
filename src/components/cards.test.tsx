@@ -31,6 +31,9 @@ const post: PostSummary = {
   mediaKinds: ["image", "video"],
   previewState: null,
   hasFull: true,
+  imported: true,
+  exceedsLimit: false,
+  unavailable: false,
 };
 
 function wrapper(ui: ReactNode) {
@@ -69,5 +72,29 @@ describe("content cards", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Open Sample post"));
     expect(window.location.hash).toBe("#/post/fanbox/7/99");
+  });
+
+  it("marks unimported posts and creators", () => {
+    wrapper(
+      <>
+        <PostCard post={{ ...post, imported: false }} />
+        <CreatorCard creator={{ ...creator, ever_imported: false }} />
+      </>,
+    );
+    expect(
+      screen.getByTitle("haven't archived this post yet"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTitle("haven't imported this creator yet"),
+    ).toBeInTheDocument();
+  });
+
+  it("marks posts that exceed the archive size limit", () => {
+    wrapper(<PostCard post={{ ...post, hasFull: false, exceedsLimit: true }} />);
+    expect(
+      screen.getByTitle(
+        "Some files exceed the archive size limit and weren't saved",
+      ),
+    ).toBeInTheDocument();
   });
 });
