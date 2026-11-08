@@ -380,24 +380,27 @@ impl Post {
     }
 
     /// A post that exceeded the size limit is still useful when it has a
-    /// non-image attachment that was saved normally. Images are ignored here
-    /// because over-limit image sets are exactly what the filter targets.
-    /// Over-limit files have no stored path, so a deferred-only attachment
-    /// (even a ZIP) does not count.
+    /// non-image file that can still be played or downloaded. Images are
+    /// ignored here because over-limit image sets are exactly what the filter
+    /// targets. Deferred attachments and temporary provider URLs count as
+    /// usable because the archive can still stream them from the post view.
     pub fn has_available_non_image_attachment(&self) -> bool {
-        self.attachments.iter().any(|file| {
+        self.all_files_including_direct().iter().any(|file| {
             media_kind_for_file(file) != MediaKind::Image
                 && !file.preview_only.unwrap_or(false)
-                && !file.path.trim().is_empty()
+                && file.has_source()
         })
     }
 
     /// Whether this post should be hidden by the optional unavailable-content
-    /// filter: it was never imported, or it lost files to the size limit and
-    /// has no usable non-image attachment left.
+    /// filter. A post stays visible when it still has a playable or
+    /// downloadable non-image file, even if the archive did not import it or
+    /// dropped files for exceeding the size limit.
     pub fn is_unavailable(&self) -> bool {
-        !self.is_imported()
-            || (self.exceeds_archive_limit() && !self.has_available_non_image_attachment())
+        if self.has_available_non_image_attachment() {
+            return false;
+        }
+        !self.is_imported() || self.exceeds_archive_limit()
     }
 }
 
@@ -767,6 +770,14 @@ pub struct AccountState {
     pub username: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockedCreator {
+    pub service: String,
+    pub id: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
@@ -797,6 +808,9 @@ pub struct AppSettings {
     /// Latest release the user dismissed, so the update prompt only appears
     /// once per version.
     pub dismissed_update_version: String,
+    /// Creators the user has blocked. Their posts and profiles are hidden from
+    /// browsing, search and direct links.
+    pub blocked_creators: Vec<BlockedCreator>,
 }
 
 impl Default for AppSettings {
@@ -830,6 +844,7 @@ impl Default for AppSettings {
             show_creator_updated: false,
             auto_check_updates: true,
             dismissed_update_version: String::new(),
+            blocked_creators: Vec::new(),
         }
     }
 }
@@ -877,6 +892,20 @@ impl AppSettings {
         {
             return Err(AppError::Validation(
                 "each hidden keyword must be 80 characters or fewer".into(),
+            ));
+        }
+        if self.blocked_creators.len() > 5000 {
+            return Err(AppError::Validation(
+                "too many blocked creators (max 5000)".into(),
+            ));
+        }
+        if self.blocked_creators.iter().any(|creator| {
+            creator.service.chars().count() > 40
+                || creator.id.chars().count() > 200
+                || creator.name.chars().count() > 300
+        }) {
+            return Err(AppError::Validation(
+                "blocked creator details are too long".into(),
             ));
         }
         let accent = self.accent_color.as_bytes();
@@ -1050,8 +1079,32 @@ mod tests {
         }))
         .unwrap();
         assert!(deferred_only.exceeds_archive_limit());
-        assert!(!deferred_only.has_available_non_image_attachment());
-        assert!(deferred_only.is_unavailable());
+        assert!(deferred_only.has_available_non_image_attachment());
+        assert!(!deferred_only.is_unavailable());
+
+        let cloud_media: Post = serde_json::from_value(serde_json::json!({
+            "id": "6",
+            "origin": "import",
+            "has_full": false,
+            "content": "<p><a href=\"https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30\">video</a></p>",
+            "attachments": [
+                {"name": "1.png", "path": "/aa/1.png", "preview_only": true}
+            ]
+        }))
+        .unwrap();
+        assert!(cloud_media.exceeds_archive_limit());
+        assert!(cloud_media.has_available_non_image_attachment());
+        assert!(!cloud_media.is_unavailable());
+
+        let preview_with_cloud_media: Post = serde_json::from_value(serde_json::json!({
+            "id": "7",
+            "origin": "kemono",
+            "content": "<p><a href=\"https://drive.google.com/file/d/13Ln54rOyA7C98ACx-k6KASb4OVYSF9iv/view\">video</a></p>"
+        }))
+        .unwrap();
+        assert!(!preview_with_cloud_media.is_imported());
+        assert!(preview_with_cloud_media.has_available_non_image_attachment());
+        assert!(!preview_with_cloud_media.is_unavailable());
 
         let complete: Post = serde_json::from_value(serde_json::json!({
             "id": "3",

@@ -40,6 +40,8 @@ import {
 import { ImageViewer } from "../components/ImageViewer";
 import { PlaylistPicker } from "../components/PlaylistPicker";
 import { SanitizedHtml } from "../components/SanitizedHtml";
+import { BlockedCreatorNotice } from "../components/BlockedCreatorNotice";
+import { isCreatorBlocked } from "../lib/blockedCreators";
 import { needsMediaResolution, queueItemFromAttachment } from "../player/queue";
 import { Badge, Button, EmptyState, IconButton, SectionHeader, Spinner } from "../components/ui";
 import type { Attachment, MediaKind, PlaylistItemInput } from "../types";
@@ -170,6 +172,28 @@ const KIND_ICON: Record<MediaKind, typeof ImageIcon> = {
 };
 
 export function PostDetailPage({
+  service,
+  creatorId,
+  postId,
+}: {
+  service: string;
+  creatorId: string;
+  postId: string;
+}) {
+  const blocked = useAppStore((state) =>
+    isCreatorBlocked(state.settings.blockedCreators ?? [], service, creatorId),
+  );
+  if (blocked) return <BlockedCreatorNotice service={service} id={creatorId} />;
+  return (
+    <PostDetailContent
+      service={service}
+      creatorId={creatorId}
+      postId={postId}
+    />
+  );
+}
+
+function PostDetailContent({
   service,
   creatorId,
   postId,

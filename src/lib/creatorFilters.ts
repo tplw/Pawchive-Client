@@ -176,9 +176,12 @@ export function postMatchesCreatorFilter(
   if (filter.audioOnly && !post.mediaKinds.includes("audio")) {
     return false;
   }
-  if (filter.hideNoMedia && post.attachmentCount === 0) {
-    const hasLink = /https?:\/\//i.test(`${post.title} ${post.excerpt}`);
-    if (!hasLink) return false;
+  if (
+    filter.hideNoMedia &&
+    post.attachmentCount === 0 &&
+    post.mediaKinds.length === 0
+  ) {
+    return false;
   }
   if (filter.hideUnavailable && post.unavailable) {
     return false;

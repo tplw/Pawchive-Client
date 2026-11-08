@@ -16,6 +16,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
+import { isCreatorBlocked } from "../lib/blockedCreators";
 import { cn } from "../lib/format";
 import { creatorGridMetrics, postGridMetrics } from "../lib/layout";
 import { useAppStore } from "../stores/app";
@@ -73,6 +74,9 @@ export function SearchPage({ query }: { query: string }) {
   const [creatorSort, setCreatorSort] = useState(savedSearchView.creatorSort);
   const debounced = useDebouncedValue(draft.trim(), 350);
   const postCardSize = useAppStore((state) => state.settings.postCardSize);
+  const blockedCreators = useAppStore(
+    (state) => state.settings.blockedCreators ?? [],
+  );
   const postMetrics = postGridMetrics(postCardSize);
   const creatorMetrics = creatorGridMetrics(postCardSize);
   const searchStarted = useRef(0);
@@ -141,27 +145,34 @@ export function SearchPage({ query }: { query: string }) {
     const map = new Map<string, PostSummary>();
     for (const page of results.data?.pages ?? []) {
       for (const post of page.posts) {
+        if (isCreatorBlocked(blockedCreators, post.service, post.user)) continue;
         map.set(`${post.service}:${post.user}:${post.id}`, post);
       }
     }
     return [...map.values()];
-  }, [results.data]);
+  }, [results.data, blockedCreators]);
 
   const creators = useMemo(() => {
     const map = new Map<string, CreatorSummary>();
     if (content === "creators") {
       for (const page of creatorSearch.data?.pages ?? []) {
         for (const creator of page.items) {
+          if (isCreatorBlocked(blockedCreators, creator.service, creator.id)) {
+            continue;
+          }
           map.set(`${creator.service}:${creator.id}`, creator);
         }
       }
     } else {
       for (const creator of results.data?.pages[0]?.creators ?? []) {
+        if (isCreatorBlocked(blockedCreators, creator.service, creator.id)) {
+          continue;
+        }
         map.set(`${creator.service}:${creator.id}`, creator);
       }
     }
     return [...map.values()];
-  }, [content, creatorSearch.data, results.data]);
+  }, [blockedCreators, content, creatorSearch.data, results.data]);
 
   const limitations = results.data?.pages[0]?.limitations ?? [];
 

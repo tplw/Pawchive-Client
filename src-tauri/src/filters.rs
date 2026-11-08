@@ -1,8 +1,18 @@
-use crate::models::{strip_html, AppSettings, Post};
+use crate::models::{strip_html, AppSettings, Post, PostSummary};
+
+/// Whether a creator is in the user's blocked list.
+pub fn is_creator_blocked(service: &str, creator_id: &str, settings: &AppSettings) -> bool {
+    settings.blocked_creators.iter().any(|blocked| {
+        blocked.service.eq_ignore_ascii_case(service) && blocked.id.eq_ignore_ascii_case(creator_id)
+    })
+}
 
 /// Whether a post should be hidden from browsing lists under the user's
-/// content filters. Direct post links remain available.
+/// content filters. Blocked creators are also hidden from direct post links.
 pub fn is_hidden(post: &Post, creator_name: Option<&str>, settings: &AppSettings) -> bool {
+    if is_creator_blocked(&post.service, &post.user, settings) {
+        return true;
+    }
     let mut haystack = String::new();
     haystack.push_str(&post.title);
     haystack.push(' ');
@@ -26,7 +36,7 @@ pub fn is_hidden(post: &Post, creator_name: Option<&str>, settings: &AppSettings
     if settings.hide_ai_posts && looks_ai_generated(&lower) {
         return true;
     }
-    if settings.hide_no_media && !has_media_or_link(post) {
+    if settings.hide_no_media && !has_media(post) {
         return true;
     }
     if settings.hide_unavailable_posts && post.is_unavailable() {
@@ -38,18 +48,57 @@ pub fn is_hidden(post: &Post, creator_name: Option<&str>, settings: &AppSettings
         .any(|keyword| !keyword.trim().is_empty() && lower.contains(&keyword.to_lowercase()))
 }
 
-fn has_media_or_link(post: &Post) -> bool {
-    if !post.all_files_including_direct().is_empty()
-        || !post.embed.is_null()
-        || !post.poll.is_null()
-    {
+fn has_media(post: &Post) -> bool {
+    // `embed` is an empty object for most API posts, so only non-empty values
+    // count as media. Direct media and provider links are already included in
+    // `all_files_including_direct`.
+    !post.all_files_including_direct().is_empty()
+        || value_has_content(&post.embed)
+        || value_has_content(&post.poll)
+}
+
+fn value_has_content(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Null => false,
+        serde_json::Value::Bool(value) => *value,
+        serde_json::Value::Number(_) => true,
+        serde_json::Value::String(value) => !value.trim().is_empty(),
+        serde_json::Value::Array(values) => !values.is_empty(),
+        serde_json::Value::Object(map) => !map.is_empty(),
+    }
+}
+
+/// The same content filters, applied to lightweight post summaries such as the
+/// server-rendered Popular feed where the full post body is not available.
+pub fn summary_is_hidden(post: &PostSummary, settings: &AppSettings) -> bool {
+    if is_creator_blocked(&post.service, &post.user, settings) {
         return true;
     }
-    let content = post.content.to_ascii_lowercase();
-    content.contains("http://")
-        || content.contains("https://")
-        || content.contains("href=")
-        || content.contains("www.")
+    let haystack = format!(
+        "{} {} {}",
+        post.title,
+        post.excerpt,
+        post.creator_name.as_deref().unwrap_or_default()
+    )
+    .to_lowercase();
+    if settings.hide_ai_posts && looks_ai_generated(&haystack) {
+        return true;
+    }
+    if settings.hide_no_media {
+        let has_media = post.attachment_count > 0
+            || !post.media_kinds.is_empty()
+            || post.thumbnail_url.is_some();
+        if !has_media {
+            return true;
+        }
+    }
+    if settings.hide_unavailable_posts && post.unavailable {
+        return true;
+    }
+    settings
+        .hidden_keywords
+        .iter()
+        .any(|keyword| !keyword.trim().is_empty() && haystack.contains(&keyword.to_lowercase()))
 }
 
 fn looks_ai_generated(lower: &str) -> bool {
@@ -142,7 +191,17 @@ fn looks_ai_generated(lower: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::FileRef;
+    use crate::models::{BlockedCreator, FileRef, PostSummary};
+
+    fn summary(title: &str) -> PostSummary {
+        PostSummary {
+            id: "1".into(),
+            service: "patreon".into(),
+            user: "42".into(),
+            title: title.into(),
+            ..Default::default()
+        }
+    }
 
     fn post(title: &str, content: &str) -> Post {
         Post {
@@ -181,7 +240,7 @@ mod tests {
             None,
             &no_media_settings
         ));
-        assert!(!is_hidden(
+        assert!(is_hidden(
             &post(
                 "A post with a link",
                 "<p><a href=\"https://example.com\">link</a></p>"
@@ -189,6 +248,12 @@ mod tests {
             None,
             &no_media_settings
         ));
+        let mut empty_embed = post("A text post", "");
+        empty_embed.embed = serde_json::json!({});
+        assert!(is_hidden(&empty_embed, None, &no_media_settings));
+        let mut empty_poll = post("Another text post", "");
+        empty_poll.poll = serde_json::json!({});
+        assert!(is_hidden(&empty_poll, None, &no_media_settings));
         let mut media_post = post("A media post", "");
         media_post.attachments = vec![FileRef {
             name: "image.jpg".into(),
@@ -196,6 +261,12 @@ mod tests {
             ..Default::default()
         }];
         assert!(!is_hidden(&media_post, None, &no_media_settings));
+
+        let cloud_post = post(
+            "A cloud media post",
+            "<p><a href=\"https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30\">video</a></p>",
+        );
+        assert!(!is_hidden(&cloud_post, None, &no_media_settings));
 
         let keyword_settings = AppSettings {
             hidden_keywords: vec!["spoiler".into()],
@@ -216,6 +287,70 @@ mod tests {
             None,
             &keyword_settings
         ));
+    }
+
+    #[test]
+    fn hides_blocked_creators_everywhere() {
+        let settings = AppSettings {
+            blocked_creators: vec![BlockedCreator {
+                service: "patreon".into(),
+                id: "42".into(),
+                name: "Blocked Artist".into(),
+            }],
+            ..Default::default()
+        };
+        let mut blocked = post("A normal post", "");
+        blocked.service = "patreon".into();
+        blocked.user = "42".into();
+        assert!(is_hidden(&blocked, None, &settings));
+
+        let allowed = PostSummary {
+            user: "7".into(),
+            ..summary("A normal post")
+        };
+        assert!(!summary_is_hidden(&allowed, &settings));
+
+        let blocked_summary = PostSummary {
+            service: "patreon".into(),
+            user: "42".into(),
+            ..summary("A normal post")
+        };
+        assert!(summary_is_hidden(&blocked_summary, &settings));
+    }
+
+    #[test]
+    fn applies_content_filters_to_summaries() {
+        let no_media = AppSettings {
+            hide_no_media: true,
+            ..Default::default()
+        };
+        assert!(summary_is_hidden(&summary("Text only"), &no_media));
+        let mut with_thumbnail = summary("Text only");
+        with_thumbnail.thumbnail_url = Some("https://img.pawchive.pw/x.png".into());
+        assert!(!summary_is_hidden(&with_thumbnail, &no_media));
+        let mut with_attachment = summary("Text only");
+        with_attachment.attachment_count = 1;
+        assert!(!summary_is_hidden(&with_attachment, &no_media));
+
+        let keywords = AppSettings {
+            hidden_keywords: vec!["spoiler".into()],
+            ..Default::default()
+        };
+        assert!(summary_is_hidden(&summary("A spoiler alert"), &keywords));
+
+        let ai = AppSettings {
+            hide_ai_posts: true,
+            ..Default::default()
+        };
+        assert!(summary_is_hidden(&summary("My AI art set"), &ai));
+
+        let unavailable = AppSettings {
+            hide_unavailable_posts: true,
+            ..Default::default()
+        };
+        let mut missing = summary("Not archived");
+        missing.unavailable = true;
+        assert!(summary_is_hidden(&missing, &unavailable));
     }
 
     #[test]
@@ -270,7 +405,31 @@ mod tests {
                 ..Default::default()
             },
         ];
-        assert!(is_hidden(&deferred_zip, None, &settings));
+        assert!(!is_hidden(&deferred_zip, None, &settings));
+
+        let mut deferred_audio = post("An over-limit post with temporary audio", "");
+        deferred_audio.has_full = Some(false);
+        deferred_audio.attachments = vec![FileRef {
+            name: "episode.wav".into(),
+            path: String::new(),
+            extra: [(
+                "temp_url".to_string(),
+                serde_json::Value::String("https://cdn.example.com/episode.wav".into()),
+            )]
+            .into_iter()
+            .collect(),
+            ..Default::default()
+        }];
+        assert!(!is_hidden(&deferred_audio, None, &settings));
+
+        let mut primary_audio = post("An over-limit post with a primary audio file", "");
+        primary_audio.has_full = Some(false);
+        primary_audio.file = Some(FileRef {
+            name: "track.mp3".into(),
+            path: "/aa/bb/track.mp3".into(),
+            ..Default::default()
+        });
+        assert!(!is_hidden(&primary_audio, None, &settings));
 
         let preview: Post = serde_json::from_value(serde_json::json!({
             "title": "A Kemono preview",

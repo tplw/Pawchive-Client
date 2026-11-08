@@ -13,6 +13,7 @@ import {
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
+import { isCreatorBlocked } from "../lib/blockedCreators";
 import { cn, formatBytes, formatRelative } from "../lib/format";
 import { useAppStore } from "../stores/app";
 import { usePlayerStore } from "../player/store";
@@ -297,6 +298,9 @@ export function DownloadsPage() {
   const queryClient = useQueryClient();
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
+  const blockedCreators = useAppStore(
+    (state) => state.settings.blockedCreators ?? [],
+  );
   const [confirmClearAll, setConfirmClearAll] = useState(false);
   const [playlistItems, setPlaylistItems] = useState<PlaylistItemInput[]>([]);
   const [playlistOpen, setPlaylistOpen] = useState(false);
@@ -347,7 +351,9 @@ export function DownloadsPage() {
     onError: (error) => reportError(error, "Could not open downloads folder"),
   });
 
-  const items = downloads.data ?? [];
+  const items = (downloads.data ?? []).filter(
+    (item) => !isCreatorBlocked(blockedCreators, item.service, item.creatorId),
+  );
   const visibleItems = items.slice(0, visibleCount);
   const completedItems = items.filter((item) => item.status === "completed");
   const completed = completedItems.length;

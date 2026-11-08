@@ -3,6 +3,7 @@ import { AlertCircle, Download, LoaderCircle, Play, Plus, Star } from "lucide-re
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
+import { isCreatorBlocked } from "../lib/blockedCreators";
 import { cn } from "../lib/format";
 import { postGridMetrics } from "../lib/layout";
 import { navigate } from "../lib/router";
@@ -226,8 +227,12 @@ export function HomePage() {
         toast("info", "This playlist is empty");
         return;
       }
-      const playable = items.filter((item) =>
-        isPlayableMediaKind(item.mediaKind),
+      const blockedCreators =
+        useAppStore.getState().settings.blockedCreators ?? [];
+      const playable = items.filter(
+        (item) =>
+          isPlayableMediaKind(item.mediaKind) &&
+          !isCreatorBlocked(blockedCreators, item.service, item.creatorId),
       );
       if (playable.length === 0) {
         toast(

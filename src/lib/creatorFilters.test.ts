@@ -75,9 +75,14 @@ describe("creator filters", () => {
           mediaKinds: [],
           excerpt: "https://example.com",
         }),
-        { audioOnly: false, hideNoMedia: true, hideUnavailable: false, keywords: [] },
+        {
+          audioOnly: false,
+          hideNoMedia: true,
+          hideUnavailable: false,
+          keywords: [],
+        },
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("detects ASMR creators from names and post text", () => {

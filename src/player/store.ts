@@ -17,6 +17,7 @@ interface PlayerStore {
   playItems: (items: QueueItem[], startIndex?: number) => void;
   enqueue: (items: QueueItem[], playNow?: boolean) => void;
   remove: (id: string) => void;
+  removeCreator: (service: string, creatorId: string) => void;
   move: (id: string, direction: -1 | 1) => void;
   toggle: () => void;
   play: () => void;
@@ -231,6 +232,26 @@ export const usePlayerStore = create<PlayerStore>()(
   setBuffered: (buffered) => set({ buffered }),
 
   setPlaying: (playing) => set({ playing }),
+
+  removeCreator: (service, creatorId) =>
+    set((state) => {
+      const matches = (item: QueueItem) =>
+        item.service.toLowerCase() === service.toLowerCase() &&
+        item.creatorId.toLowerCase() === creatorId.toLowerCase();
+      const queue = state.queue.filter((item) => !matches(item));
+      if (queue.length === state.queue.length) return {};
+      const currentId = queue.some((item) => item.id === state.currentId)
+        ? state.currentId
+        : queue[0]?.id ?? null;
+      return {
+        queue,
+        currentId,
+        playing: currentId ? state.playing : false,
+        currentTime: currentId ? state.currentTime : 0,
+        duration: currentId ? state.duration : 0,
+        buffered: currentId ? state.buffered : 0,
+      };
+    }),
 
       clear: () =>
         set({

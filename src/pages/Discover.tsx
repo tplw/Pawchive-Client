@@ -3,6 +3,7 @@ import { Compass, LoaderCircle, RefreshCw, Users } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
+import { isCreatorBlocked } from "../lib/blockedCreators";
 import { cn } from "../lib/format";
 import { creatorGridMetrics, postGridMetrics } from "../lib/layout";
 import { useAppStore } from "../stores/app";
@@ -52,6 +53,9 @@ export function DiscoverPage() {
   const indexState = useAppStore((state) => state.indexState);
   const ensureCreatorIndex = useAppStore((state) => state.ensureCreatorIndex);
   const postCardSize = useAppStore((state) => state.settings.postCardSize);
+  const blockedCreators = useAppStore(
+    (state) => state.settings.blockedCreators ?? [],
+  );
   const postMetrics = postGridMetrics(postCardSize);
   const creatorMetrics = creatorGridMetrics(postCardSize);
 
@@ -96,11 +100,12 @@ export function DiscoverPage() {
     const map = new Map<string, PostSummary>();
     for (const page of activePosts.data?.pages ?? []) {
       for (const post of page.items) {
+        if (isCreatorBlocked(blockedCreators, post.service, post.user)) continue;
         map.set(`${post.service}:${post.user}:${post.id}`, post);
       }
     }
     return [...map.values()];
-  }, [activePosts.data]);
+  }, [activePosts.data, blockedCreators]);
 
   const visiblePostItems = useMemo(
     () =>
@@ -114,11 +119,14 @@ export function DiscoverPage() {
     const map = new Map<string, CreatorSummary>();
     for (const page of creators.data?.pages ?? []) {
       for (const creator of page.items) {
+        if (isCreatorBlocked(blockedCreators, creator.service, creator.id)) {
+          continue;
+        }
         map.set(`${creator.service}:${creator.id}`, creator);
       }
     }
     return [...map.values()];
-  }, [creators.data]);
+  }, [creators.data, blockedCreators]);
 
   const loadMorePosts = useCallback(() => {
     if (activePosts.hasNextPage && !activePosts.isFetchingNextPage) {

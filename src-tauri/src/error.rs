@@ -32,6 +32,8 @@ pub enum AppError {
     Cancelled,
     #[error("the archive is currently unavailable: {0}")]
     Unavailable(String),
+    #[error("this creator is blocked")]
+    Blocked,
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -52,6 +54,7 @@ impl AppError {
             Self::Playback(_) => "playback",
             Self::Cancelled => "cancelled",
             Self::Unavailable(_) => "unavailable",
+            Self::Blocked => "blocked",
             Self::Internal(_) => "internal",
         }
     }

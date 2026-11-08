@@ -18,6 +18,16 @@ pub async fn enqueue(
     app: &AppHandle,
     mut request: DownloadRequest,
 ) -> AppResult<DownloadRecord> {
+    if !request.service.trim().is_empty()
+        && !request.creator_id.trim().is_empty()
+        && crate::filters::is_creator_blocked(
+            &request.service,
+            &request.creator_id,
+            &state.settings(),
+        )
+    {
+        return Err(AppError::Blocked);
+    }
     let url = crate::media::validate_media_url(&state.cfg, &request.url)?;
     // MEGA filenames only exist in the encrypted attributes. Resolve them
     // before reserving the destination so the saved file has its real name
@@ -534,6 +544,9 @@ pub async fn download_post(
     post_id: &str,
 ) -> AppResult<u64> {
     let post = state.api.post(service, creator_id, post_id, None).await?;
+    if crate::filters::is_creator_blocked(&post.service, &post.user, &state.settings()) {
+        return Err(AppError::Blocked);
+    }
     let creator_name = state
         .db
         .get_creator(service, creator_id)?

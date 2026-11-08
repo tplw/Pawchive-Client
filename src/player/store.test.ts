@@ -58,6 +58,15 @@ describe("player queue", () => {
     ]);
   });
 
+  it("removes every queued item from a blocked creator", () => {
+    const other = { ...item("c"), creatorId: "2" };
+    usePlayerStore.getState().playItems([item("a"), item("b"), other], 0);
+    usePlayerStore.getState().removeCreator("patreon", "1");
+    const state = usePlayerStore.getState();
+    expect(state.queue.map((entry) => entry.id)).toEqual(["c"]);
+    expect(state.currentId).toBe("c");
+  });
+
   it("advances to the next item and stops at the end", () => {
     usePlayerStore.getState().playItems([item("a"), item("b")]);
     usePlayerStore.getState().next();

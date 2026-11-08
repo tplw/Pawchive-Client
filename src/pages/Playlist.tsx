@@ -11,6 +11,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
+import { isCreatorBlocked } from "../lib/blockedCreators";
 import { navigate, switchTab } from "../lib/router";
 import { useAppStore } from "../stores/app";
 import { usePlayerStore } from "../player/store";
@@ -46,6 +47,9 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
   const queryClient = useQueryClient();
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
+  const blockedCreators = useAppStore(
+    (state) => state.settings.blockedCreators ?? [],
+  );
   const playItems = usePlayerStore((state) => state.playItems);
   const enqueue = usePlayerStore((state) => state.enqueue);
 
@@ -60,7 +64,14 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
     staleTime: 20_000,
   });
 
-  const allItems = useMemo(() => items.data ?? [], [items.data]);
+  const allItems = useMemo(
+    () =>
+      (items.data ?? []).filter(
+        (item) =>
+          !isCreatorBlocked(blockedCreators, item.service, item.creatorId),
+      ),
+    [blockedCreators, items.data],
+  );
   const playableItems = useMemo(
     () => allItems.filter((item) => isPlayableMediaKind(item.mediaKind)),
     [allItems],

@@ -172,6 +172,12 @@ export interface PlaybackProgress {
 
 export type PostCardSize = "small" | "medium" | "large";
 
+export interface BlockedCreator {
+  service: string;
+  id: string;
+  name: string;
+}
+
 export interface AppSettings {
   sidebarVisible: boolean;
   volume: number;
@@ -197,6 +203,7 @@ export interface AppSettings {
   autoCheckUpdates: boolean;
   /** Release version the user dismissed; newer versions show the prompt again. */
   dismissedUpdateVersion: string;
+  blockedCreators: BlockedCreator[];
 }
 
 export interface PawchiveConfig {

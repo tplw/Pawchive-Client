@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Ban,
   ChevronDown,
   ExternalLink,
   Filter,
@@ -14,13 +15,14 @@ import {
   UserRound,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { SPEEDS } from "../lib/constants";
+import { SPEEDS, serviceLabel } from "../lib/constants";
+import { removeBlockedCreator } from "../lib/blockedCreators";
 import { isAndroid, isIos, isMobile } from "../lib/platform";
 import { api } from "../services/api";
 import { useAppStore } from "../stores/app";
 import { AccountPanel } from "../components/AccountPanel";
 import { Button, Toggle } from "../components/ui";
-import type { PostCardSize } from "../types";
+import type { BlockedCreator, PostCardSize } from "../types";
 
 const ACCENT_PRESETS = [
   "#d6aea8",
@@ -42,6 +44,17 @@ export function SettingsPage() {
   const updateError = useAppStore((state) => state.updateError);
   const checkForUpdates = useAppStore((state) => state.checkForUpdates);
   const queryClient = useQueryClient();
+  const blockedCreators = settings.blockedCreators ?? [];
+  const unblockCreator = async (creator: BlockedCreator) => {
+    await saveSettings({
+      blockedCreators: removeBlockedCreator(
+        blockedCreators,
+        creator.service,
+        creator.id,
+      ),
+    });
+    await queryClient.invalidateQueries();
+  };
   const [volume, setVolume] = useState(settings.volume);
   const [speed, setSpeed] = useState(settings.playbackSpeed);
   const [keywordText, setKeywordText] = useState(
@@ -322,7 +335,7 @@ export function SettingsPage() {
                 void saveSettings({ hideNoMedia: checked }).then(invalidateFilters);
               }}
               label="Hide posts without media"
-              description="Also applies to every creator's filter. You can still override it per creator."
+              description="Hide posts with no media attachments or direct media links. Also applies to every creator's filter."
             />
             <Toggle
               compact
@@ -333,7 +346,7 @@ export function SettingsPage() {
                 );
               }}
               label="Hide unavailable posts"
-              description="Hide posts that aren't imported or exceed the archive file-size limit. Posts with other downloadable files stay visible."
+              description="Hide posts that aren't imported or exceed the archive file-size limit. Posts with playable or downloadable non-image files stay visible."
             />
             <Toggle
               compact
@@ -357,6 +370,40 @@ export function SettingsPage() {
               />
             </label>
           </div>
+        </SettingsSection>
+
+        <SettingsSection icon={Ban} title="Blocked creators">
+          {blockedCreators.length === 0 ? (
+            <p className="text-xs leading-relaxed text-muted">
+              No blocked creators. Use the Block button on a creator profile to
+              hide that creator and all of their posts everywhere.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {blockedCreators.map((creator) => (
+                <div
+                  key={`${creator.service}:${creator.id}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-line/60 bg-base/25 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-ink">
+                      {creator.name || creator.id}
+                    </p>
+                    <p className="mt-0.5 truncate text-[10px] text-muted">
+                      {serviceLabel(creator.service)} · {creator.id}
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void unblockCreator(creator)}
+                  >
+                    Unblock
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </SettingsSection>
 
         <SettingsSection icon={FolderOpen} title="Downloads">

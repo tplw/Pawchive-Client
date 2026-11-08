@@ -265,6 +265,13 @@ pub async fn list_creators(
     let (items, total) =
         blocking(move || db.query_creators(&query, service.as_deref(), &sort, offset, limit))
             .await?;
+    let settings = st.settings();
+    let items: Vec<_> = items
+        .into_iter()
+        .filter(|creator| {
+            !crate::filters::is_creator_blocked(&creator.service, &creator.id, &settings)
+        })
+        .collect();
     Ok(CreatorPage {
         items,
         offset,
@@ -283,6 +290,9 @@ pub async fn get_creator(
     let st = st(&state);
     let service = validate_service(&service)?;
     let creator_id = crate::security::validate_id(&creator_id, "creator id")?;
+    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
+        return Err(AppError::Blocked);
+    }
     blocking(move || st.db.get_creator(&service, &creator_id)).await
 }
 
@@ -294,6 +304,9 @@ pub async fn get_creator_profile(
     request_id: Option<String>,
 ) -> AppResult<CreatorProfile> {
     let st = st(&state);
+    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
+        return Err(AppError::Blocked);
+    }
     let token = request_id.as_deref().map(|id| st.register_cancel(id));
     let result = st
         .api
@@ -313,6 +326,10 @@ pub async fn get_creator_links(
     request_id: Option<String>,
 ) -> AppResult<Vec<CreatorProfile>> {
     let st = st(&state);
+    let settings = st.settings();
+    if crate::filters::is_creator_blocked(&service, &creator_id, &settings) {
+        return Err(AppError::Blocked);
+    }
     let token = request_id.as_deref().map(|id| st.register_cancel(id));
     let result = st
         .api
@@ -321,7 +338,10 @@ pub async fn get_creator_links(
     if let Some(id) = request_id.as_deref() {
         st.finish_cancel(id);
     }
-    result
+    Ok(result?
+        .into_iter()
+        .filter(|item| !crate::filters::is_creator_blocked(&item.service, &item.id, &settings))
+        .collect())
 }
 
 #[tauri::command]
@@ -332,6 +352,9 @@ pub async fn get_creator_announcements(
     request_id: Option<String>,
 ) -> AppResult<Vec<Announcement>> {
     let st = st(&state);
+    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
+        return Err(AppError::Blocked);
+    }
     let token = request_id.as_deref().map(|id| st.register_cancel(id));
     let result = st
         .api
@@ -359,6 +382,9 @@ pub async fn get_creator_posts(
     request_id: Option<String>,
 ) -> AppResult<PostPage> {
     let st = st(&state);
+    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
+        return Err(AppError::Blocked);
+    }
     let offset = offset.unwrap_or(0);
     let query = query.filter(|value| !value.trim().is_empty());
     let token = request_id.as_deref().map(|id| st.register_cancel(id));
@@ -386,6 +412,10 @@ pub async fn get_similar_creators(
     request_id: Option<String>,
 ) -> AppResult<Vec<CreatorSummary>> {
     let st = st(&state);
+    let settings = st.settings();
+    if crate::filters::is_creator_blocked(&service, &creator_id, &settings) {
+        return Err(AppError::Blocked);
+    }
     let token = request_id.as_deref().map(|id| st.register_cancel(id));
     let result = st
         .api
@@ -395,7 +425,7 @@ pub async fn get_similar_creators(
         st.finish_cancel(id);
     }
     let items = crate::similar::parse_similar_creators(&result?);
-    let hide_unavailable = st.settings().hide_unavailable_posts;
+    let hide_unavailable = settings.hide_unavailable_posts;
     let db = Arc::clone(&st.db);
     blocking(move || {
         Ok(items
@@ -406,7 +436,10 @@ pub async fn get_similar_creators(
                     .flatten()
                     .unwrap_or(item)
             })
-            .filter(|item| !hide_unavailable || item.ever_imported != Some(false))
+            .filter(|item| {
+                !crate::filters::is_creator_blocked(&item.service, &item.id, &settings)
+                    && (!hide_unavailable || item.ever_imported != Some(false))
+            })
             .collect())
     })
     .await
@@ -531,6 +564,9 @@ pub async fn get_post_summary(
 ) -> AppResult<PostSummary> {
     let st = st(&state);
     let post = st.api.post(&service, &creator_id, &post_id, None).await?;
+    if crate::filters::is_creator_blocked(&post.service, &post.user, &st.settings()) {
+        return Err(AppError::Blocked);
+    }
     let creator = st.db.get_creator(&post.service, &post.user)?;
     Ok(PostSummary::from_post(
         &st.cfg,
@@ -557,6 +593,9 @@ pub async fn get_post(
         st.finish_cancel(id);
     }
     let mut post = result?;
+    if crate::filters::is_creator_blocked(&post.service, &post.user, &st.settings()) {
+        return Err(AppError::Blocked);
+    }
     let next = post.next.clone();
     let prev = post.prev.clone();
     post.content = sanitize_html(&post.content);
@@ -659,6 +698,9 @@ pub async fn get_post_comments(
     request_id: Option<String>,
 ) -> AppResult<Vec<Comment>> {
     let st = st(&state);
+    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
+        return Err(AppError::Blocked);
+    }
     let token = request_id.as_deref().map(|id| st.register_cancel(id));
     let result = st
         .api
@@ -688,6 +730,9 @@ pub async fn get_post_revisions(
     request_id: Option<String>,
 ) -> AppResult<Vec<Revision>> {
     let st = st(&state);
+    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
+        return Err(AppError::Blocked);
+    }
     let token = request_id.as_deref().map(|id| st.register_cancel(id));
     let result = st
         .api
@@ -728,9 +773,8 @@ pub async fn get_popular_posts(
             .map(|creator| creator.name)
     });
     let has_more = items.len() as i64 >= PAGE_SIZE;
-    if st.settings().hide_unavailable_posts {
-        items.retain(|item| !item.unavailable);
-    }
+    let settings = st.settings();
+    items.retain(|item| !crate::filters::summary_is_hidden(item, &settings));
     Ok(PostPage {
         items,
         offset,
@@ -908,7 +952,14 @@ pub fn cancel_request(state: State<'_, AppState>, request_id: String) -> bool {
 #[tauri::command]
 pub async fn list_favorite_creators(state: State<'_, AppState>) -> AppResult<Vec<CreatorSummary>> {
     let st = st(&state);
-    blocking(move || st.db.list_favorite_creators()).await
+    let settings = st.settings();
+    let items = blocking(move || st.db.list_favorite_creators()).await?;
+    Ok(items
+        .into_iter()
+        .filter(|creator| {
+            !crate::filters::is_creator_blocked(&creator.service, &creator.id, &settings)
+        })
+        .collect())
 }
 
 #[tauri::command]

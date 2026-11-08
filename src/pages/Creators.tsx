@@ -3,6 +3,7 @@ import { LoaderCircle, RefreshCw, Search, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
+import { isCreatorBlocked } from "../lib/blockedCreators";
 import { cn, shortNumber } from "../lib/format";
 import { creatorGridMetrics } from "../lib/layout";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
@@ -28,6 +29,9 @@ export function CreatorsPage({ query = "" }: { query?: string }) {
   const indexCount = useAppStore((state) => state.indexCount);
   const ensureCreatorIndex = useAppStore((state) => state.ensureCreatorIndex);
   const cardSize = useAppStore((state) => state.settings.postCardSize);
+  const blockedCreators = useAppStore(
+    (state) => state.settings.blockedCreators ?? [],
+  );
   const creatorMetrics = creatorGridMetrics(cardSize);
   const queryRef = useRef(query);
 
@@ -62,11 +66,14 @@ export function CreatorsPage({ query = "" }: { query?: string }) {
     const map = new Map<string, CreatorSummary>();
     for (const page of creators.data?.pages ?? []) {
       for (const creator of page.items) {
+        if (isCreatorBlocked(blockedCreators, creator.service, creator.id)) {
+          continue;
+        }
         map.set(`${creator.service}:${creator.id}`, creator);
       }
     }
     return [...map.values()];
-  }, [creators.data]);
+  }, [blockedCreators, creators.data]);
 
   const total = creators.data?.pages[0]?.total ?? 0;
   const loadMore = useCallback(() => {

@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import {
   AlertCircle,
   ArrowLeft,
+  Ban,
   Bell,
   CalendarDays,
   ExternalLink,
@@ -17,6 +18,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage, serviceLabel } from "../lib/constants";
 import {
+  addBlockedCreator,
+  isCreatorBlocked,
+} from "../lib/blockedCreators";
+import { BlockedCreatorNotice } from "../components/BlockedCreatorNotice";
+import {
   creatorFilterActive,
   detectAsmrCreator,
   getGlobalHideNoMediaDefault,
@@ -30,6 +36,7 @@ import { cn, formatDate, formatRelative, shortNumber } from "../lib/format";
 import { creatorGridMetrics, postGridMetrics } from "../lib/layout";
 import { goBack, navigate, routeTitle } from "../lib/router";
 import { useAppStore } from "../stores/app";
+import { usePlayerStore } from "../player/store";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import {
   CreatorAvatar,
@@ -66,6 +73,20 @@ export function CreatorProfilePage({
   service: string;
   creatorId: string;
 }) {
+  const blocked = useAppStore((state) =>
+    isCreatorBlocked(state.settings.blockedCreators ?? [], service, creatorId),
+  );
+  if (blocked) return <BlockedCreatorNotice service={service} id={creatorId} />;
+  return <CreatorProfileContent service={service} creatorId={creatorId} />;
+}
+
+function CreatorProfileContent({
+  service,
+  creatorId,
+}: {
+  service: string;
+  creatorId: string;
+}) {
   const [tab, setTab] = useState<Tab>("posts");
   const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState<CreatorFilter>(() =>
@@ -92,6 +113,10 @@ export function CreatorProfilePage({
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
   const previousRoute = useAppStore((state) => state.previousRoute);
+  const blockedCreators = useAppStore(
+    (state) => state.settings.blockedCreators ?? [],
+  );
+  const saveSettings = useAppStore((state) => state.saveSettings);
 
   const creator = useQuery({
     queryKey: ["creator", service, creatorId],
@@ -180,6 +205,23 @@ export function CreatorProfilePage({
   const summary = creator.data;
   const details = profile.data;
   const name = details?.name || summary?.name || creatorId;
+  const blockCreator = () => {
+    usePlayerStore.getState().removeCreator(service, creatorId);
+    void saveSettings({
+      blockedCreators: addBlockedCreator(blockedCreators, {
+        service,
+        id: creatorId,
+        name,
+      }),
+    }).then(() => {
+      void queryClient.invalidateQueries();
+      toast(
+        "success",
+        "Creator blocked",
+        `${name} is hidden from feeds, search and direct links.`,
+      );
+    });
+  };
   const detectedAsmr = useMemo(
     () => detectAsmrCreator(name, details?.description, postItems),
     [name, details?.description, postItems],
@@ -307,6 +349,9 @@ export function CreatorProfilePage({
                 active={creatorFilterActive(effectiveFilter)}
                 onClick={() => setFilterOpen(true)}
               />
+              <Button variant="secondary" size="sm" onClick={blockCreator}>
+                <Ban className="h-3.5 w-3.5" /> Block
+              </Button>
               {updated ? (
                 <span className="inline-flex items-center gap-1">
                   <CalendarDays className="h-3 w-3" /> Updated {formatRelative(updated)}
@@ -725,7 +770,7 @@ export function CreatorProfilePage({
               updateFilter({ ...filter, hideNoMedia: checked })
             }
             label="Hide posts without media"
-            description="Hide text-only posts that have no attachment or link. Follows the main Settings toggle until you override it here."
+            description="Hide posts that have no media attachments. Follows the main Settings toggle until you override it here."
           />
           <Toggle
             checked={filter.hideUnavailable}
@@ -733,7 +778,7 @@ export function CreatorProfilePage({
               updateFilter({ ...filter, hideUnavailable: checked })
             }
             label="Hide unavailable posts"
-            description="Hide posts that aren't imported or exceed the archive file-size limit. Posts with other downloadable files stay visible."
+            description="Hide posts that aren't imported or exceed the archive file-size limit. Posts with playable or downloadable non-image files stay visible."
           />
           <Field
             label="Hide keywords"
