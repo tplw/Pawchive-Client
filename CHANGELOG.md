@@ -89,6 +89,10 @@ indicators, plus a set of content-filter, thumbnail and media-resolution fixes.
   child keys and attributes are decrypted correctly.
 - Existing downloads and playlists hide content from blocked creators without
   deleting any files.
+- Rebuilt the 1.0.5 installers with the unavailable-post fix: a bare `deferred`
+  attachment with no stored path or signed URL no longer counts as playable or
+  downloadable media. Over-limit posts whose only remaining file is an image
+  are now hidden by **Hide unavailable posts**.
 
 ## 1.0.4 - 2026-11-04
 
