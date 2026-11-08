@@ -13,7 +13,7 @@ import { currentWindow } from "../lib/window";
 import { useIsLandscape } from "../lib/orientation";
 import { api } from "../services/api";
 import { isMobile } from "../lib/platform";
-import { isMegaFileUrl } from "../player/queue";
+import { isMegaFileUrl, needsMediaResolution } from "../player/queue";
 import { useAppStore } from "../stores/app";
 import type { Attachment } from "../types";
 import { IconButton, lockBodyScroll, unlockBodyScroll } from "./ui";
@@ -148,10 +148,11 @@ export function ImageViewer({
 
     const loadFromNetwork = async () => {
       try {
-        // MEGA links are encrypted file pages. Resolve them to the loopback
-        // decrypting server before fetching, just like the player does.
-        const src = isMegaFileUrl(image.url)
-          ? (await api.resolveMegaMedia(image.url)).url
+        // MEGA links are encrypted file pages, and Drive/Dropbox/GoFile hide
+        // the direct file behind a provider API. Resolve them to the loopback
+        // server before fetching, just like the player does.
+        const src = needsMediaResolution(image.url)
+          ? (await api.resolveMedia(image.url)).url
           : image.url;
         const response = await fetch(src, {
           signal: controller.signal,
@@ -254,7 +255,7 @@ export function ImageViewer({
         .catch(() => {
           if (cancelled) return;
           setProgress(null);
-          setDisplaySrc(image.url);
+          void loadFromNetwork();
         });
     } else {
       void loadFromNetwork();

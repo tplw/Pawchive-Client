@@ -71,12 +71,13 @@ export interface Attachment {
   previewOnly: boolean;
 }
 
-export interface MegaMedia {
-  /** Loopback URL that streams the decrypted MEGA file. */
+export interface ResolvedMedia {
+  /** Loopback URL that streams the file with Range support. */
   url: string;
   name: string;
   size: number;
   kind: MediaKind;
+  provider: MediaProvider;
 }
 
 export interface PostSummary {

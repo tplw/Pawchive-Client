@@ -40,7 +40,7 @@ import {
 import { ImageViewer } from "../components/ImageViewer";
 import { PlaylistPicker } from "../components/PlaylistPicker";
 import { SanitizedHtml } from "../components/SanitizedHtml";
-import { queueItemFromAttachment } from "../player/queue";
+import { needsMediaResolution, queueItemFromAttachment } from "../player/queue";
 import { Badge, Button, EmptyState, IconButton, SectionHeader, Spinner } from "../components/ui";
 import type { Attachment, MediaKind, PlaylistItemInput } from "../types";
 
@@ -123,7 +123,16 @@ function AttachmentMeta({
     }
     const load =
       attachment.kind === "video"
-        ? videoResolution(attachment.url)
+        ? (async () => {
+            // Provider pages are HTML, so read dimensions from the resolved
+            // loopback stream instead of the share link.
+            let source = attachment.url;
+            if (needsMediaResolution(source)) {
+              const media = await api.resolveMedia(source).catch(() => null);
+              if (media) source = media.url;
+            }
+            return videoResolution(source);
+          })()
         : api
             .getImageDimensions(attachment.url)
             .then((value) => value ?? null)

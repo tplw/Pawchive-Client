@@ -176,6 +176,7 @@ pub async fn transcode_media(
     let source_max_bytes = max_bytes.saturating_mul(4).max(1024 * 1024 * 1024);
     let source_path = cache_dir.join(format!(".transcode-source-{}.bin", uuid::Uuid::new_v4()));
     let is_mega = crate::mega::is_file_url(raw_url);
+    let is_remote = crate::remote_media::needs_resolution(raw_url);
     let result = async {
         if is_mega {
             let mut last_emit = Instant::now();
@@ -201,15 +202,26 @@ pub async fn transcode_media(
             )
             .await?;
         } else {
-            let request = tokio::time::timeout(
-                Duration::from_secs(120),
-                state
-                    .http
-                    .get(url.clone())
-                    .header(reqwest::header::REFERER, "https://pawchive.pw/")
-                    .header(reqwest::header::RANGE, "bytes=0-")
-                    .send(),
-            );
+            let (fetch_url, extra_headers, known_size) = if is_remote {
+                let media = state.remote.resolve(raw_url).await?;
+                (media.url.clone(), media.headers.clone(), Some(media.size))
+            } else {
+                (url.to_string(), Vec::new(), None)
+            };
+            if known_size.is_some_and(|length| length > source_max_bytes) {
+                return Err(AppError::Validation(
+                    "media source exceeds the transcode limit".into(),
+                ));
+            }
+            let mut request = state
+                .http
+                .get(fetch_url)
+                .header(reqwest::header::REFERER, "https://pawchive.pw/")
+                .header(reqwest::header::RANGE, "bytes=0-");
+            for (name, value) in extra_headers {
+                request = request.header(name, value);
+            }
+            let request = tokio::time::timeout(Duration::from_secs(120), request.send());
             let response = if let Some(token) = token {
                 tokio::select! {
                     _ = token.cancelled() => return Err(AppError::Cancelled),

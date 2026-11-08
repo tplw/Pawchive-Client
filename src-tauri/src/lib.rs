@@ -14,6 +14,7 @@ mod mega;
 mod models;
 mod popular;
 mod providers;
+mod remote_media;
 mod security;
 mod similar;
 mod state;
@@ -113,6 +114,8 @@ pub fn run() {
                     crate::error::AppError::Internal(format!("could not build media client: {e}"))
                 })?;
             let mega = crate::mega::MegaResolver::new(http.clone());
+            let remote =
+                std::sync::Arc::new(crate::remote_media::RemoteResolver::new(http.clone()));
 
             let account = std::fs::read_to_string(data_dir.join("account.json"))
                 .ok()
@@ -143,6 +146,7 @@ pub fn run() {
                 download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
                 http,
                 mega,
+                remote,
                 app_data_dir: data_dir,
                 default_download_dir,
                 media_server,
@@ -208,7 +212,7 @@ pub fn run() {
             commands::save_progress,
             commands::get_progress,
             commands::validate_media,
-            commands::resolve_mega_media,
+            commands::resolve_media,
             commands::get_media_size,
             commands::get_image_dimensions,
             commands::get_cached_media_url,

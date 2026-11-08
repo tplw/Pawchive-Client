@@ -331,6 +331,10 @@ impl Post {
                 // `get_post` replaces this placeholder with the real filename
                 // from the encrypted MEGA attributes.
                 safe_filename(&format!("mega-{}", link.handle))
+            } else if let Some(id) = crate::remote_media::drive_file_id(&raw) {
+                safe_filename(&format!("drive-{id}"))
+            } else if let Some(id) = crate::remote_media::gofile_content_id(&raw) {
+                safe_filename(&format!("gofile-{id}"))
             } else {
                 let file_name = path.rsplit('/').next().unwrap_or("media");
                 safe_filename(file_name)

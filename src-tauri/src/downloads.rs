@@ -31,6 +31,13 @@ pub async fn enqueue(
         request.file_name = file.name.clone();
         request.media_kind = file.kind().as_str().to_string();
     }
+    if !crate::mega::is_file_url(url.as_str())
+        && crate::remote_media::needs_resolution(url.as_str())
+    {
+        let media = state.remote.resolve(url.as_str()).await?;
+        request.file_name = media.name.clone();
+        request.media_kind = media.kind.as_str().to_string();
+    }
     let dir = state.download_dir();
     tokio::fs::create_dir_all(&dir)
         .await
@@ -216,8 +223,55 @@ async fn download_file(
     if crate::mega::is_file_url(&record.url) {
         return download_mega_file(state, app, record, token).await;
     }
+    if crate::remote_media::needs_resolution(&record.url) {
+        let media = state.remote.resolve(&record.url).await?;
+        let request = media
+            .apply_headers(state.http.get(&media.url))
+            .header(reqwest::header::ACCEPT, "*/*")
+            .header(reqwest::header::RANGE, "bytes=0-");
+        let response = tokio::select! {
+            _ = token.cancelled() => return Err(AppError::Cancelled),
+            response = tokio::time::timeout(Duration::from_secs(120), request.send()) => {
+                match response {
+                    Ok(response) => response.map_err(|error| {
+                        AppError::Network(crate::security::network_error_message(&error))
+                    })?,
+                    Err(_) => return Err(AppError::Timeout),
+                }
+            }
+        };
+        if !response.status().is_success()
+            && response.status() != reqwest::StatusCode::PARTIAL_CONTENT
+        {
+            return Err(AppError::Unavailable(format!(
+                "{} answered HTTP {}",
+                media.provider.as_str(),
+                response.status().as_u16()
+            )));
+        }
+        return save_download_response(
+            state,
+            app,
+            record,
+            response,
+            Some(media.size as i64),
+            token,
+        )
+        .await;
+    }
     let response = fetch_with_retry(state, record, token).await?;
-    record.total_bytes = response.content_length().map(|v| v as i64);
+    save_download_response(state, app, record, response, None, token).await
+}
+
+async fn save_download_response(
+    state: &AppState,
+    app: &AppHandle,
+    record: &mut DownloadRecord,
+    response: reqwest::Response,
+    known_total: Option<i64>,
+    token: &CancellationToken,
+) -> AppResult<()> {
+    record.total_bytes = known_total.or_else(|| response.content_length().map(|v| v as i64));
     state
         .db
         .update_download(&record.id, 0, record.total_bytes, "downloading", None)?;
@@ -677,6 +731,9 @@ mod tests {
             download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
             http: reqwest::Client::new(),
             mega: crate::mega::MegaResolver::new(reqwest::Client::new()),
+            remote: std::sync::Arc::new(crate::remote_media::RemoteResolver::new(
+                reqwest::Client::new(),
+            )),
             app_data_dir: std::env::temp_dir(),
             default_download_dir: std::env::temp_dir(),
             media_server: crate::local_media::LocalMediaServer::test_instance(),

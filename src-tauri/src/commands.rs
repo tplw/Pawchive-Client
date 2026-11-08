@@ -566,26 +566,67 @@ pub async fn get_post(
         .filter_map(|file| Attachment::new(&st.cfg, &file))
         .collect();
     // MEGA links hide their filename, size and media kind behind encrypted
-    // attributes. Resolve them now so the player queue and attachment list
-    // classify them like any other archive file. Failures stay non-fatal: the
-    // link is still visible and the player reports the error on demand.
+    // attributes. Google Drive, Dropbox and GoFile links have no media
+    // extension either. Resolve them now so the player queue and attachment
+    // list classify them like any other archive file. Failures stay
+    // non-fatal: the link is still visible and the player reports the error on
+    // demand.
     for attachment in attachments.iter_mut() {
-        if !crate::mega::is_file_url(&attachment.url) {
-            continue;
-        }
-        if let Ok(file) = st.mega.resolve(&attachment.url).await {
-            attachment.name = file.name.clone();
-            attachment.ext = crate::security::file_extension(&file.name);
-            attachment.kind = file.kind();
-            // Images need a real image URL for the thumbnail grid. Videos and
-            // audio resolve to a loopback URL when the player opens them.
-            if attachment.kind == MediaKind::Image {
-                if let Some(link) = crate::mega::parse_file_link(&attachment.url) {
-                    let stream =
-                        crate::mega::MegaStream::new(st.mega.client_clone(), link, file.clone());
-                    attachment.thumbnail_url = Some(st.media_server.register_mega(stream));
+        if crate::mega::is_file_url(&attachment.url) {
+            if let Ok(file) = st.mega.resolve(&attachment.url).await {
+                attachment.name = file.name.clone();
+                attachment.ext = crate::security::file_extension(&file.name);
+                attachment.kind = file.kind();
+                // Images need a real image URL for the thumbnail grid. Videos
+                // and audio resolve to a loopback URL when the player opens
+                // them.
+                if attachment.kind == MediaKind::Image {
+                    if let Some(link) = crate::mega::parse_file_link(&attachment.url) {
+                        let stream = crate::mega::MegaStream::new(
+                            st.mega.client_clone(),
+                            link,
+                            file.clone(),
+                        );
+                        attachment.thumbnail_url = Some(st.media_server.register_mega(stream));
+                    }
                 }
             }
+        }
+    }
+
+    // Provider lookups can each take a second or two. Resolve them in
+    // parallel (with a small concurrency cap) so a post full of Dropbox links
+    // does not open one request at a time.
+    let gate = Arc::new(tokio::sync::Semaphore::new(4));
+    let mut jobs = tokio::task::JoinSet::new();
+    for (index, attachment) in attachments.iter().enumerate() {
+        if crate::mega::is_file_url(&attachment.url)
+            || !crate::remote_media::needs_resolution(&attachment.url)
+        {
+            continue;
+        }
+        let state = st.clone();
+        let url = attachment.url.clone();
+        let gate = gate.clone();
+        jobs.spawn(async move {
+            let _permit = gate.acquire_owned().await.ok();
+            (index, state.remote.resolve(&url).await.ok())
+        });
+    }
+    while let Some(joined) = jobs.join_next().await {
+        let Ok((index, Some(media))) = joined else {
+            continue;
+        };
+        let Some(attachment) = attachments.get_mut(index) else {
+            continue;
+        };
+        attachment.name = media.name.clone();
+        attachment.ext = crate::security::file_extension(&media.name);
+        attachment.kind = media.kind;
+        attachment.provider = media.provider;
+        if attachment.kind == MediaKind::Image {
+            let source = media.source(st.remote.client().clone());
+            attachment.thumbnail_url = Some(st.media_server.register_remote(source));
         }
     }
     let creator = st.db.get_creator(&post.service, &post.user)?.or_else(|| {
@@ -1337,30 +1378,44 @@ pub async fn get_progress(
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MegaMediaInfo {
-    /// Loopback URL that streams the decrypted MEGA file with Range support.
+pub struct ResolvedMediaInfo {
+    /// Loopback URL that streams the file with Range support.
     pub url: String,
     pub name: String,
     pub size: u64,
     pub kind: MediaKind,
+    pub provider: crate::providers::MediaProvider,
 }
 
 #[tauri::command]
-pub async fn resolve_mega_media(
+pub async fn resolve_media(
     state: State<'_, AppState>,
     url: String,
-) -> AppResult<MegaMediaInfo> {
+) -> AppResult<ResolvedMediaInfo> {
     let st = st(&state);
-    let link = crate::mega::parse_file_link(&url)
-        .ok_or_else(|| AppError::Validation("not a MEGA file link".into()))?;
-    let file = st.mega.resolve(&url).await?;
-    let stream = crate::mega::MegaStream::new(st.mega.client_clone(), link, file.clone());
-    let local_url = st.media_server.register_mega(stream);
-    Ok(MegaMediaInfo {
+    if crate::mega::is_file_url(&url) {
+        let link = crate::mega::parse_file_link(&url)
+            .ok_or_else(|| AppError::Validation("not a MEGA file link".into()))?;
+        let file = st.mega.resolve(&url).await?;
+        let stream = crate::mega::MegaStream::new(st.mega.client_clone(), link, file.clone());
+        let local_url = st.media_server.register_mega(stream);
+        return Ok(ResolvedMediaInfo {
+            url: local_url,
+            name: file.name.clone(),
+            size: file.size,
+            kind: file.kind(),
+            provider: crate::providers::MediaProvider::Mega,
+        });
+    }
+    let media = st.remote.resolve(&url).await?;
+    let source = media.source(st.remote.client().clone());
+    let local_url = st.media_server.register_remote(source);
+    Ok(ResolvedMediaInfo {
         url: local_url,
-        name: file.name.clone(),
-        size: file.size,
-        kind: file.kind(),
+        name: media.name,
+        size: media.size,
+        kind: media.kind,
+        provider: media.provider,
     })
 }
 
@@ -1438,18 +1493,27 @@ pub async fn get_image_dimensions(
     url: String,
 ) -> AppResult<Option<MediaDimensions>> {
     let st = st(&state);
-    let url = crate::media::validate_media_url(&st.cfg, &url)?;
-    let response = tokio::time::timeout(
-        Duration::from_secs(12),
-        st.http
-            .get(url)
-            .header(reqwest::header::RANGE, "bytes=0-524287")
-            .header(reqwest::header::REFERER, "https://pawchive.pw/")
-            .send(),
-    )
-    .await
-    .map_err(|_| AppError::Network("image dimensions request timed out".into()))?
-    .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
+    let (url, extra_headers) = if crate::remote_media::needs_resolution(&url) {
+        let media = st.remote.resolve(&url).await?;
+        (media.url, media.headers)
+    } else {
+        (
+            crate::media::validate_media_url(&st.cfg, &url)?.to_string(),
+            Vec::new(),
+        )
+    };
+    let mut request = st
+        .http
+        .get(url)
+        .header(reqwest::header::RANGE, "bytes=0-524287")
+        .header(reqwest::header::REFERER, "https://pawchive.pw/");
+    for (name, value) in extra_headers {
+        request = request.header(name, value);
+    }
+    let response = tokio::time::timeout(Duration::from_secs(12), request.send())
+        .await
+        .map_err(|_| AppError::Network("image dimensions request timed out".into()))?
+        .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
     if !response.status().is_success() && response.status() != reqwest::StatusCode::PARTIAL_CONTENT
     {
         return Ok(None);
@@ -1482,6 +1546,9 @@ pub async fn get_media_size(state: State<'_, AppState>, url: String) -> AppResul
     let st = st(&state);
     if crate::mega::is_file_url(&url) {
         return Ok(st.mega.resolve(&url).await.ok().map(|file| file.size));
+    }
+    if crate::remote_media::needs_resolution(&url) {
+        return Ok(st.remote.resolve(&url).await.ok().map(|media| media.size));
     }
     let url = crate::media::validate_media_url(&st.cfg, &url)?;
     if let Ok(Ok(response)) = tokio::time::timeout(
@@ -1571,6 +1638,9 @@ mod tests {
             download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
             http: reqwest::Client::new(),
             mega: crate::mega::MegaResolver::new(reqwest::Client::new()),
+            remote: std::sync::Arc::new(crate::remote_media::RemoteResolver::new(
+                reqwest::Client::new(),
+            )),
             app_data_dir: std::env::temp_dir(),
             default_download_dir: std::env::temp_dir(),
             media_server: crate::local_media::LocalMediaServer::test_instance(),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMegaFileUrl, playbackProgressKey } from "./queue";
+import { isMegaFileUrl, needsMediaResolution, playbackProgressKey } from "./queue";
 
 describe("playback progress key", () => {
   it("uses the archive-relative path for post, playlist and download entries", () => {
@@ -45,5 +45,31 @@ describe("MEGA links", () => {
   it("ignores folders and ordinary media", () => {
     expect(isMegaFileUrl("https://mega.nz/folder/abc#def")).toBe(false);
     expect(isMegaFileUrl("https://cdn.example.com/clip.mp4")).toBe(false);
+  });
+});
+
+describe("provider resolution", () => {
+  it("asks the backend for provider share links", () => {
+    expect(
+      needsMediaResolution(
+        "https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30",
+      ),
+    ).toBe(true);
+    expect(
+      needsMediaResolution(
+        "https://drive.google.com/file/d/13Ln54rOyA7C98ACx-k6KASb4OVYSF9iv/view",
+      ),
+    ).toBe(true);
+    expect(
+      needsMediaResolution("https://www.dropbox.com/scl/fi/abc/clip.mp4?dl=0"),
+    ).toBe(true);
+    expect(needsMediaResolution("https://gofile.io/d/41qLzaRk")).toBe(true);
+  });
+
+  it("leaves direct archive and third-party media alone", () => {
+    expect(
+      needsMediaResolution("https://file.pawchive.pw/data/aa/clip.mp4"),
+    ).toBe(false);
+    expect(needsMediaResolution("https://cdn.example.com/clip.mp4")).toBe(false);
   });
 });

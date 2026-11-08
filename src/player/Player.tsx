@@ -32,6 +32,7 @@ import { useAppStore } from "../stores/app";
 import {
   isMegaFileUrl,
   isPlayableMediaKind,
+  needsMediaResolution,
   playbackProgressKey,
 } from "./queue";
 import { cachedProgress, rememberProgress } from "./progress";
@@ -543,12 +544,13 @@ export function Player() {
     loadedItemRef.current = null;
 
     const loadRemote = () => {
-      // MEGA links are encrypted web pages. The backend resolves the file and
-      // returns a loopback URL that supports the same HTTP Range requests as
+      // MEGA links are encrypted pages, while Drive, Dropbox and GoFile hide
+      // the direct file behind provider-specific APIs. The backend resolves
+      // them and returns a loopback URL with the same HTTP Range support as
       // locally cached Pawchive media.
-      if (isMegaFileUrl(item.url)) {
+      if (needsMediaResolution(item.url)) {
         void api
-          .resolveMegaMedia(item.url)
+          .resolveMedia(item.url)
           .then((media) => {
             if (!cancelled) setSource(media.url);
           })

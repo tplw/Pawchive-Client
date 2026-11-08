@@ -14,6 +14,17 @@ export function isMegaFileUrl(url: string): boolean {
   return MEGA_FILE_PATTERN.test(url);
 }
 
+/** Providers whose links need a backend lookup before playback. */
+export function needsMediaResolution(url: string): boolean {
+  const provider = providerForUrl(url);
+  return (
+    provider === "mega" ||
+    provider === "googleDrive" ||
+    provider === "dropbox" ||
+    provider === "gofile"
+  );
+}
+
 /** Mirror of the backend provider classifier for URLs built in the UI. */
 export function providerForUrl(url: string): MediaProvider {
   let host = "";

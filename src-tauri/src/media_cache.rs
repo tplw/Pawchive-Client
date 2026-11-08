@@ -33,12 +33,50 @@ fn cache_path(state: &AppState, raw: &str) -> AppResult<PathBuf> {
         .extension()
         .and_then(|value| value.to_str())
         .map(|value| value.to_ascii_lowercase())
-        .filter(|value| {
-            !value.is_empty()
-                && value.len() <= 8
-                && value.chars().all(|ch| ch.is_ascii_alphanumeric())
-        })
+        .filter(|value| valid_extension(value))
         .unwrap_or_else(|| "bin".to_string());
+    Ok(cache_dir(state).join(format!("{hash}.{extension}")))
+}
+
+fn valid_extension(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 8 && value.chars().all(|ch| ch.is_ascii_alphanumeric())
+}
+
+fn url_hash(raw: &str) -> AppResult<String> {
+    let url = Url::parse(raw)?;
+    let mut hasher = Sha256::new();
+    hasher.update(url.as_str().as_bytes());
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn remote_cache_path(
+    state: &AppState,
+    raw: &str,
+    media: &crate::remote_media::RemoteMedia,
+) -> AppResult<PathBuf> {
+    let hash = url_hash(raw)?;
+    let extension = Path::new(&media.name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .filter(|value| valid_extension(value))
+        .unwrap_or_else(|| {
+            match media.content_type.as_str() {
+                "video/mp4" => "mp4",
+                "video/webm" => "webm",
+                "video/quicktime" => "mov",
+                "audio/mpeg" => "mp3",
+                "audio/mp4" => "m4a",
+                "audio/ogg" => "ogg",
+                "audio/flac" => "flac",
+                "image/jpeg" => "jpg",
+                "image/png" => "png",
+                "image/gif" => "gif",
+                "image/webp" => "webp",
+                _ => "bin",
+            }
+            .to_string()
+        });
     Ok(cache_dir(state).join(format!("{hash}.{extension}")))
 }
 
@@ -46,6 +84,26 @@ pub fn cached_url(state: &AppState, raw: &str) -> AppResult<Option<String>> {
     // MEGA files are decrypted while streaming and never stored in the plain
     // media cache. The player uses the MEGA range server instead.
     if crate::mega::is_file_url(raw) {
+        return Ok(None);
+    }
+    // Provider links are cached under the resolved filename's extension, but
+    // the original URL does not reveal it. Find the hashed entry regardless of
+    // extension so a cached video is served with the right content type.
+    if crate::remote_media::needs_resolution(raw) {
+        let prefix = format!("{}.", url_hash(raw)?);
+        if let Ok(entries) = std::fs::read_dir(cache_dir(state)) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file()
+                    && path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| name.starts_with(&prefix))
+                {
+                    return Ok(Some(state.media_server.url_for(&path)));
+                }
+            }
+        }
         return Ok(None);
     }
     let path = cache_path(state, raw)?;
@@ -68,8 +126,18 @@ pub async fn cache_media(
             "MEGA media is decrypted while streaming and cannot be cached directly".into(),
         ));
     }
-    let url = crate::media::validate_media_url(&state.cfg, raw)?;
-    let final_path = cache_path(state, raw)?;
+    let (url, extra_headers, remote) = if crate::remote_media::needs_resolution(raw) {
+        let media = state.remote.resolve(raw).await?;
+        (media.url.clone(), media.headers.clone(), Some(media))
+    } else {
+        let url = crate::media::validate_media_url(&state.cfg, raw)?;
+        (url.to_string(), Vec::new(), None)
+    };
+    let final_path = if let Some(media) = &remote {
+        remote_cache_path(state, raw, media)?
+    } else {
+        cache_path(state, raw)?
+    };
     if final_path.is_file() {
         return Ok(state.media_server.url_for(&final_path));
     }
@@ -84,15 +152,15 @@ pub async fn cache_media(
         .saturating_mul(1024 * 1024)
         .max(64 * 1024 * 1024);
     let temp_path = dir.join(format!(".part-{}", uuid::Uuid::new_v4()));
-    let request = tokio::time::timeout(
-        Duration::from_secs(120),
-        state
-            .http
-            .get(url.clone())
-            .header(reqwest::header::REFERER, "https://pawchive.pw/")
-            .header(reqwest::header::RANGE, "bytes=0-")
-            .send(),
-    );
+    let mut request_builder = state
+        .http
+        .get(url.clone())
+        .header(reqwest::header::REFERER, "https://pawchive.pw/")
+        .header(reqwest::header::RANGE, "bytes=0-");
+    for (name, value) in &extra_headers {
+        request_builder = request_builder.header(name, value);
+    }
+    let request = tokio::time::timeout(Duration::from_secs(120), request_builder.send());
     let response = if let Some(token) = token {
         tokio::select! {
             _ = token.cancelled() => return Err(AppError::Cancelled),
@@ -120,7 +188,11 @@ pub async fn cache_media(
 
     let total = response.content_length();
     if total.is_some_and(|length| length > max_bytes) {
-        return Ok(url.to_string());
+        if let Some(media) = &remote {
+            let source = media.source(state.remote.client().clone());
+            return Ok(state.media_server.register_remote(source));
+        }
+        return Ok(url);
     }
     let file = tokio::fs::File::create(&temp_path)
         .await
@@ -169,7 +241,11 @@ pub async fn cache_media(
         if downloaded > max_bytes {
             drop(file);
             let _ = tokio::fs::remove_file(&temp_path).await;
-            return Ok(url.to_string());
+            if let Some(media) = &remote {
+                let source = media.source(state.remote.client().clone());
+                return Ok(state.media_server.register_remote(source));
+            }
+            return Ok(url);
         }
         file.write_all(&chunk)
             .await

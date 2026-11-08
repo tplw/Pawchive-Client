@@ -3,15 +3,29 @@ use std::collections::HashMap;
 use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, UNIX_EPOCH};
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+
+/// An external provider stream proxied through the loopback server. Proxying
+/// gives the webview a stable HTTPS-free localhost URL with Range support even
+/// when the provider requires cookies, a specific user agent or redirects.
+#[derive(Clone)]
+pub struct RemoteSource {
+    pub client: reqwest::Client,
+    pub url: String,
+    pub headers: Vec<(String, String)>,
+    pub size: u64,
+    pub content_type: String,
+    pub etag: String,
+}
 
 #[derive(Clone)]
 enum MediaSource {
     File(PathBuf),
     Mega(Arc<crate::mega::MegaStream>),
+    Remote(Arc<RemoteSource>),
 }
 
 /// A tiny loopback HTTP server for downloaded media.
@@ -90,6 +104,15 @@ impl LocalMediaServer {
         format!("{}/media/{token}", self.base_url)
     }
 
+    /// Register an external provider stream (Google Drive, Dropbox, GoFile).
+    pub fn register_remote(&self, source: RemoteSource) -> String {
+        let token = uuid::Uuid::new_v4().simple().to_string();
+        if let Ok(mut tokens) = self.tokens.lock() {
+            tokens.insert(token.clone(), MediaSource::Remote(Arc::new(source)));
+        }
+        format!("{}/media/{token}", self.base_url)
+    }
+
     #[cfg(test)]
     pub fn test_instance() -> Self {
         Self {
@@ -157,6 +180,7 @@ async fn handle_connection(mut socket: TcpStream, server: LocalMediaServer) -> s
     match source {
         MediaSource::File(path) => serve_file(socket, request, &method, path).await,
         MediaSource::Mega(stream) => serve_mega(socket, request, &method, stream).await,
+        MediaSource::Remote(source) => serve_remote(socket, request, &method, source).await,
     }
 }
 
@@ -277,6 +301,155 @@ async fn serve_mega(
                     break;
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+async fn serve_remote(
+    mut socket: TcpStream,
+    request: String,
+    method: &str,
+    source: Arc<RemoteSource>,
+) -> std::io::Result<()> {
+    let length = source.size;
+    let etag = source.etag.as_str();
+    if is_not_modified(&request, etag) {
+        return respond_not_modified(&mut socket, etag).await;
+    }
+
+    let range = parse_range(&request, length);
+    let (status, start, end) = match range {
+        Some((start, end)) => ("206 Partial Content", start, end),
+        None => ("200 OK", 0, length.saturating_sub(1)),
+    };
+    let body_length = if length == 0 {
+        0
+    } else {
+        end.saturating_sub(start) + 1
+    };
+    let range_header = if length == 0 {
+        None
+    } else {
+        Some((start, end, length))
+    };
+
+    // HEAD is answered from the metadata probe, so opening the player never
+    // waits on the provider twice.
+    if method == "HEAD" {
+        return write_media_headers(
+            &mut socket,
+            status,
+            &source.content_type,
+            body_length,
+            etag,
+            range_header,
+        )
+        .await;
+    }
+
+    let mut upstream = source
+        .client
+        .get(&source.url)
+        .header(reqwest::header::RANGE, format!("bytes={start}-{end}"))
+        .header(reqwest::header::ACCEPT_ENCODING, "identity");
+    for (name, value) in &source.headers {
+        upstream = upstream.header(name, value);
+    }
+    let response = match tokio::time::timeout(Duration::from_secs(30), upstream.send()).await {
+        Ok(Ok(response)) => response,
+        Ok(Err(error)) => {
+            tracing::warn!(%error, "remote media request failed");
+            return respond_status(
+                &mut socket,
+                "502 Bad Gateway",
+                "media provider is unavailable",
+            )
+            .await;
+        }
+        Err(_) => {
+            return respond_status(
+                &mut socket,
+                "504 Gateway Timeout",
+                "media provider timed out",
+            )
+            .await
+        }
+    };
+    let upstream_status = response.status();
+    if upstream_status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+        let response = format!(
+            "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{length}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        );
+        return socket.write_all(response.as_bytes()).await;
+    }
+    if !upstream_status.is_success() && upstream_status != reqwest::StatusCode::PARTIAL_CONTENT {
+        tracing::warn!(
+            status = upstream_status.as_u16(),
+            "remote media provider rejected the range"
+        );
+        return respond_status(
+            &mut socket,
+            "502 Bad Gateway",
+            "media provider did not return the file",
+        )
+        .await;
+    }
+
+    write_media_headers(
+        &mut socket,
+        status,
+        &source.content_type,
+        body_length,
+        etag,
+        range_header,
+    )
+    .await?;
+
+    // Some providers ignore Range on the first request and answer 200 with
+    // the whole file. Skip to the requested offset so seeking still works.
+    let skip = if upstream_status == reqwest::StatusCode::OK {
+        start
+    } else {
+        0
+    };
+    stream_remote_body(socket, response, skip, body_length).await
+}
+
+async fn stream_remote_body(
+    mut socket: TcpStream,
+    mut response: reqwest::Response,
+    mut skip: u64,
+    mut remaining: u64,
+) -> std::io::Result<()> {
+    while remaining > 0 {
+        let chunk = match tokio::time::timeout(Duration::from_secs(60), response.chunk()).await {
+            Ok(Ok(Some(chunk))) => chunk,
+            Ok(Ok(None)) => break,
+            Ok(Err(error)) => {
+                tracing::warn!(%error, "remote media stream was interrupted");
+                break;
+            }
+            Err(_) => {
+                tracing::warn!("remote media stream timed out");
+                break;
+            }
+        };
+        let mut offset = 0usize;
+        if skip > 0 {
+            if chunk.len() as u64 <= skip {
+                skip -= chunk.len() as u64;
+                continue;
+            }
+            offset = skip as usize;
+            skip = 0;
+        }
+        let available = &chunk[offset..];
+        let take = available.len().min(remaining as usize);
+        socket.write_all(&available[..take]).await?;
+        remaining -= take as u64;
+        if take < available.len() {
+            break;
         }
     }
     Ok(())
@@ -537,6 +710,77 @@ mod tests {
             .unwrap();
         assert_eq!(ranged.status(), reqwest::StatusCode::PARTIAL_CONTENT);
         assert_eq!(ranged.bytes().await.unwrap().as_ref(), b"0123");
+    }
+
+    #[tokio::test]
+    async fn proxies_a_remote_range() {
+        use wiremock::matchers::{header, method};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(header("range", "bytes=2-5"))
+            .respond_with(
+                ResponseTemplate::new(206)
+                    .insert_header("Content-Range", "bytes 2-5/10")
+                    .set_body_bytes(b"2345".to_vec()),
+            )
+            .mount(&mock)
+            .await;
+        let server = LocalMediaServer::start().unwrap();
+        let url = server.register_remote(RemoteSource {
+            client: reqwest::Client::new(),
+            url: format!("{}/file", mock.uri()),
+            headers: Vec::new(),
+            size: 10,
+            content_type: "video/mp4".into(),
+            etag: "\"remote-test\"".into(),
+        });
+        let response = reqwest::Client::new()
+            .get(url)
+            .header(reqwest::header::RANGE, "bytes=2-5")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::PARTIAL_CONTENT);
+        assert_eq!(
+            response.headers()[reqwest::header::CONTENT_RANGE],
+            "bytes 2-5/10"
+        );
+        assert_eq!(
+            response.headers()[reqwest::header::CONTENT_TYPE],
+            "video/mp4"
+        );
+        assert_eq!(response.bytes().await.unwrap().as_ref(), b"2345");
+    }
+
+    #[tokio::test]
+    async fn skips_upstream_body_when_a_provider_ignores_ranges() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"0123456789".to_vec()))
+            .mount(&mock)
+            .await;
+        let server = LocalMediaServer::start().unwrap();
+        let url = server.register_remote(RemoteSource {
+            client: reqwest::Client::new(),
+            url: format!("{}/file", mock.uri()),
+            headers: Vec::new(),
+            size: 10,
+            content_type: "video/mp4".into(),
+            etag: "\"remote-test\"".into(),
+        });
+        let response = reqwest::Client::new()
+            .get(url)
+            .header(reqwest::header::RANGE, "bytes=2-5")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::PARTIAL_CONTENT);
+        assert_eq!(response.bytes().await.unwrap().as_ref(), b"2345");
     }
 
     #[test]

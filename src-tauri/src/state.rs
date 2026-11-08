@@ -22,6 +22,7 @@ pub struct AppState {
     pub download_gate: Arc<Semaphore>,
     pub http: reqwest::Client,
     pub mega: crate::mega::MegaResolver,
+    pub remote: Arc<crate::remote_media::RemoteResolver>,
     pub app_data_dir: PathBuf,
     pub default_download_dir: PathBuf,
     pub media_server: LocalMediaServer,

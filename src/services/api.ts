@@ -8,7 +8,6 @@ import type {
   CreatorPage,
   CreatorProfile,
   CreatorSummary,
-  MegaMedia,
   PawchiveConfig,
   PlaybackProgress,
   Playlist,
@@ -17,6 +16,7 @@ import type {
   PostDetail,
   PostPage,
   PostSummary,
+  ResolvedMedia,
   Revision,
   SearchPage,
   UpdateInfo,
@@ -296,8 +296,8 @@ export const api = {
   getProgress: (filePath: string) =>
     call<PlaybackProgress | null>("get_progress", { filePath }),
   validateMedia: (url: string) => call<string>("validate_media", { url }),
-  resolveMegaMedia: (url: string) =>
-    call<MegaMedia>("resolve_mega_media", { url }),
+  resolveMedia: (url: string) =>
+    call<ResolvedMedia>("resolve_media", { url }),
   getMediaSize: (url: string) =>
     call<number | null>("get_media_size", { url }),
   getImageDimensions: (url: string) =>

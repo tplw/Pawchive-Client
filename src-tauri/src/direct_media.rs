@@ -23,6 +23,19 @@ fn mega_url_regex() -> &'static Regex {
     })
 }
 
+/// Drive, Dropbox and GoFile links do not end in a media extension, so the
+/// direct-media pass above cannot see them. Keep the match tight enough that
+/// ordinary profile/folder pages are not turned into attachments.
+fn provider_url_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?i)(?:https?://)?(?:www\.)?(?:drive\.google\.com/(?:file/d/|open\?|uc\?)|docs\.google\.com/(?:file/d/|uc\?)|dropbox\.com/(?:scl/fi/|s/|sh/)|gofile\.io/d/)[^\s"'<>]+"#,
+        )
+        .expect("valid provider link regex")
+    })
+}
+
 fn normalize(raw: &str) -> Option<String> {
     let trimmed = raw
         .trim()
@@ -76,6 +89,20 @@ pub fn extract(text: &str) -> Vec<String> {
             out.push(url);
         }
     }
+    // Google Drive, Dropbox and GoFile share links also lack media
+    // extensions. Their provider-specific resolvers decide whether the link
+    // points at a playable file.
+    for found in provider_url_regex().find_iter(text) {
+        let Some(url) = normalize(found.as_str()) else {
+            continue;
+        };
+        if crate::providers::provider_for_url(&url) == crate::providers::MediaProvider::External {
+            continue;
+        }
+        if seen.insert(url.clone()) {
+            out.push(url);
+        }
+    }
     out
 }
 
@@ -98,6 +125,25 @@ mod tests {
                 "https://img.example.com/cover.jpg".to_string(),
                 "https://example.net/audio/track.mp3".to_string(),
                 "https://files.example.org/old.m4a".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn extracts_provider_share_links() {
+        let text = r#"
+            <a href="https://drive.google.com/file/d/13Ln54rOyA7C98ACx-k6KASb4OVYSF9iv/view?usp=sharing">drive</a>
+            <a href="https://gofile.io/d/41qLzaRk">gofile</a>
+            <a href="http://dropbox.com/scl/fi/abc/clip.mp4?rlkey=key&dl=0">dropbox</a>
+            <a href="https://drive.google.com/drive/folders/abc">folder</a>
+        "#;
+        assert_eq!(
+            extract(text),
+            vec![
+                "https://dropbox.com/scl/fi/abc/clip.mp4?rlkey=key&dl=0".to_string(),
+                "https://drive.google.com/file/d/13Ln54rOyA7C98ACx-k6KASb4OVYSF9iv/view?usp=sharing"
+                    .to_string(),
+                "https://gofile.io/d/41qLzaRk".to_string(),
             ]
         );
     }
