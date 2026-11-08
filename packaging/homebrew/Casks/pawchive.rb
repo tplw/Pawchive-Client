@@ -1,6 +1,6 @@
 cask "pawchive" do
   version "1.0.5"
-  sha256 "60774467ca36991f957af80397d424114062508d8a17284ab1e591b983a303ec"
+  sha256 "e52474e981baa9fffff9cf8fb265af3c2d7042f93bede67858c0b1409dc50c64"
 
   url "https://github.com/tplw/Pawchive-Client/releases/download/v#{version}/Pawchive_#{version}_universal.dmg"
   name "Pawchive"

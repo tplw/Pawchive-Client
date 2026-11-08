@@ -26,11 +26,11 @@
         {
           "version": "1.0.5",
           "buildVersion": "1.0.5",
-          "date": "2026-11-08T20:38:17Z",
+          "date": "2026-11-08T22:45:10Z",
           "downloadURL": "https://github.com/tplw/Pawchive-Client/releases/download/v1.0.5/Pawchive_1.0.5_ios-unsigned.ipa",
-          "size": 4908031,
+          "size": 4908238,
           "minOSVersion": "15.0",
-          "localizedDescription": "Adds MEGA, Google Drive, Dropbox and GoFile playback, provider folder imports, creator blocking, archive availability indicators and content-filter fixes."
+          "localizedDescription": "Adds MEGA, Google Drive, Dropbox and GoFile playback, provider folder imports, creator blocking, archive availability indicators and content-filter fixes. Updated build fixes over-limit posts with no real non-image media."
         }
       ]
     }
