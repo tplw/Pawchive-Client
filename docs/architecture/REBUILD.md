@@ -277,7 +277,13 @@ These stay identical throughout the migration:
   update screens moved into their feature slices, `DownloadRow` is a separate
   module, and download initiation/invalidation is centralized in
   `useDownloadActions`.
-- **Next:** Phase 5, app shell and stores.
+- **Phase 5 complete:** `App.tsx` is now a small shell composed of
+  `useHashSync`, `useBootstrap`, `useScrollRestoration`, `useDownloadEvents`,
+  `useMobileEdgeSwipe`, `useAndroidBack`, `useGlobalShortcuts`, `RoutePage`,
+  `ErrorBoundary` and `LoadingScreen`. The app store is a 52-line composition
+  of navigation, toast, settings, creator-index and update slices with a
+  compatibility facade at `stores/app.ts`.
+- **Next:** Phase 6, infrastructure and cleanup.
 
 ## Migration phases
 
