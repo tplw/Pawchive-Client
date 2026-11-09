@@ -24,6 +24,15 @@
       "appPermissions": {},
       "versions": [
         {
+          "version": "1.0.5.1",
+          "buildVersion": "1.0.5.1",
+          "date": "2026-11-09T23:15:58Z",
+          "downloadURL": "https://github.com/tplw/Pawchive-Client/releases/download/v1.0.5.1/Pawchive_1.0.5.1_ios-unsigned.ipa",
+          "size": 4917066,
+          "minOSVersion": "15.0",
+          "localizedDescription": "Internal rebuild release. Same features as 1.0.5 with a cleaner, tested codebase; the IPA is rebuilt from the refactored sources."
+        },
+        {
           "version": "1.0.5",
           "buildVersion": "1.0.5",
           "date": "2026-11-08T22:45:10Z",
