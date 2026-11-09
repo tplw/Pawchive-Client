@@ -270,7 +270,14 @@ These stay identical throughout the migration:
   `features/creators` and `features/search`; `cards.tsx` is now a re-export
   shim over feature card/visual modules; post attachments, attachment metadata,
   creator filters and feed filtering/dedupe are separate tested modules.
-- **Next:** Phase 4, downloads, playlists, settings, account and updates.
+- **Phase 4 complete:** commands now delegate to `DownloadService`,
+  `LibraryService`, `SettingsService`, `AccountService` and `UpdateService`;
+  commands.rs is 705 lines. Thumbnail attempt caching moved into the post
+  summary module. Frontend home, playlist, downloads, settings, account and
+  update screens moved into their feature slices, `DownloadRow` is a separate
+  module, and download initiation/invalidation is centralized in
+  `useDownloadActions`.
+- **Next:** Phase 5, app shell and stores.
 
 ## Migration phases
 

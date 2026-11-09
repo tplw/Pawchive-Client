@@ -15,7 +15,7 @@ import { usePlayerStore } from "./store";
 import type { PlaylistItemInput } from "../types";
 
 import { Button, IconButton } from "../components/ui";
-import { PlaylistPicker } from "../components/PlaylistPicker";
+import { PlaylistPicker } from "../features/playlists/ui/PlaylistPicker";
 import {
   CompactControls,
   ExpandedControls,

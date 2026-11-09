@@ -15,7 +15,7 @@ import { MobileTabBar } from "./components/MobileTabBar";
 import { TopBar } from "./components/TopBar";
 import { Player } from "./player/Player";
 import { Button, Toaster } from "./components/ui";
-import { UpdateDialog } from "./components/UpdateDialog";
+import { UpdateDialog } from "./features/updates";
 import { hexToRgbTriplet, isEditableTarget } from "./lib/format";
 import { markNavigation } from "./lib/perf";
 import {
@@ -32,13 +32,12 @@ import { queryKeys } from "./shared/query/keys";
 import { isAndroid, isMobile } from "./lib/platform";
 import { handleAndroidBack } from "./lib/backNavigation";
 import type { DownloadRecord, Route } from "./types";
-import { HomePage } from "./pages/Home";
+import { HomePage, PlaylistPage } from "./features/playlists";
 import { CreatorsPage, CreatorProfilePage } from "./features/creators";
 import { DiscoverPage, PostDetailPage } from "./features/posts";
 import { SearchPage } from "./features/search";
-import { PlaylistPage } from "./pages/Playlist";
-import { DownloadsPage } from "./pages/Downloads";
-import { SettingsPage } from "./pages/Settings";
+import { DownloadsPage } from "./features/downloads";
+import { SettingsPage } from "./features/settings";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },

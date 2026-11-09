@@ -2,7 +2,8 @@ use crate::config::PAGE_SIZE;
 use crate::error::AppResult;
 use crate::models::{MediaKind, Post, PostPage, PostSummary};
 use crate::state::AppState;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Mutex, OnceLock};
 
 pub(crate) fn creator_lookup(st: &AppState, posts: &[Post]) -> HashMap<(String, String), String> {
     let mut map = HashMap::new();
@@ -72,4 +73,26 @@ pub(crate) fn build_post_page(st: &AppState, posts: Vec<Post>, offset: i64) -> A
         offset,
         has_more,
     })
+}
+
+/// Thumbnail lookups are best-effort. Remember failures for the rest of the
+/// process so polling the Downloads page cannot hammer the API for posts that
+/// simply do not contain an image.
+static THUMBNAIL_ATTEMPTS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+pub(crate) fn thumbnail_attempted(key: &str) -> bool {
+    THUMBNAIL_ATTEMPTS
+        .get_or_init(|| Mutex::new(HashSet::new()))
+        .lock()
+        .map(|attempts| attempts.contains(key))
+        .unwrap_or(false)
+}
+
+pub(crate) fn mark_thumbnail_attempted(key: &str) {
+    if let Ok(mut attempts) = THUMBNAIL_ATTEMPTS
+        .get_or_init(|| Mutex::new(HashSet::new()))
+        .lock()
+    {
+        attempts.insert(key.to_string());
+    }
 }

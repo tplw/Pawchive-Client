@@ -1,4 +1,9 @@
+pub(crate) mod account;
 pub(crate) mod creators;
+pub(crate) mod downloads;
+pub(crate) mod library;
 pub(crate) mod media;
 pub(crate) mod posts;
 pub(crate) mod search;
+pub(crate) mod settings;
+pub(crate) mod updates;

@@ -30,12 +30,13 @@ import {
   ServiceBadge,
 } from "../../creators/ui/CreatorVisuals";
 import { ImageViewer } from "../../../components/ImageViewer";
-import { PlaylistPicker } from "../../../components/PlaylistPicker";
+import { PlaylistPicker } from "../../playlists/ui/PlaylistPicker";
 import { SanitizedHtml } from "../../../components/SanitizedHtml";
 import { BlockedCreatorNotice } from "../../../components/BlockedCreatorNotice";
 import { isCreatorBlocked } from "../../../lib/blockedCreators";
 import { queryKeys } from "../../../shared/query/keys";
 import { PostAttachments } from "./PostAttachments";
+import { useDownloadActions } from "../../downloads/model/useDownloadActions";
 import { queueItemFromAttachment } from "../../../player/queue";
 import { Badge, Button, EmptyState, Spinner } from "../../../components/ui";
 import type { Attachment, PlaylistItemInput } from "../../../types";
@@ -79,6 +80,8 @@ function PostDetailContent({
   const previousRoute = useAppStore((state) => state.previousRoute);
   const playItems = usePlayerStore((state) => state.playItems);
   const enqueue = usePlayerStore((state) => state.enqueue);
+  const { startDownload, downloadPost: startPostDownload } =
+    useDownloadActions();
   const [tab, setTab] = useState<Tab>("comments");
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [playlistItem, setPlaylistItem] = useState<PlaylistItemInput | null>(null);
@@ -213,7 +216,7 @@ function PostDetailContent({
       return;
     }
     try {
-      await api.startDownload({
+      await startDownload({
         url: attachment.downloadUrl ?? attachment.url,
         fileName: attachment.name,
         title: detail.post.title || attachment.name,
@@ -232,7 +235,7 @@ function PostDetailContent({
 
   const downloadPost = async () => {
     try {
-      const count = await api.downloadPost(service, creatorId, postId);
+      const count = await startPostDownload(service, creatorId, postId);
       toast("success", "Download started", `${count} file${count === 1 ? "" : "s"} queued.`);
     } catch (error) {
       reportError(error, "Could not download post");
