@@ -1,6 +1,4 @@
 import {
-  ChevronDown,
-  ChevronUp,
   Expand,
   ListMusic,
   LoaderCircle,
@@ -13,10 +11,6 @@ import {
   RotateCcw,
   SkipBack,
   SkipForward,
-  Trash2,
-  Volume1,
-  Volume2,
-  VolumeX,
   X,
 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
@@ -24,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { currentWindow } from "../lib/window";
 import { api } from "../services/api";
 import { SPEEDS, errorMessage } from "../lib/constants";
-import { cn, formatDuration, isEditableTarget } from "../lib/format";
+import { cn, formatDuration } from "../lib/format";
 import { useIsLandscape } from "../lib/orientation";
 import { isIos, isMobile } from "../lib/platform";
 import { navigate } from "../lib/router";
@@ -41,235 +35,14 @@ import type { PlaylistItemInput } from "../types";
 
 import { Button, IconButton } from "../components/ui";
 import { PlaylistPicker } from "../components/PlaylistPicker";
+import { SeekBar, SpeedButton, VolumeControl } from "../features/player/ui/Controls";
+import { CompactQueuePanel, QueuePanel } from "../features/player/ui/Queue";
+import { useMediaSession } from "../features/player/model/useMediaSession";
+import { usePlayerKeyboard } from "../features/player/model/usePlayerKeyboard";
+import { useSeekEvent } from "../features/player/model/useSeekEvent";
 
 function isHlsUrl(url: string): boolean {
   return /\.m3u8(?:$|[?#])/i.test(url);
-}
-
-function SeekBar({
-  value,
-  max,
-  buffered,
-  onSeek,
-  compact,
-}: {
-  value: number;
-  max: number;
-  buffered: number;
-  onSeek: (value: number) => void;
-  compact: boolean;
-}) {
-  const percent = max > 0 ? Math.min((value / max) * 100, 100) : 0;
-  const bufferedPercent = max > 0 ? Math.min((buffered / max) * 100, 100) : 0;
-  return (
-    <div className={cn("relative flex items-center", compact ? "h-3" : "h-5")}>
-      <div className="absolute inset-x-0 h-1 overflow-hidden rounded-full bg-white/12">
-        <div className="h-full bg-white/20" style={{ width: `${bufferedPercent}%` }} />
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-accent"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-      <input
-        type="range"
-        min={0}
-        max={Math.max(max, 0.01)}
-        step={0.1}
-        value={Math.min(value, max || 0)}
-        onChange={(event) => onSeek(Number(event.target.value))}
-        aria-label="Seek"
-        className="seek-range relative z-10 w-full"
-      />
-    </div>
-  );
-}
-
-function VolumeControl({ compact }: { compact: boolean }) {
-  const volume = usePlayerStore((state) => state.volume);
-  const muted = usePlayerStore((state) => state.muted);
-  const setVolume = usePlayerStore((state) => state.setVolume);
-  const toggleMute = usePlayerStore((state) => state.toggleMute);
-  const Icon = muted || volume === 0 ? VolumeX : volume < 0.55 ? Volume1 : Volume2;
-  return (
-    <div className="flex items-center gap-1.5">
-      <IconButton
-        label={muted ? "Unmute" : "Mute"}
-        icon={Icon}
-        size="sm"
-        onClick={toggleMute}
-      />
-      {!compact ? (
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={muted ? 0 : volume}
-          onChange={(event) => setVolume(Number(event.target.value))}
-          aria-label="Volume"
-          className="volume-range w-20"
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function SpeedButton() {
-  const speed = usePlayerStore((state) => state.speed);
-  const setSpeed = usePlayerStore((state) => state.setSpeed);
-  const cycle = () => {
-    const index = SPEEDS.findIndex((value) => value === speed);
-    const next = SPEEDS[(index + 1) % SPEEDS.length];
-    setSpeed(next);
-  };
-  return (
-    <button
-      type="button"
-      onClick={cycle}
-      aria-label={`Playback speed ${speed}×`}
-      title="Change playback speed"
-      className="h-8 min-w-[3.25rem] rounded-lg border border-white/10 bg-white/6 px-2 text-[11px] font-medium text-white/80 transition hover:bg-white/12 hover:text-white"
-    >
-      {speed}×
-    </button>
-  );
-}
-
-function QueueList({ className }: { className?: string }) {
-  const queue = usePlayerStore((state) => state.queue);
-  const currentId = usePlayerStore((state) => state.currentId);
-  const playItems = usePlayerStore((state) => state.playItems);
-  const remove = usePlayerStore((state) => state.remove);
-  const move = usePlayerStore((state) => state.move);
-
-  return (
-    <div className={cn("overflow-y-auto overscroll-contain p-2", className)}>
-      {queue.length === 0 ? (
-        <p className="px-3 py-8 text-center text-[11px] text-white/45">
-          Add audio or video from a post to start a queue.
-        </p>
-      ) : (
-        queue.map((entry, index) => (
-          <div
-            key={entry.id}
-            className={cn(
-              "group flex items-center gap-2 rounded-lg px-2 py-1.5 transition",
-              entry.id === currentId ? "bg-accent/15" : "hover:bg-white/8",
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => playItems(queue, index)}
-              className="flex min-w-0 flex-1 items-center gap-2 text-left"
-            >
-              {entry.artwork ? (
-                <img src={entry.artwork} alt="" className="h-9 w-9 rounded object-cover" />
-              ) : (
-                <span className="grid h-9 w-9 place-items-center rounded bg-white/8 text-white/50">
-                  <Music2 className="h-3.5 w-3.5" />
-                </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[11px] font-medium text-white/90">
-                  {entry.title || entry.fileName}
-                </span>
-                <span className="block truncate text-[9px] text-white/40">
-                  {entry.creatorName || entry.fileName}
-                </span>
-              </span>
-            </button>
-            <div className="touch-visible flex items-center opacity-0 transition group-hover:opacity-100">
-              <IconButton
-                label="Move up"
-                icon={ChevronUp}
-                size="sm"
-                className="text-white/50 hover:bg-white/10 hover:text-white"
-                disabled={index === 0}
-                onClick={() => move(entry.id, -1)}
-              />
-              <IconButton
-                label="Move down"
-                icon={ChevronDown}
-                size="sm"
-                className="text-white/50 hover:bg-white/10 hover:text-white"
-                disabled={index === queue.length - 1}
-                onClick={() => move(entry.id, 1)}
-              />
-              <IconButton
-                label="Remove from queue"
-                icon={X}
-                size="sm"
-                className="text-white/50 hover:bg-white/10 hover:text-white"
-                onClick={() => remove(entry.id)}
-              />
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-function QueuePanel() {
-  const queue = usePlayerStore((state) => state.queue);
-  const clear = usePlayerStore((state) => state.clear);
-
-  return (
-    <aside className="absolute inset-x-0 bottom-0 z-30 mx-auto flex max-h-[62%] w-full max-w-2xl flex-col rounded-t-2xl border-t border-line/70 bg-[#111315]/98 shadow-2xl backdrop-blur-xl">
-      <div className="relative flex h-14 shrink-0 items-center gap-2 border-b border-line/60 px-4 pt-2">
-        <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-white/20" />
-        <ListMusic className="h-4 w-4 text-accent" />
-        <span className="text-xs font-bold text-white">Queue</span>
-        <span className="rounded border border-line/70 px-1.5 py-0.5 text-[9px] text-white/50">
-          {queue.length}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          <IconButton
-            label="Clear queue"
-            icon={Trash2}
-            size="sm"
-            className="text-white/60 hover:bg-white/10 hover:text-white"
-            onClick={clear}
-          />
-        </div>
-      </div>
-      <QueueList className="flex-1 pb-[calc(0.5rem+env(safe-area-inset-bottom))]" />
-    </aside>
-  );
-}
-
-function CompactQueuePanel({ onClose }: { onClose: () => void }) {
-  const queue = usePlayerStore((state) => state.queue);
-  const clear = usePlayerStore((state) => state.clear);
-
-  return (
-    <aside className="absolute bottom-[calc(100%+0.5rem)] right-2 z-50 flex max-h-[min(62vh,32rem)] w-[min(22rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-xl border border-line/70 bg-[#111315]/98 shadow-2xl backdrop-blur-xl animate-slide-up">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line/60 px-3">
-        <ListMusic className="h-4 w-4 text-accent" />
-        <span className="text-xs font-bold text-white">Queue</span>
-        <span className="rounded border border-line/70 px-1.5 py-0.5 text-[9px] text-white/50">
-          {queue.length}
-        </span>
-        <div className="ml-auto flex items-center gap-0.5">
-          <IconButton
-            label="Clear queue"
-            icon={Trash2}
-            size="sm"
-            className="text-white/60 hover:bg-white/10 hover:text-white"
-            onClick={clear}
-          />
-          <IconButton
-            label="Close queue"
-            icon={X}
-            size="sm"
-            className="text-white/60 hover:bg-white/10 hover:text-white"
-            onClick={onClose}
-          />
-        </div>
-      </div>
-      <QueueList className="max-h-[50vh] pb-2" />
-    </aside>
-  );
 }
 
 export function Player() {
@@ -737,32 +510,9 @@ export function Player() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!item || typeof navigator === "undefined" || !("mediaSession" in navigator)) {
-      return;
-    }
-    try {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: item.title || item.fileName,
-        artist: item.creatorName,
-        album: "Pawchive",
-        artwork: item.artwork ? [{ src: item.artwork }] : [],
-      });
-    } catch {
-      // Media Session is optional.
-    }
-  }, [item]);
+  useMediaSession(item);
 
-  useEffect(() => {
-    const onSeek = (event: Event) => {
-      const detail = (event as CustomEvent<number>).detail;
-      if (videoRef.current && Number.isFinite(detail)) {
-        videoRef.current.currentTime = detail;
-      }
-    };
-    window.addEventListener("pawchive:seek", onSeek);
-    return () => window.removeEventListener("pawchive:seek", onSeek);
-  }, []);
+  useSeekEvent(videoRef);
 
   const toggleFullscreen = useCallback(async () => {
     const win = currentWindow();
@@ -824,63 +574,12 @@ export function Player() {
     }
   }, [forcePlayback, setPlaying]);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const state = usePlayerStore.getState();
-      // Only capture media keys while the player is expanded. A collapsed
-      // mini-player must not steal Space/arrows from the page underneath.
-      if (!state.currentId || !state.expanded) return;
-      if (isEditableTarget(event.target)) return;
-      if (document.querySelector('[data-modal-open="true"]')) return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      switch (event.key.toLowerCase()) {
-        case " ":
-          event.preventDefault();
-          togglePlayback();
-          break;
-        case "arrowleft":
-          event.preventDefault();
-          state.seek(Math.max(0, state.currentTime - 10));
-          break;
-        case "arrowright":
-          event.preventDefault();
-          state.seek(state.currentTime + 10);
-          break;
-        case "arrowup":
-          event.preventDefault();
-          state.setVolume(Math.min(1, state.volume + 0.05));
-          break;
-        case "arrowdown":
-          event.preventDefault();
-          state.setVolume(Math.max(0, state.volume - 0.05));
-          break;
-        case "m":
-          state.toggleMute();
-          break;
-        case "f":
-          if (state.expanded) void toggleFullscreen();
-          break;
-        case "escape":
-          if (usePlayerStore.getState().expanded) {
-            if (fullscreen) {
-              const win = currentWindow();
-              if (win) {
-                void win
-                  .setFullscreen(false)
-                  .then(() => setFullscreen(false))
-                  .catch(() => undefined);
-              }
-            }
-            usePlayerStore.getState().setExpanded(false);
-          }
-          break;
-        default:
-          break;
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [fullscreen, toggleFullscreen, togglePlayback]);
+  usePlayerKeyboard({
+    fullscreen,
+    setFullscreen,
+    toggleFullscreen,
+    togglePlayback,
+  });
 
   const collapse = useCallback(() => {
     saveProgress();
