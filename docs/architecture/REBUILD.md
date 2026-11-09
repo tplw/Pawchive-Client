@@ -251,6 +251,14 @@ These stay identical throughout the migration:
 - DB writes on `spawn_blocking`; append-only migrations.
 - Pagination constants 50 posts and 60 creators until a deliberate behavior change.
 
+## Progress
+
+- **Phase 0+1 complete** (`97ffc54`): contract inventory, query-key and
+  pagination helpers, download progress merging, media provider/attachment
+  adapters, backend shared media-kind module, and post-summary extraction.
+  Typecheck, lint, tests, clippy and production build are green.
+- **Next:** Phase 2, the media and player slice.
+
 ## Migration phases
 
 Each phase is a separate commit series. No phase changes UI or behavior unless its
