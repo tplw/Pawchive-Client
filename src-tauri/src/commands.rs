@@ -1,33 +1,26 @@
-use crate::config::{PawchiveConfig, PAGE_SIZE};
+use crate::config::PawchiveConfig;
 use crate::error::{AppError, AppResult};
+use crate::features::creators::service::CreatorService;
 use crate::features::media::service::{MediaDimensions, MediaService, ResolvedMediaInfo};
-use crate::features::posts::summary::{build_post_page, creator_lookup, post_thumbnail};
+use crate::features::posts::service::PostService;
+use crate::features::posts::summary::post_thumbnail;
+use crate::features::search::service::SearchService;
 use crate::models::{
-    now_ts, AccountSession, AccountState, Announcement, AppSettings, Attachment, Comment,
-    CreatorPage, CreatorProfile, CreatorSummary, DownloadRecord, DownloadRequest, MediaKind,
-    PlaybackProgress, Playlist, PlaylistItem, PostDetail, PostPage, PostSummary, Revision,
-    SearchPage,
+    now_ts, AccountSession, AccountState, Announcement, AppSettings, Comment, CreatorPage,
+    CreatorProfile, CreatorSummary, DownloadRecord, DownloadRequest, PlaybackProgress, Playlist,
+    PlaylistItem, PostDetail, PostPage, PostSummary, Revision, SearchPage,
 };
-use crate::security::{sanitize_html, validate_search_query, validate_service};
+use crate::security::validate_service;
+use crate::shared::task::blocking;
 use crate::state::AppState;
 use reqwest::cookie::CookieStore;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 fn st(state: &State<'_, AppState>) -> AppState {
     state.inner().clone()
-}
-
-async fn blocking<T, F>(f: F) -> AppResult<T>
-where
-    T: Send + 'static,
-    F: FnOnce() -> AppResult<T> + Send + 'static,
-{
-    tokio::task::spawn_blocking(f)
-        .await
-        .map_err(|e| AppError::Internal(format!("background task failed: {e}")))?
 }
 
 /* ------------------------------- settings ------------------------------- */
@@ -206,43 +199,14 @@ pub async fn sync_creators(
     state: State<'_, AppState>,
     request_id: Option<String>,
 ) -> AppResult<i64> {
-    let st = st(&state);
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st.api.list_creators(token.as_ref()).await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    let creators = result?;
-    if creators.is_empty() {
-        return Err(AppError::InvalidResponse(
-            "the archive returned an empty creator index".into(),
-        ));
-    }
-    let db = Arc::clone(&st.db);
-    let count = blocking(move || db.sync_creators(&creators)).await?;
-    st.db
-        .set_raw_setting("creators_synced_at", &now_ts().to_string())?;
-    st.db.set_raw_setting("creators_import_state_synced", "1")?;
-    let _ = app.emit("creators://synced", count);
-    Ok(count as i64)
+    CreatorService::new(st(&state))
+        .sync(&app, request_id.as_deref())
+        .await
 }
 
 #[tauri::command]
 pub async fn get_creator_count(state: State<'_, AppState>) -> AppResult<i64> {
-    let st = st(&state);
-    // Creator rows that predate import-state tracking were migrated with
-    // `ever_imported = 1`. Force one refresh so cards stop treating archived
-    // and unimported creators the same.
-    if st
-        .db
-        .get_raw_setting("creators_import_state_synced")?
-        .is_none()
-    {
-        return Ok(0);
-    }
-    let count = blocking(move || st.db.creator_count()).await?;
-    tracing::debug!(count, "creator index count requested");
-    Ok(count)
+    CreatorService::new(st(&state)).count().await
 }
 
 #[tauri::command]
@@ -254,33 +218,9 @@ pub async fn list_creators(
     offset: Option<i64>,
     limit: Option<i64>,
 ) -> AppResult<CreatorPage> {
-    let st = st(&state);
-    let query = query.unwrap_or_default();
-    let sort = sort.unwrap_or_else(|| "updated".into());
-    let offset = offset.unwrap_or(0).max(0);
-    let limit = limit.unwrap_or(60).clamp(1, 200);
-    let service = service.filter(|s| !s.trim().is_empty());
-    if let Some(service) = service.as_deref() {
-        validate_service(service)?;
-    }
-    let db = Arc::clone(&st.db);
-    let (items, total) =
-        blocking(move || db.query_creators(&query, service.as_deref(), &sort, offset, limit))
-            .await?;
-    let settings = st.settings();
-    let items: Vec<_> = items
-        .into_iter()
-        .filter(|creator| {
-            !crate::filters::is_creator_blocked(&creator.service, &creator.id, &settings)
-        })
-        .collect();
-    Ok(CreatorPage {
-        items,
-        offset,
-        total,
-        has_more: offset + limit < total,
-        synced: total > 0,
-    })
+    CreatorService::new(st(&state))
+        .list(query.unwrap_or_default(), service, sort, offset, limit)
+        .await
 }
 
 #[tauri::command]
@@ -289,13 +229,9 @@ pub async fn get_creator(
     service: String,
     creator_id: String,
 ) -> AppResult<Option<CreatorSummary>> {
-    let st = st(&state);
-    let service = validate_service(&service)?;
-    let creator_id = crate::security::validate_id(&creator_id, "creator id")?;
-    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
-        return Err(AppError::Blocked);
-    }
-    blocking(move || st.db.get_creator(&service, &creator_id)).await
+    CreatorService::new(st(&state))
+        .get(&service, &creator_id)
+        .await
 }
 
 #[tauri::command]
@@ -305,19 +241,9 @@ pub async fn get_creator_profile(
     creator_id: String,
     request_id: Option<String>,
 ) -> AppResult<CreatorProfile> {
-    let st = st(&state);
-    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
-        return Err(AppError::Blocked);
-    }
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st
-        .api
-        .creator_profile(&service, &creator_id, token.as_ref())
-        .await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    result
+    CreatorService::new(st(&state))
+        .profile(&service, &creator_id, request_id.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -327,23 +253,9 @@ pub async fn get_creator_links(
     creator_id: String,
     request_id: Option<String>,
 ) -> AppResult<Vec<CreatorProfile>> {
-    let st = st(&state);
-    let settings = st.settings();
-    if crate::filters::is_creator_blocked(&service, &creator_id, &settings) {
-        return Err(AppError::Blocked);
-    }
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st
-        .api
-        .creator_links(&service, &creator_id, token.as_ref())
-        .await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    Ok(result?
-        .into_iter()
-        .filter(|item| !crate::filters::is_creator_blocked(&item.service, &item.id, &settings))
-        .collect())
+    CreatorService::new(st(&state))
+        .links(&service, &creator_id, request_id.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -353,25 +265,9 @@ pub async fn get_creator_announcements(
     creator_id: String,
     request_id: Option<String>,
 ) -> AppResult<Vec<Announcement>> {
-    let st = st(&state);
-    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
-        return Err(AppError::Blocked);
-    }
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st
-        .api
-        .announcements(&service, &creator_id, token.as_ref())
-        .await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    Ok(result?
-        .into_iter()
-        .map(|mut item| {
-            item.content = sanitize_html(&item.content);
-            item
-        })
-        .collect())
+    CreatorService::new(st(&state))
+        .announcements(&service, &creator_id, request_id.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -383,27 +279,16 @@ pub async fn get_creator_posts(
     query: Option<String>,
     request_id: Option<String>,
 ) -> AppResult<PostPage> {
-    let st = st(&state);
-    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
-        return Err(AppError::Blocked);
-    }
-    let offset = offset.unwrap_or(0);
     let query = query.filter(|value| !value.trim().is_empty());
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st
-        .api
+    PostService::new(st(&state))
         .creator_posts(
             &service,
             &creator_id,
-            offset,
+            offset.unwrap_or(0),
             query.as_deref(),
-            token.as_ref(),
+            request_id.as_deref(),
         )
-        .await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    build_post_page(&st, result?, offset)
+        .await
 }
 
 #[tauri::command]
@@ -413,38 +298,9 @@ pub async fn get_similar_creators(
     creator_id: String,
     request_id: Option<String>,
 ) -> AppResult<Vec<CreatorSummary>> {
-    let st = st(&state);
-    let settings = st.settings();
-    if crate::filters::is_creator_blocked(&service, &creator_id, &settings) {
-        return Err(AppError::Blocked);
-    }
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st
-        .api
-        .similar_creators_html(&service, &creator_id, token.as_ref())
-        .await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    let items = crate::similar::parse_similar_creators(&result?);
-    let hide_unavailable = settings.hide_unavailable_posts;
-    let db = Arc::clone(&st.db);
-    blocking(move || {
-        Ok(items
-            .into_iter()
-            .map(|item| {
-                db.get_creator(&item.service, &item.id)
-                    .ok()
-                    .flatten()
-                    .unwrap_or(item)
-            })
-            .filter(|item| {
-                !crate::filters::is_creator_blocked(&item.service, &item.id, &settings)
-                    && (!hide_unavailable || item.ever_imported != Some(false))
-            })
-            .collect())
-    })
-    .await
+    CreatorService::new(st(&state))
+        .similar(&service, &creator_id, request_id.as_deref())
+        .await
 }
 
 /* --------------------------------- posts -------------------------------- */
@@ -477,14 +333,9 @@ pub async fn get_recent_posts(
     offset: Option<i64>,
     request_id: Option<String>,
 ) -> AppResult<PostPage> {
-    let st = st(&state);
-    let offset = offset.unwrap_or(0);
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st.api.recent_posts(offset, None, token.as_ref()).await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    build_post_page(&st, result?, offset)
+    PostService::new(st(&state))
+        .recent(offset.unwrap_or(0), request_id.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -494,17 +345,9 @@ pub async fn get_post_summary(
     creator_id: String,
     post_id: String,
 ) -> AppResult<PostSummary> {
-    let st = st(&state);
-    let post = st.api.post(&service, &creator_id, &post_id, None).await?;
-    if crate::filters::is_creator_blocked(&post.service, &post.user, &st.settings()) {
-        return Err(AppError::Blocked);
-    }
-    let creator = st.db.get_creator(&post.service, &post.user)?;
-    Ok(PostSummary::from_post(
-        &st.cfg,
-        &post,
-        creator.map(|creator| creator.name),
-    ))
+    PostService::new(st(&state))
+        .summary(&service, &creator_id, &post_id)
+        .await
 }
 
 #[tauri::command]
@@ -515,110 +358,9 @@ pub async fn get_post(
     post_id: String,
     request_id: Option<String>,
 ) -> AppResult<PostDetail> {
-    let st = st(&state);
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st
-        .api
-        .post(&service, &creator_id, &post_id, token.as_ref())
-        .await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    let mut post = result?;
-    if crate::filters::is_creator_blocked(&post.service, &post.user, &st.settings()) {
-        return Err(AppError::Blocked);
-    }
-    let next = post.next.clone();
-    let prev = post.prev.clone();
-    post.content = sanitize_html(&post.content);
-    let attachments: Vec<Attachment> = post
-        .all_files_including_direct()
-        .into_iter()
-        .filter_map(|file| Attachment::new(&st.cfg, &file))
-        .collect();
-    // Public Drive and MEGA folder links are expanded into their individual
-    // files so they can be played, queued and downloaded like direct links.
-    let mut attachments =
-        crate::remote_media::expand_folders(&st.mega, &st.remote, attachments).await;
-    // MEGA links hide their filename, size and media kind behind encrypted
-    // attributes. Google Drive, Dropbox and GoFile links have no media
-    // extension either. Resolve them now so the player queue and attachment
-    // list classify them like any other archive file. Failures stay
-    // non-fatal: the link is still visible and the player reports the error on
-    // demand.
-    for attachment in attachments.iter_mut() {
-        if crate::mega::is_media_url(&attachment.url) {
-            if let Ok(file) = st.mega.resolve(&attachment.url).await {
-                attachment.name = file.name.clone();
-                attachment.ext = crate::security::file_extension(&file.name);
-                attachment.kind = file.kind();
-                // Images need a real image URL for the thumbnail grid. Videos
-                // and audio resolve to a loopback URL when the player opens
-                // them.
-                if attachment.kind == MediaKind::Image {
-                    if let Some(link) = crate::mega::parse_file_link(&attachment.url) {
-                        let stream = crate::mega::MegaStream::new(
-                            st.mega.client_clone(),
-                            link,
-                            file.clone(),
-                        );
-                        attachment.thumbnail_url = Some(st.media_server.register_mega(stream));
-                    }
-                }
-            }
-        }
-    }
-
-    // Provider lookups can each take a second or two. Resolve them in
-    // parallel (with a small concurrency cap) so a post full of Dropbox links
-    // does not open one request at a time.
-    let gate = Arc::new(tokio::sync::Semaphore::new(4));
-    let mut jobs = tokio::task::JoinSet::new();
-    for (index, attachment) in attachments.iter().enumerate() {
-        if crate::mega::is_media_url(&attachment.url)
-            || !crate::remote_media::needs_resolution(&attachment.url)
-        {
-            continue;
-        }
-        let state = st.clone();
-        let url = attachment.url.clone();
-        let gate = gate.clone();
-        jobs.spawn(async move {
-            let _permit = gate.acquire_owned().await.ok();
-            (index, state.remote.resolve(&url).await.ok())
-        });
-    }
-    while let Some(joined) = jobs.join_next().await {
-        let Ok((index, Some(media))) = joined else {
-            continue;
-        };
-        let Some(attachment) = attachments.get_mut(index) else {
-            continue;
-        };
-        attachment.name = media.name.clone();
-        attachment.ext = crate::security::file_extension(&media.name);
-        attachment.kind = media.kind;
-        attachment.provider = media.provider;
-        if attachment.kind == MediaKind::Image {
-            let source = media.source(st.remote.client().clone());
-            attachment.thumbnail_url = Some(st.media_server.register_remote(source));
-        }
-    }
-    let creator = st.db.get_creator(&post.service, &post.user)?.or_else(|| {
-        Some(CreatorSummary {
-            id: post.user.clone(),
-            name: post.user.clone(),
-            service: post.service.clone(),
-            ..Default::default()
-        })
-    });
-    Ok(PostDetail {
-        post,
-        attachments,
-        creator,
-        next,
-        prev,
-    })
+    PostService::new(st(&state))
+        .detail(&service, &creator_id, &post_id, request_id.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -629,28 +371,9 @@ pub async fn get_post_comments(
     post_id: String,
     request_id: Option<String>,
 ) -> AppResult<Vec<Comment>> {
-    let st = st(&state);
-    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
-        return Err(AppError::Blocked);
-    }
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st
-        .api
-        .comments(&service, &creator_id, &post_id, token.as_ref())
-        .await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    Ok(result?
-        .into_iter()
-        .map(|mut comment| {
-            comment.content = sanitize_html(&comment.content);
-            for revision in &mut comment.revisions {
-                revision.content = sanitize_html(&revision.content);
-            }
-            comment
-        })
-        .collect())
+    PostService::new(st(&state))
+        .comments(&service, &creator_id, &post_id, request_id.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -661,25 +384,9 @@ pub async fn get_post_revisions(
     post_id: String,
     request_id: Option<String>,
 ) -> AppResult<Vec<Revision>> {
-    let st = st(&state);
-    if crate::filters::is_creator_blocked(&service, &creator_id, &st.settings()) {
-        return Err(AppError::Blocked);
-    }
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st
-        .api
-        .revisions(&service, &creator_id, &post_id, token.as_ref())
-        .await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    Ok(result?
-        .into_iter()
-        .map(|mut revision| {
-            revision.post.content = sanitize_html(&revision.post.content);
-            revision
-        })
-        .collect())
+    PostService::new(st(&state))
+        .revisions(&service, &creator_id, &post_id, request_id.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -688,30 +395,9 @@ pub async fn get_popular_posts(
     offset: Option<i64>,
     request_id: Option<String>,
 ) -> AppResult<PostPage> {
-    let st = st(&state);
-    let offset = offset.unwrap_or(0);
-    crate::security::validate_offset(offset)?;
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result = st.api.popular_posts_html(offset, token.as_ref()).await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    let html = result?;
-    let mut items = crate::popular::parse_popular_posts(&html, |service, user| {
-        st.db
-            .get_creator(service, user)
-            .ok()
-            .flatten()
-            .map(|creator| creator.name)
-    });
-    let has_more = items.len() as i64 >= PAGE_SIZE;
-    let settings = st.settings();
-    items.retain(|item| !crate::filters::summary_is_hidden(item, &settings));
-    Ok(PostPage {
-        items,
-        offset,
-        has_more,
-    })
+    PostService::new(st(&state))
+        .popular(offset.unwrap_or(0), request_id.as_deref())
+        .await
 }
 
 /* --------------------------------- search ------------------------------- */
@@ -726,152 +412,16 @@ pub async fn search_all(
     sort: Option<String>,
     request_id: Option<String>,
 ) -> AppResult<SearchPage> {
-    let st = st(&state);
-    let query = validate_search_query(&query)?;
-    let offset = offset.unwrap_or(0);
-    let sort = sort.unwrap_or_else(|| "relevance".into());
-    let service = service.filter(|s| !s.trim().is_empty());
-    if let Some(service) = service.as_deref() {
-        validate_service(service)?;
-    }
-    let media_filter: Vec<MediaKind> = media
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|value| match value.as_str() {
-            "image" => Some(MediaKind::Image),
-            "video" => Some(MediaKind::Video),
-            "audio" => Some(MediaKind::Audio),
-            "document" => Some(MediaKind::Document),
-            "other" => Some(MediaKind::Other),
-            _ => None,
-        })
-        .collect();
-
-    let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let posts_result = st
-        .api
-        .recent_posts(offset, Some(&query), token.as_ref())
-        .await;
-    if let Some(id) = request_id.as_deref() {
-        st.finish_cancel(id);
-    }
-    let raw_posts = posts_result?;
-    let has_more = raw_posts.len() as i64 >= PAGE_SIZE;
-
-    let mut limitations = Vec::new();
-    let content_settings = st.settings();
-    let mut filtered: Vec<PostSummary> = {
-        let names = creator_lookup(&st, &raw_posts);
-        raw_posts
-            .iter()
-            .filter(|post| {
-                !crate::filters::is_hidden(
-                    post,
-                    names
-                        .get(&(post.service.clone(), post.user.clone()))
-                        .map(String::as_str),
-                    &content_settings,
-                )
-            })
-            .filter(|post| {
-                service
-                    .as_deref()
-                    .map(|s| post.service.eq_ignore_ascii_case(s))
-                    .unwrap_or(true)
-            })
-            .filter(|post| {
-                if media_filter.is_empty() {
-                    return true;
-                }
-                post.all_files_including_direct()
-                    .iter()
-                    .any(|file| media_filter.contains(&crate::models::media_kind_for_file(file)))
-            })
-            .map(|post| {
-                PostSummary::from_post(
-                    &st.cfg,
-                    post,
-                    names
-                        .get(&(post.service.clone(), post.user.clone()))
-                        .cloned(),
-                )
-            })
-            .collect()
-    };
-
-    let lower = query.to_lowercase();
-    let score = |post: &PostSummary| -> i64 {
-        let mut value = 0;
-        if post.title.to_lowercase().contains(&lower) {
-            value += 10;
-        }
-        if post.excerpt.to_lowercase().contains(&lower) {
-            value += 3;
-        }
-        if post
-            .creator_name
-            .as_deref()
-            .map(|n| n.to_lowercase().contains(&lower))
-            .unwrap_or(false)
-        {
-            value += 2;
-        }
-        value
-    };
-
-    match sort.as_str() {
-        "oldest" => filtered.sort_by_key(|post| post.published.unwrap_or(i64::MAX)),
-        "creator" => filtered.sort_by(|a, b| {
-            a.creator_name
-                .clone()
-                .unwrap_or_default()
-                .to_lowercase()
-                .cmp(&b.creator_name.clone().unwrap_or_default().to_lowercase())
-                .then_with(|| b.published.cmp(&a.published))
-        }),
-        "relevance" => filtered.sort_by(|a, b| {
-            score(b)
-                .cmp(&score(a))
-                .then_with(|| b.published.cmp(&a.published))
-        }),
-        _ => filtered.sort_by_key(|post| std::cmp::Reverse(post.published)),
-    }
-
-    if service.is_some() {
-        limitations.push(
-            "Service filtering is applied locally to each page; the archive search has no service parameter."
-                .to_string(),
-        );
-    }
-    if !media_filter.is_empty() {
-        limitations.push(
-            "Media-type filtering is applied locally to the current page, so matching posts on later pages may not appear yet."
-                .to_string(),
-        );
-    }
-    if sort == "relevance" {
-        limitations.push(
-            "The archive does not expose a relevance score; relevance is calculated locally from title, excerpt and creator matches."
-                .to_string(),
-        );
-    }
-
-    let creators = {
-        let db = Arc::clone(&st.db);
-        let q = query.clone();
-        blocking(move || db.query_creators(&q, None, "popular", 0, 12))
-            .await?
-            .0
-    };
-
-    Ok(SearchPage {
-        posts: filtered,
-        creators,
-        offset,
-        has_more,
-        query,
-        limitations,
-    })
+    SearchService::new(st(&state))
+        .search(
+            query,
+            offset.unwrap_or(0),
+            service,
+            media,
+            sort,
+            request_id.as_deref(),
+        )
+        .await
 }
 
 #[tauri::command]
@@ -1477,6 +1027,7 @@ mod tests {
     use crate::api::ApiClient;
     use crate::config::{NetworkSettings, PawchiveConfig};
     use crate::db::Db;
+    use crate::features::posts::summary::build_post_page;
     use crate::models::Post;
     use std::sync::{Arc, Mutex, RwLock};
 

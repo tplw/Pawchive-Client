@@ -264,7 +264,13 @@ These stay identical throughout the migration:
   gestures and keyboard/focus handling to `features/media/model`. The backend
   gained `features/media/MediaService` for `resolve_media`, `get_media_size`
   and `get_image_dimensions`; Tauri command signatures are unchanged.
-- **Next:** Phase 3, posts, creators and search.
+- **Phase 3 complete:** backend commands now delegate to `PostService`,
+  `CreatorService` and `SearchService`, with shared `blocking` task handling and
+  tested search ranking. Frontend pages moved into `features/posts`,
+  `features/creators` and `features/search`; `cards.tsx` is now a re-export
+  shim over feature card/visual modules; post attachments, attachment metadata,
+  creator filters and feed filtering/dedupe are separate tested modules.
+- **Next:** Phase 4, downloads, playlists, settings, account and updates.
 
 ## Migration phases
 
