@@ -1,7 +1,7 @@
-use crate::error::{AppError, AppResult};
-use crate::models::{AccountSession, AccountState};
+use crate::app::state::AppState;
+use crate::shared::error::{AppError, AppResult};
+use crate::shared::models::{AccountSession, AccountState};
 use crate::shared::task::blocking;
-use crate::state::AppState;
 use reqwest::cookie::CookieStore;
 use std::sync::Arc;
 use std::time::Duration;
@@ -64,7 +64,7 @@ impl AccountService {
             .timeout(Duration::from_secs(30))
             .connect_timeout(Duration::from_secs(15))
             .cookie_provider(jar.clone())
-            .redirect(crate::security::redirect_policy(
+            .redirect(crate::shared::security::redirect_policy(
                 self.state.cfg.allowed_hosts(),
             ))
             .build()

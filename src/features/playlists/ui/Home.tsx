@@ -17,7 +17,7 @@ import {
 import {
   CreatorCard,
   CreatorCardSkeleton,
-} from "../../../components/cards";
+} from "../../creators/ui/CreatorCard";
 import { PlaylistDialog } from "./PlaylistDialog";
 import { useDownloadActions } from "../../downloads/model/useDownloadActions";
 import { SiteIcon } from "../../../components/SiteIcon";

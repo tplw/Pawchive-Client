@@ -1,5 +1,5 @@
-use crate::error::{AppError, AppResult};
-use crate::state::AppState;
+use crate::app::state::AppState;
+use crate::shared::error::{AppError, AppResult};
 
 const UPDATES_API: &str = "https://api.github.com/repos/tplw/Pawchive-Client/releases/latest";
 const RELEASES_PAGE: &str = "https://github.com/tplw/Pawchive-Client/releases";
@@ -85,7 +85,7 @@ impl UpdateService {
             .and_then(|value| value.as_str())
             .ok_or_else(|| AppError::InvalidResponse("release has no tag name".into()))?;
         let latest = latest.trim_start_matches('v');
-        let update_available = is_newer_version(crate::version::APP_VERSION, latest)?;
+        let update_available = is_newer_version(crate::shared::version::APP_VERSION, latest)?;
         let url = payload
             .get("html_url")
             .and_then(|value| value.as_str())
@@ -97,7 +97,7 @@ impl UpdateService {
             .map(str::to_string);
 
         Ok(UpdateInfo {
-            current_version: crate::version::APP_VERSION.to_string(),
+            current_version: crate::shared::version::APP_VERSION.to_string(),
             latest_version: latest.to_string(),
             update_available,
             url: url.to_string(),

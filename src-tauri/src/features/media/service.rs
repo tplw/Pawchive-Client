@@ -1,6 +1,6 @@
-use crate::error::{AppError, AppResult};
-use crate::models::MediaKind;
-use crate::state::AppState;
+use crate::app::state::AppState;
+use crate::shared::error::{AppError, AppResult};
+use crate::shared::models::MediaKind;
 use reqwest::StatusCode;
 use std::time::Duration;
 
@@ -12,7 +12,7 @@ pub(crate) struct ResolvedMediaInfo {
     pub name: String,
     pub size: u64,
     pub kind: MediaKind,
-    pub provider: crate::providers::MediaProvider,
+    pub provider: crate::infra::providers::MediaProvider,
 }
 
 #[derive(serde::Serialize)]
@@ -35,19 +35,22 @@ impl MediaService {
 
     /// Turn a provider link into a loopback URL the webview can play.
     pub(crate) async fn resolve(&self, url: &str) -> AppResult<ResolvedMediaInfo> {
-        if crate::mega::is_media_url(url) {
-            let link = crate::mega::parse_file_link(url)
+        if crate::infra::providers::mega::is_media_url(url) {
+            let link = crate::infra::providers::mega::parse_file_link(url)
                 .ok_or_else(|| AppError::Validation("not a MEGA file link".into()))?;
             let file = self.state.mega.resolve(url).await?;
-            let stream =
-                crate::mega::MegaStream::new(self.state.mega.client_clone(), link, file.clone());
+            let stream = crate::infra::providers::mega::MegaStream::new(
+                self.state.mega.client_clone(),
+                link,
+                file.clone(),
+            );
             let local_url = self.state.media_server.register_mega(stream);
             return Ok(ResolvedMediaInfo {
                 url: local_url,
                 name: file.name.clone(),
                 size: file.size,
                 kind: file.kind(),
-                provider: crate::providers::MediaProvider::Mega,
+                provider: crate::infra::providers::MediaProvider::Mega,
             });
         }
         let media = self.state.remote.resolve(url).await?;
@@ -65,7 +68,7 @@ impl MediaService {
     /// Best-effort media size, first from provider metadata and then a HEAD or
     /// one-byte range request for direct URLs.
     pub(crate) async fn size(&self, url: &str) -> AppResult<Option<u64>> {
-        if crate::mega::is_media_url(url) {
+        if crate::infra::providers::mega::is_media_url(url) {
             return Ok(self
                 .state
                 .mega
@@ -74,7 +77,7 @@ impl MediaService {
                 .ok()
                 .map(|file| file.size));
         }
-        if crate::remote_media::needs_resolution(url) {
+        if crate::infra::providers::remote::needs_resolution(url) {
             return Ok(self
                 .state
                 .remote
@@ -83,7 +86,7 @@ impl MediaService {
                 .ok()
                 .map(|media| media.size));
         }
-        let url = crate::media::validate_media_url(&self.state.cfg, url)?;
+        let url = crate::infra::media::validate_media_url(&self.state.cfg, url)?;
         if let Ok(Ok(response)) = tokio::time::timeout(
             Duration::from_secs(12),
             self.state
@@ -112,7 +115,9 @@ impl MediaService {
         )
         .await
         .map_err(|_| AppError::Network("media size request timed out".into()))?
-        .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
+        .map_err(|error| {
+            AppError::Network(crate::shared::security::network_error_message(&error))
+        })?;
         if !response.status().is_success() && response.status() != StatusCode::PARTIAL_CONTENT {
             return Ok(None);
         }
@@ -127,12 +132,12 @@ impl MediaService {
 
     /// Read just enough of an image to detect its dimensions.
     pub(crate) async fn image_dimensions(&self, url: &str) -> AppResult<Option<MediaDimensions>> {
-        let (url, extra_headers) = if crate::remote_media::needs_resolution(url) {
+        let (url, extra_headers) = if crate::infra::providers::remote::needs_resolution(url) {
             let media = self.state.remote.resolve(url).await?;
             (media.url, media.headers)
         } else {
             (
-                crate::media::validate_media_url(&self.state.cfg, url)?.to_string(),
+                crate::infra::media::validate_media_url(&self.state.cfg, url)?.to_string(),
                 Vec::new(),
             )
         };
@@ -148,7 +153,9 @@ impl MediaService {
         let response = tokio::time::timeout(Duration::from_secs(12), request.send())
             .await
             .map_err(|_| AppError::Network("image dimensions request timed out".into()))?
-            .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
+            .map_err(|error| {
+                AppError::Network(crate::shared::security::network_error_message(&error))
+            })?;
         if !response.status().is_success() && response.status() != StatusCode::PARTIAL_CONTENT {
             return Ok(None);
         }
@@ -160,7 +167,7 @@ impl MediaService {
                 .await
                 .map_err(|_| AppError::Timeout)?
                 .map_err(|error| {
-                    AppError::Network(crate::security::network_error_message(&error))
+                    AppError::Network(crate::shared::security::network_error_message(&error))
                 })?;
             let Some(chunk) = chunk else {
                 break;
@@ -189,7 +196,7 @@ mod tests {
             name: "clip.mp4".into(),
             size: 42,
             kind: MediaKind::Video,
-            provider: crate::providers::MediaProvider::Mega,
+            provider: crate::infra::providers::MediaProvider::Mega,
         };
         let json = serde_json::to_value(info).unwrap();
         assert_eq!(

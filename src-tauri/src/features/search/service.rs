@@ -1,10 +1,10 @@
-use crate::config::PAGE_SIZE;
-use crate::error::AppResult;
+use crate::app::state::AppState;
 use crate::features::posts::summary::creator_lookup;
-use crate::models::{MediaKind, PostSummary, SearchPage};
-use crate::security::{validate_search_query, validate_service};
+use crate::shared::config::PAGE_SIZE;
+use crate::shared::error::AppResult;
+use crate::shared::models::{MediaKind, PostSummary, SearchPage};
+use crate::shared::security::{validate_search_query, validate_service};
 use crate::shared::task::blocking;
-use crate::state::AppState;
 use std::sync::Arc;
 
 /// Archive search with local service/media filtering, relevance scoring and
@@ -65,7 +65,7 @@ impl SearchService {
             raw_posts
                 .iter()
                 .filter(|post| {
-                    !crate::filters::is_hidden(
+                    !crate::features::posts::filters::is_hidden(
                         post,
                         names
                             .get(&(post.service.clone(), post.user.clone()))
@@ -84,7 +84,7 @@ impl SearchService {
                         return true;
                     }
                     post.all_files_including_direct().iter().any(|file| {
-                        media_filter.contains(&crate::models::media_kind_for_file(file))
+                        media_filter.contains(&crate::shared::models::media_kind_for_file(file))
                     })
                 })
                 .map(|post| {

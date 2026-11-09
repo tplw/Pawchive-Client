@@ -1,4 +1,4 @@
-use crate::error::{AppError, AppResult};
+use crate::shared::error::{AppError, AppResult};
 
 /// Run blocking database work off the async runtime, preserving AppError.
 pub(crate) async fn blocking<T, F>(f: F) -> AppResult<T>

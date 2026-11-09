@@ -1,10 +1,10 @@
-use crate::error::{AppError, AppResult};
+use crate::app::state::AppState;
 use crate::features::posts::summary::{
     mark_thumbnail_attempted, post_thumbnail, thumbnail_attempted,
 };
-use crate::models::{DownloadRecord, DownloadRequest};
+use crate::shared::error::{AppError, AppResult};
+use crate::shared::models::{DownloadRecord, DownloadRequest};
 use crate::shared::task::blocking;
-use crate::state::AppState;
 use std::sync::Arc;
 use tauri::AppHandle;
 
@@ -23,7 +23,7 @@ impl DownloadService {
         app: &AppHandle,
         request: DownloadRequest,
     ) -> AppResult<DownloadRecord> {
-        crate::downloads::enqueue(&self.state, app, request).await
+        crate::infra::downloads::enqueue(&self.state, app, request).await
     }
 
     pub(crate) async fn download_post(
@@ -33,7 +33,7 @@ impl DownloadService {
         creator_id: &str,
         post_id: &str,
     ) -> AppResult<u64> {
-        crate::downloads::download_post(&self.state, app, service, creator_id, post_id).await
+        crate::infra::downloads::download_post(&self.state, app, service, creator_id, post_id).await
     }
 
     pub(crate) async fn download_playlist(
@@ -41,27 +41,27 @@ impl DownloadService {
         app: &AppHandle,
         playlist_id: i64,
     ) -> AppResult<u64> {
-        crate::downloads::download_playlist(&self.state, app, playlist_id).await
+        crate::infra::downloads::download_playlist(&self.state, app, playlist_id).await
     }
 
     pub(crate) async fn cancel(&self, id: &str) -> AppResult<()> {
-        crate::downloads::cancel(&self.state, id).await
+        crate::infra::downloads::cancel(&self.state, id).await
     }
 
     pub(crate) async fn delete(&self, id: &str) -> AppResult<()> {
-        crate::downloads::delete(&self.state, id).await
+        crate::infra::downloads::delete(&self.state, id).await
     }
 
     pub(crate) async fn retry(&self, app: &AppHandle, id: &str) -> AppResult<DownloadRecord> {
-        crate::downloads::retry(&self.state, app, id).await
+        crate::infra::downloads::retry(&self.state, app, id).await
     }
 
     pub(crate) async fn clear_completed(&self) -> AppResult<u64> {
-        crate::downloads::clear_completed(&self.state).await
+        crate::infra::downloads::clear_completed(&self.state).await
     }
 
     pub(crate) async fn clear_all(&self) -> AppResult<u64> {
-        crate::downloads::clear_all(&self.state).await
+        crate::infra::downloads::clear_all(&self.state).await
     }
 
     pub(crate) async fn list(&self) -> AppResult<Vec<DownloadRecord>> {

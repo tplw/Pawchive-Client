@@ -1,4 +1,4 @@
-use crate::models::PostSummary;
+use crate::shared::models::PostSummary;
 
 /// Relevance is computed locally because the archive does not expose a score.
 pub(crate) fn score(post: &PostSummary, lower: &str) -> i64 {

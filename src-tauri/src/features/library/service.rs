@@ -1,11 +1,11 @@
-use crate::error::{AppError, AppResult};
+use crate::app::state::AppState;
 use crate::features::posts::summary::{
     mark_thumbnail_attempted, post_thumbnail, thumbnail_attempted,
 };
-use crate::models::{now_ts, CreatorSummary, Playlist, PlaylistItem};
-use crate::security::{validate_id, validate_service};
+use crate::shared::error::{AppError, AppResult};
+use crate::shared::models::{now_ts, CreatorSummary, Playlist, PlaylistItem};
+use crate::shared::security::{validate_id, validate_service};
 use crate::shared::task::blocking;
-use crate::state::AppState;
 use std::sync::Arc;
 
 /// Playlists and creator favorites.
@@ -135,7 +135,7 @@ impl LibraryService {
         thumbnail_url: Option<String>,
         media_kind: String,
     ) -> AppResult<PlaylistItem> {
-        crate::media::validate_media_url(&self.state.cfg, &media_url)?;
+        crate::infra::media::validate_media_url(&self.state.cfg, &media_url)?;
         let item = PlaylistItem {
             id: 0,
             playlist_id,
@@ -167,7 +167,11 @@ impl LibraryService {
         Ok(items
             .into_iter()
             .filter(|creator| {
-                !crate::filters::is_creator_blocked(&creator.service, &creator.id, &settings)
+                !crate::features::posts::filters::is_creator_blocked(
+                    &creator.service,
+                    &creator.id,
+                    &settings,
+                )
             })
             .collect())
     }

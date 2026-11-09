@@ -283,7 +283,13 @@ These stay identical throughout the migration:
   `ErrorBoundary` and `LoadingScreen`. The app store is a 52-line composition
   of navigation, toast, settings, creator-index and update slices with a
   compatibility facade at `stores/app.ts`.
-- **Next:** Phase 6, infrastructure and cleanup.
+- **Phase 6 complete:** SQLite, Pawchive API, provider adapters, local HTTP,
+  downloads, cache and transcode live under `infra/`; models, config, errors,
+  security and logging live under `shared/`; app state lives under `app/`.
+  Frontend and backend re-export shims were deleted, tests moved beside their
+  features, dead `TODO`/`not implemented` markers are gone, and the README
+  project structure reflects the new layout.
+- **Next:** final release smoke test and packaging check.
 
 ## Migration phases
 

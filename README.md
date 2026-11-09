@@ -155,14 +155,18 @@ Build output and caches can be removed with `npm run clean`; `node_modules` and
 
 ```text
 src/                  React interface
-  components/         reusable UI, cards, grids, viewer
-  pages/              Home, Discover, Search, creator, post, downloads, settings
-  player/             persistent media player and queue
+  app/                shell, routing, bootstrap, navigation and app store
+  features/           posts, creators, search, media, player, downloads,
+                      playlists, settings, account and updates
+  shared/             query keys, pagination, accessibility and shared types
+  components/         reusable UI primitives, viewer and grids
+  player/             persistent media player orchestration
   services/           typed Tauri command wrappers
 src-tauri/            Rust/Tauri backend
-  src/api/            HTTP client, retries, cache, endpoints
-  src/db.rs           SQLite persistence
-  src/media.rs        media validation and subtitles
+  src/app/            application state
+  src/features/       feature services and IPC command wrappers
+  src/infra/          SQLite, Pawchive API, media providers and local HTTP
+  src/shared/         config, errors, models, security and shared helpers
   migrations/         SQLite schema
 src-tauri/gen/        tracked Xcode and Gradle projects
 scripts/              iOS and Android build helpers

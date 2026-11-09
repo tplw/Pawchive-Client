@@ -1,7 +1,7 @@
-use crate::error::AppResult;
-use crate::models::AppSettings;
+use crate::app::state::AppState;
+use crate::shared::error::AppResult;
+use crate::shared::models::AppSettings;
 use crate::shared::task::blocking;
-use crate::state::AppState;
 use std::sync::Arc;
 
 /// Application settings persistence and in-memory state.

@@ -1,7 +1,7 @@
-use crate::config::PAGE_SIZE;
-use crate::error::AppResult;
-use crate::models::{MediaKind, Post, PostPage, PostSummary};
-use crate::state::AppState;
+use crate::app::state::AppState;
+use crate::shared::config::PAGE_SIZE;
+use crate::shared::error::AppResult;
+use crate::shared::models::{MediaKind, Post, PostPage, PostSummary};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock};
 
@@ -19,12 +19,12 @@ pub(crate) fn creator_lookup(st: &AppState, posts: &[Post]) -> HashMap<(String, 
     map
 }
 
-fn thumbnail_for_file(st: &AppState, file: &crate::models::FileRef) -> Option<String> {
-    if crate::models::media_kind_for_file(file) != MediaKind::Image {
+fn thumbnail_for_file(st: &AppState, file: &crate::shared::models::FileRef) -> Option<String> {
+    if crate::shared::models::media_kind_for_file(file) != MediaKind::Image {
         return None;
     }
     if let Some(temp) = file.temp_url() {
-        if let Ok(url) = crate::security::validate_media_remote_url(temp) {
+        if let Ok(url) = crate::shared::security::validate_media_remote_url(temp) {
             return Some(url.to_string());
         }
     }
@@ -50,7 +50,7 @@ pub(crate) fn build_post_page(st: &AppState, posts: Vec<Post>, offset: i64) -> A
     let items = posts
         .iter()
         .filter(|post| {
-            !crate::filters::is_hidden(
+            !crate::features::posts::filters::is_hidden(
                 post,
                 names
                     .get(&(post.service.clone(), post.user.clone()))

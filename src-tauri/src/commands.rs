@@ -1,5 +1,4 @@
-use crate::config::PawchiveConfig;
-use crate::error::{AppError, AppResult};
+use crate::app::state::AppState;
 use crate::features::account::service::AccountService;
 use crate::features::creators::service::CreatorService;
 use crate::features::downloads::service::DownloadService;
@@ -9,13 +8,14 @@ use crate::features::posts::service::PostService;
 use crate::features::search::service::SearchService;
 use crate::features::settings::service::SettingsService;
 use crate::features::updates::service::{UpdateInfo, UpdateService};
-use crate::models::{
+use crate::shared::config::PawchiveConfig;
+use crate::shared::error::{AppError, AppResult};
+use crate::shared::models::{
     AccountState, Announcement, AppSettings, Comment, CreatorPage, CreatorProfile, CreatorSummary,
     DownloadRecord, DownloadRequest, PlaybackProgress, Playlist, PlaylistItem, PostDetail,
     PostPage, PostSummary, Revision, SearchPage,
 };
 use crate::shared::task::blocking;
-use crate::state::AppState;
 use tauri::{AppHandle, State};
 
 fn st(state: &State<'_, AppState>) -> AppState {
@@ -50,7 +50,7 @@ pub async fn check_for_update(state: State<'_, AppState>) -> AppResult<UpdateInf
 
 #[tauri::command]
 pub fn open_external(url: String) -> AppResult<()> {
-    let url = crate::security::validate_external_url(&url)?;
+    let url = crate::shared::security::validate_external_url(&url)?;
     tauri_plugin_opener::open_url(url.as_str(), None::<&str>)
         .map_err(|e| AppError::Io(format!("could not open the link: {e}")))
 }
@@ -542,7 +542,7 @@ pub async fn resolve_media(
 #[tauri::command]
 pub fn validate_media(state: State<'_, AppState>, url: String) -> AppResult<String> {
     let st = st(&state);
-    crate::media::validate_media_url(&st.cfg, &url).map(|url| url.to_string())
+    crate::infra::media::validate_media_url(&st.cfg, &url).map(|url| url.to_string())
 }
 
 #[tauri::command]
@@ -551,7 +551,7 @@ pub async fn get_cached_media_url(
     url: String,
 ) -> AppResult<Option<String>> {
     let st = st(&state);
-    crate::media_cache::cached_url(&st, &url)
+    crate::infra::media_cache::cached_url(&st, &url)
 }
 
 #[tauri::command]
@@ -564,7 +564,8 @@ pub async fn cache_media(
     let st = st(&state);
     let token = request_id.as_deref().map(|id| st.register_cancel(id));
     let result =
-        crate::media_cache::cache_media(&app, &st, &url, request_id.clone(), token.as_ref()).await;
+        crate::infra::media_cache::cache_media(&app, &st, &url, request_id.clone(), token.as_ref())
+            .await;
     if let Some(id) = request_id.as_deref() {
         st.finish_cancel(id);
     }
@@ -574,12 +575,12 @@ pub async fn cache_media(
 #[tauri::command]
 pub async fn clear_media_cache(state: State<'_, AppState>) -> AppResult<u64> {
     let st = st(&state);
-    crate::media_cache::clear(&st).await
+    crate::infra::media_cache::clear(&st).await
 }
 
 #[tauri::command]
 pub fn can_transcode() -> bool {
-    crate::transcode::ffmpeg_path().is_some()
+    crate::infra::transcode::ffmpeg_path().is_some()
 }
 
 #[tauri::command]
@@ -591,9 +592,14 @@ pub async fn transcode_media(
 ) -> AppResult<String> {
     let st = st(&state);
     let token = request_id.as_deref().map(|id| st.register_cancel(id));
-    let result =
-        crate::transcode::transcode_media(&app, &st, &url, request_id.clone(), token.as_ref())
-            .await;
+    let result = crate::infra::transcode::transcode_media(
+        &app,
+        &st,
+        &url,
+        request_id.clone(),
+        token.as_ref(),
+    )
+    .await;
     if let Some(id) = request_id.as_deref() {
         st.finish_cancel(id);
     }
@@ -636,17 +642,17 @@ pub fn local_media_url(state: State<'_, AppState>, path: String) -> AppResult<St
 
 #[tauri::command]
 pub async fn read_subtitle(path: String) -> AppResult<String> {
-    blocking(move || crate::media::read_subtitle(&path)).await
+    blocking(move || crate::infra::media::read_subtitle(&path)).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::ApiClient;
-    use crate::config::{NetworkSettings, PawchiveConfig};
-    use crate::db::Db;
     use crate::features::posts::summary::build_post_page;
-    use crate::models::Post;
+    use crate::infra::pawchive_api::ApiClient;
+    use crate::infra::sqlite::Db;
+    use crate::shared::config::{NetworkSettings, PawchiveConfig};
+    use crate::shared::models::Post;
     use std::sync::{Arc, Mutex, RwLock};
 
     fn test_state(settings: AppSettings) -> AppState {
@@ -661,13 +667,13 @@ mod tests {
             downloads: Arc::new(Mutex::new(Default::default())),
             download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
             http: reqwest::Client::new(),
-            mega: crate::mega::MegaResolver::new(reqwest::Client::new()),
-            remote: std::sync::Arc::new(crate::remote_media::RemoteResolver::new(
+            mega: crate::infra::providers::mega::MegaResolver::new(reqwest::Client::new()),
+            remote: std::sync::Arc::new(crate::infra::providers::remote::RemoteResolver::new(
                 reqwest::Client::new(),
             )),
             app_data_dir: std::env::temp_dir(),
             default_download_dir: std::env::temp_dir(),
-            media_server: crate::local_media::LocalMediaServer::test_instance(),
+            media_server: crate::infra::local_http::LocalMediaServer::test_instance(),
             account: Arc::new(RwLock::new(None)),
         }
     }

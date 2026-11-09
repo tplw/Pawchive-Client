@@ -1,33 +1,14 @@
-mod api;
+mod app;
 mod commands;
-mod config;
-mod db;
-mod direct_media;
-mod downloads;
-mod error;
 mod features;
-mod filters;
-mod local_media;
-mod logging;
-mod media;
-mod media_cache;
-mod mega;
-mod models;
-mod popular;
-mod providers;
-mod remote_media;
-mod security;
+mod infra;
 mod shared;
-mod similar;
-mod state;
-mod transcode;
-mod version;
 
-use api::ApiClient;
-use config::{NetworkSettings, PawchiveConfig};
-use db::Db;
-use models::AccountSession;
-use state::AppState;
+use app::state::AppState;
+use infra::pawchive_api::ApiClient;
+use infra::sqlite::Db;
+use shared::config::{NetworkSettings, PawchiveConfig};
+use shared::models::AccountSession;
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::Manager;
 
@@ -87,7 +68,7 @@ pub fn run() {
             if let Err(error) = db.save_settings(&settings) {
                 tracing::warn!(%error, "could not persist startup settings");
             }
-            logging::init();
+            shared::logging::init();
             if let Err(error) = db.prune_progress(180 * 24 * 60 * 60) {
                 tracing::warn!(%error, "could not prune old playback progress");
             }
@@ -101,7 +82,7 @@ pub fn run() {
                 ..Default::default()
             };
             let api = ApiClient::new(cfg.clone(), net)?;
-            let media_server = local_media::LocalMediaServer::start()?;
+            let media_server = infra::local_http::LocalMediaServer::start()?;
             let http = reqwest::Client::builder()
                 .user_agent(&cfg.user_agent)
                 .connect_timeout(std::time::Duration::from_secs(20))
@@ -109,15 +90,20 @@ pub fn run() {
                 .http2_adaptive_window(true)
                 .pool_max_idle_per_host(8)
                 .cookie_store(true)
-                .dns_resolver(std::sync::Arc::new(crate::security::PublicDnsResolver))
-                .redirect(crate::security::media_redirect_policy())
+                .dns_resolver(std::sync::Arc::new(
+                    crate::shared::security::PublicDnsResolver,
+                ))
+                .redirect(crate::shared::security::media_redirect_policy())
                 .build()
                 .map_err(|e| {
-                    crate::error::AppError::Internal(format!("could not build media client: {e}"))
+                    crate::shared::error::AppError::Internal(format!(
+                        "could not build media client: {e}"
+                    ))
                 })?;
-            let mega = crate::mega::MegaResolver::new(http.clone());
-            let remote =
-                std::sync::Arc::new(crate::remote_media::RemoteResolver::new(http.clone()));
+            let mega = crate::infra::providers::mega::MegaResolver::new(http.clone());
+            let remote = std::sync::Arc::new(crate::infra::providers::remote::RemoteResolver::new(
+                http.clone(),
+            ));
 
             let account = std::fs::read_to_string(data_dir.join("account.json"))
                 .ok()
@@ -128,7 +114,7 @@ pub fn run() {
 
             tracing::info!(
                 data_dir = %data_dir.display(),
-                version = crate::version::APP_VERSION,
+                version = crate::shared::version::APP_VERSION,
                 "starting Pawchive"
             );
 
@@ -158,8 +144,8 @@ pub fn run() {
             // Remove abandoned partial downloads and enforce the cache limit
             // even if the app previously exited without finishing a cleanup.
             tauri::async_runtime::spawn(async move {
-                crate::media_cache::cleanup_stale(&cache_dir).await;
-                crate::media_cache::prune_cache(&cache_dir, cache_max_bytes).await;
+                crate::infra::media_cache::cleanup_stale(&cache_dir).await;
+                crate::infra::media_cache::prune_cache(&cache_dir, cache_max_bytes).await;
             });
             Ok(())
         })

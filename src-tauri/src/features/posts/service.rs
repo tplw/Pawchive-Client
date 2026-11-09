@@ -1,11 +1,11 @@
-use crate::config::PAGE_SIZE;
-use crate::error::{AppError, AppResult};
+use crate::app::state::AppState;
 use crate::features::posts::summary::build_post_page;
-use crate::models::{
+use crate::shared::config::PAGE_SIZE;
+use crate::shared::error::{AppError, AppResult};
+use crate::shared::models::{
     Attachment, Comment, CreatorSummary, MediaKind, PostDetail, PostPage, PostSummary, Revision,
 };
-use crate::security::sanitize_html;
-use crate::state::AppState;
+use crate::shared::security::sanitize_html;
 use std::sync::Arc;
 
 /// Post feeds, detail enrichment and comment/revision orchestration.
@@ -47,7 +47,11 @@ impl PostService {
             .api
             .post(service, creator_id, post_id, None)
             .await?;
-        if crate::filters::is_creator_blocked(&post.service, &post.user, &self.state.settings()) {
+        if crate::features::posts::filters::is_creator_blocked(
+            &post.service,
+            &post.user,
+            &self.state.settings(),
+        ) {
             return Err(AppError::Blocked);
         }
         let creator = self.state.db.get_creator(&post.service, &post.user)?;
@@ -75,7 +79,11 @@ impl PostService {
             self.state.finish_cancel(id);
         }
         let mut post = result?;
-        if crate::filters::is_creator_blocked(&post.service, &post.user, &self.state.settings()) {
+        if crate::features::posts::filters::is_creator_blocked(
+            &post.service,
+            &post.user,
+            &self.state.settings(),
+        ) {
             return Err(AppError::Blocked);
         }
         let next = post.next.clone();
@@ -88,9 +96,12 @@ impl PostService {
             .collect();
         // Public Drive and MEGA folder links are expanded into their individual
         // files so they can be played, queued and downloaded like direct links.
-        let mut attachments =
-            crate::remote_media::expand_folders(&self.state.mega, &self.state.remote, attachments)
-                .await;
+        let mut attachments = crate::infra::providers::remote::expand_folders(
+            &self.state.mega,
+            &self.state.remote,
+            attachments,
+        )
+        .await;
         // MEGA links hide their filename, size and media kind behind encrypted
         // attributes. Google Drive, Dropbox and GoFile links have no media
         // extension either. Resolve them now so the player queue and attachment
@@ -98,17 +109,19 @@ impl PostService {
         // non-fatal: the link is still visible and the player reports the error
         // on demand.
         for attachment in attachments.iter_mut() {
-            if crate::mega::is_media_url(&attachment.url) {
+            if crate::infra::providers::mega::is_media_url(&attachment.url) {
                 if let Ok(file) = self.state.mega.resolve(&attachment.url).await {
                     attachment.name = file.name.clone();
-                    attachment.ext = crate::security::file_extension(&file.name);
+                    attachment.ext = crate::shared::security::file_extension(&file.name);
                     attachment.kind = file.kind();
                     // Images need a real image URL for the thumbnail grid.
                     // Videos and audio resolve to a loopback URL when the
                     // player opens them.
                     if attachment.kind == MediaKind::Image {
-                        if let Some(link) = crate::mega::parse_file_link(&attachment.url) {
-                            let stream = crate::mega::MegaStream::new(
+                        if let Some(link) =
+                            crate::infra::providers::mega::parse_file_link(&attachment.url)
+                        {
+                            let stream = crate::infra::providers::mega::MegaStream::new(
                                 self.state.mega.client_clone(),
                                 link,
                                 file.clone(),
@@ -127,8 +140,8 @@ impl PostService {
         let gate = Arc::new(tokio::sync::Semaphore::new(4));
         let mut jobs = tokio::task::JoinSet::new();
         for (index, attachment) in attachments.iter().enumerate() {
-            if crate::mega::is_media_url(&attachment.url)
-                || !crate::remote_media::needs_resolution(&attachment.url)
+            if crate::infra::providers::mega::is_media_url(&attachment.url)
+                || !crate::infra::providers::remote::needs_resolution(&attachment.url)
             {
                 continue;
             }
@@ -148,7 +161,7 @@ impl PostService {
                 continue;
             };
             attachment.name = media.name.clone();
-            attachment.ext = crate::security::file_extension(&media.name);
+            attachment.ext = crate::shared::security::file_extension(&media.name);
             attachment.kind = media.kind;
             attachment.provider = media.provider;
             if attachment.kind == MediaKind::Image {
@@ -184,7 +197,11 @@ impl PostService {
         post_id: &str,
         request_id: Option<&str>,
     ) -> AppResult<Vec<Comment>> {
-        if crate::filters::is_creator_blocked(service, creator_id, &self.state.settings()) {
+        if crate::features::posts::filters::is_creator_blocked(
+            service,
+            creator_id,
+            &self.state.settings(),
+        ) {
             return Err(AppError::Blocked);
         }
         let token = request_id.map(|id| self.state.register_cancel(id));
@@ -215,7 +232,11 @@ impl PostService {
         post_id: &str,
         request_id: Option<&str>,
     ) -> AppResult<Vec<Revision>> {
-        if crate::filters::is_creator_blocked(service, creator_id, &self.state.settings()) {
+        if crate::features::posts::filters::is_creator_blocked(
+            service,
+            creator_id,
+            &self.state.settings(),
+        ) {
             return Err(AppError::Blocked);
         }
         let token = request_id.map(|id| self.state.register_cancel(id));
@@ -244,7 +265,11 @@ impl PostService {
         query: Option<&str>,
         request_id: Option<&str>,
     ) -> AppResult<PostPage> {
-        if crate::filters::is_creator_blocked(service, creator_id, &self.state.settings()) {
+        if crate::features::posts::filters::is_creator_blocked(
+            service,
+            creator_id,
+            &self.state.settings(),
+        ) {
             return Err(AppError::Blocked);
         }
         let token = request_id.map(|id| self.state.register_cancel(id));
@@ -264,7 +289,7 @@ impl PostService {
         offset: i64,
         request_id: Option<&str>,
     ) -> AppResult<PostPage> {
-        crate::security::validate_offset(offset)?;
+        crate::shared::security::validate_offset(offset)?;
         let token = request_id.map(|id| self.state.register_cancel(id));
         let result = self
             .state
@@ -275,17 +300,18 @@ impl PostService {
             self.state.finish_cancel(id);
         }
         let html = result?;
-        let mut items = crate::popular::parse_popular_posts(&html, |service, user| {
-            self.state
-                .db
-                .get_creator(service, user)
-                .ok()
-                .flatten()
-                .map(|creator| creator.name)
-        });
+        let mut items =
+            crate::features::posts::popular::parse_popular_posts(&html, |service, user| {
+                self.state
+                    .db
+                    .get_creator(service, user)
+                    .ok()
+                    .flatten()
+                    .map(|creator| creator.name)
+            });
         let has_more = items.len() as i64 >= PAGE_SIZE;
         let settings = self.state.settings();
-        items.retain(|item| !crate::filters::summary_is_hidden(item, &settings));
+        items.retain(|item| !crate::features::posts::filters::summary_is_hidden(item, &settings));
         Ok(PostPage {
             items,
             offset,

@@ -1,8 +1,8 @@
-use crate::error::{AppError, AppResult};
-use crate::models::{now_ts, Announcement, CreatorPage, CreatorProfile, CreatorSummary};
-use crate::security::{sanitize_html, validate_id, validate_service};
+use crate::app::state::AppState;
+use crate::shared::error::{AppError, AppResult};
+use crate::shared::models::{now_ts, Announcement, CreatorPage, CreatorProfile, CreatorSummary};
+use crate::shared::security::{sanitize_html, validate_id, validate_service};
 use crate::shared::task::blocking;
-use crate::state::AppState;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 
@@ -81,7 +81,11 @@ impl CreatorService {
         let items: Vec<_> = items
             .into_iter()
             .filter(|creator| {
-                !crate::filters::is_creator_blocked(&creator.service, &creator.id, &settings)
+                !crate::features::posts::filters::is_creator_blocked(
+                    &creator.service,
+                    &creator.id,
+                    &settings,
+                )
             })
             .collect();
         Ok(CreatorPage {
@@ -100,7 +104,11 @@ impl CreatorService {
     ) -> AppResult<Option<CreatorSummary>> {
         let service = validate_service(service)?;
         let creator_id = validate_id(creator_id, "creator id")?;
-        if crate::filters::is_creator_blocked(&service, &creator_id, &self.state.settings()) {
+        if crate::features::posts::filters::is_creator_blocked(
+            &service,
+            &creator_id,
+            &self.state.settings(),
+        ) {
             return Err(AppError::Blocked);
         }
         let db = Arc::clone(&self.state.db);
@@ -113,7 +121,11 @@ impl CreatorService {
         creator_id: &str,
         request_id: Option<&str>,
     ) -> AppResult<CreatorProfile> {
-        if crate::filters::is_creator_blocked(service, creator_id, &self.state.settings()) {
+        if crate::features::posts::filters::is_creator_blocked(
+            service,
+            creator_id,
+            &self.state.settings(),
+        ) {
             return Err(AppError::Blocked);
         }
         let token = request_id.map(|id| self.state.register_cancel(id));
@@ -135,7 +147,7 @@ impl CreatorService {
         request_id: Option<&str>,
     ) -> AppResult<Vec<CreatorProfile>> {
         let settings = self.state.settings();
-        if crate::filters::is_creator_blocked(service, creator_id, &settings) {
+        if crate::features::posts::filters::is_creator_blocked(service, creator_id, &settings) {
             return Err(AppError::Blocked);
         }
         let token = request_id.map(|id| self.state.register_cancel(id));
@@ -149,7 +161,13 @@ impl CreatorService {
         }
         Ok(result?
             .into_iter()
-            .filter(|item| !crate::filters::is_creator_blocked(&item.service, &item.id, &settings))
+            .filter(|item| {
+                !crate::features::posts::filters::is_creator_blocked(
+                    &item.service,
+                    &item.id,
+                    &settings,
+                )
+            })
             .collect())
     }
 
@@ -159,7 +177,11 @@ impl CreatorService {
         creator_id: &str,
         request_id: Option<&str>,
     ) -> AppResult<Vec<Announcement>> {
-        if crate::filters::is_creator_blocked(service, creator_id, &self.state.settings()) {
+        if crate::features::posts::filters::is_creator_blocked(
+            service,
+            creator_id,
+            &self.state.settings(),
+        ) {
             return Err(AppError::Blocked);
         }
         let token = request_id.map(|id| self.state.register_cancel(id));
@@ -187,7 +209,7 @@ impl CreatorService {
         request_id: Option<&str>,
     ) -> AppResult<Vec<CreatorSummary>> {
         let settings = self.state.settings();
-        if crate::filters::is_creator_blocked(service, creator_id, &settings) {
+        if crate::features::posts::filters::is_creator_blocked(service, creator_id, &settings) {
             return Err(AppError::Blocked);
         }
         let token = request_id.map(|id| self.state.register_cancel(id));
@@ -199,7 +221,7 @@ impl CreatorService {
         if let Some(id) = request_id {
             self.state.finish_cancel(id);
         }
-        let items = crate::similar::parse_similar_creators(&result?);
+        let items = crate::features::creators::similar::parse_similar_creators(&result?);
         let hide_unavailable = settings.hide_unavailable_posts;
         let db = Arc::clone(&self.state.db);
         blocking(move || {
@@ -212,8 +234,11 @@ impl CreatorService {
                         .unwrap_or(item)
                 })
                 .filter(|item| {
-                    !crate::filters::is_creator_blocked(&item.service, &item.id, &settings)
-                        && (!hide_unavailable || item.ever_imported != Some(false))
+                    !crate::features::posts::filters::is_creator_blocked(
+                        &item.service,
+                        &item.id,
+                        &settings,
+                    ) && (!hide_unavailable || item.ever_imported != Some(false))
                 })
                 .collect())
         })
