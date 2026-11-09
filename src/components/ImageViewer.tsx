@@ -6,33 +6,17 @@ import {
   Minimize,
   X,
 } from "lucide-react";
-import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { currentWindow } from "../lib/window";
 import { useIsLandscape } from "../lib/orientation";
-import { api } from "../services/api";
 import { isMobile } from "../lib/platform";
-import { isMegaFileUrl, needsMediaResolution } from "../player/queue";
 import { useAppStore } from "../stores/app";
 import type { Attachment } from "../types";
 import { IconButton, lockBodyScroll, unlockBodyScroll } from "./ui";
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
-function clampPan(
-  value: { x: number; y: number },
-  zoom: number,
-): { x: number; y: number } {
-  const maxX = (window.innerWidth * Math.max(zoom - 1, 0)) / 2;
-  const maxY = (window.innerHeight * Math.max(zoom - 1, 0)) / 2;
-  return {
-    x: clamp(value.x, -maxX, maxX),
-    y: clamp(value.y, -maxY, maxY),
-  };
-}
+import { useImageViewerSource } from "../features/media/model/useImageViewerSource";
+import { useImageViewerGestures } from "../features/media/model/useImageViewerGestures";
+import { useImageViewerKeyboard } from "../features/media/model/useImageViewerKeyboard";
 
 export function ImageViewer({
   images,
@@ -49,32 +33,36 @@ export function ImageViewer({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [displaySrc, setDisplaySrc] = useState<string | null>(null);
-  const [progress, setProgress] = useState<number | null>(null);
-  const [failed, setFailed] = useState(false);
   const isLandscape = useIsLandscape();
   const cacheMedia = useAppStore((state) => state.settings.cacheMedia);
-  const touchStart = useRef<{
-    x: number;
-    y: number;
-    panX: number;
-    panY: number;
-  } | null>(null);
-  const pinchStart = useRef<{ distance: number; zoom: number } | null>(null);
-  const suppressTap = useRef(false);
   const previousAutoHide = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const image = images[index];
   const autoHideControls = isLandscape && (isMobile || fullscreen);
-
-  const suppressNextTap = () => {
-    if (suppressTap.current) return;
-    suppressTap.current = true;
-    window.setTimeout(() => {
-      suppressTap.current = false;
-    }, 350);
-  };
+  const { displaySrc, progress, failed, handleImageError } =
+    useImageViewerSource({ image, index, cacheMedia });
+  const gestures = useImageViewerGestures({
+    zoom,
+    pan,
+    setZoom,
+    setPan,
+    index,
+    imageCount: images.length,
+    onIndexChange,
+    onToggleControls: () => setControlsVisible((visible) => !visible),
+  });
+  useImageViewerKeyboard({
+    rootRef,
+    fullscreen,
+    setFullscreen,
+    index,
+    imageCount: images.length,
+    onIndexChange,
+    onClose,
+    setZoom,
+    setPan,
+  });
 
   useEffect(() => {
     setZoom(1);
@@ -137,203 +125,6 @@ export function ImageViewer({
     };
   }, []);
 
-  useEffect(() => {
-    if (!image) return;
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    const controller = new AbortController();
-    setProgress(null);
-    setDisplaySrc(image.thumbnailUrl ?? null);
-    setFailed(false);
-
-    const loadFromNetwork = async () => {
-      try {
-        // MEGA links are encrypted file pages, and Drive/Dropbox/GoFile hide
-        // the direct file behind a provider API. Resolve them to the loopback
-        // server before fetching, just like the player does.
-        const src = needsMediaResolution(image.url)
-          ? (await api.resolveMedia(image.url)).url
-          : image.url;
-        const response = await fetch(src, {
-          signal: controller.signal,
-          cache: "force-cache",
-        });
-        if (!response.ok) {
-          if (!cancelled) {
-            setDisplaySrc(image.thumbnailUrl ?? image.url);
-          }
-          return;
-        }
-        const total = Number(response.headers.get("content-length")) || 0;
-        if (!response.body) {
-          const blob = await response.blob();
-          if (cancelled) return;
-          objectUrl = URL.createObjectURL(blob);
-          setDisplaySrc(objectUrl);
-          return;
-        }
-
-        const reader = response.body.getReader();
-        const chunks: BlobPart[] = [];
-        let received = 0;
-        if (total > 0) setProgress(0);
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (!value) continue;
-          chunks.push(value);
-          received += value.byteLength;
-          if (total > 0 && !cancelled) {
-            setProgress(Math.min(99, Math.round((received / total) * 100)));
-          }
-        }
-        if (cancelled) return;
-        const blob = new Blob(chunks, {
-          type: response.headers.get("content-type") ?? undefined,
-        });
-        objectUrl = URL.createObjectURL(blob);
-        setDisplaySrc(objectUrl);
-        setProgress(100);
-        window.setTimeout(() => {
-          if (!cancelled) setProgress(null);
-        }, 250);
-      } catch (error) {
-        if (
-          cancelled ||
-          (error instanceof DOMException && error.name === "AbortError")
-        ) {
-          return;
-        }
-        setProgress(null);
-        setDisplaySrc(image.url);
-      }
-    };
-
-    let unlisten: (() => void) | undefined;
-    let cacheRequestId: string | null = null;
-    if (cacheMedia && image.url.startsWith("https://") && !isMegaFileUrl(image.url)) {
-      const requestId =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      cacheRequestId = requestId;
-      setProgress(0);
-      void listen<{
-        requestId?: string;
-        downloaded: number;
-        total?: number | null;
-      }>("media-cache://progress", (event) => {
-        if (
-          cancelled ||
-          event.payload.requestId !== requestId ||
-          !event.payload.total
-        ) {
-          return;
-        }
-        setProgress(
-          Math.min(
-            99,
-            Math.round(
-              (event.payload.downloaded / event.payload.total) * 100,
-            ),
-          ),
-        );
-      }).then((fn) => {
-        if (cancelled) fn();
-        else unlisten = fn;
-      });
-      void api
-        .cacheMedia(image.url, requestId)
-        .then((url) => {
-          if (cancelled) return;
-          setDisplaySrc(url);
-          setProgress(100);
-          window.setTimeout(() => {
-            if (!cancelled) setProgress(null);
-          }, 250);
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setProgress(null);
-          void loadFromNetwork();
-        });
-    } else {
-      void loadFromNetwork();
-    }
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      unlisten?.();
-      if (cacheRequestId) {
-        void api.cancelRequest(cacheRequestId).catch(() => undefined);
-      }
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [cacheMedia, image, index]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Tab") {
-        const root = rootRef.current;
-        if (!root) return;
-        const focusable = Array.from(
-          root.querySelectorAll<HTMLElement>(
-            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-          ),
-        ).filter(
-          (element) =>
-            element.offsetParent !== null || element === document.activeElement,
-        );
-        if (focusable.length === 0) {
-          event.preventDefault();
-          root.focus();
-          return;
-        }
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        const active = document.activeElement;
-        if (event.shiftKey && (active === first || !root.contains(active))) {
-          event.preventDefault();
-          last.focus();
-        } else if (
-          !event.shiftKey &&
-          (active === last || !root.contains(active))
-        ) {
-          event.preventDefault();
-          first.focus();
-        }
-        return;
-      }
-      if (event.key === "Escape") {
-        if (fullscreen) {
-          const win = currentWindow();
-          if (win) {
-            void win
-              .setFullscreen(false)
-              .then(() => setFullscreen(false))
-              .catch(() => undefined);
-          }
-        } else {
-          onClose();
-        }
-      } else if (event.key === "ArrowLeft") {
-        onIndexChange((index - 1 + images.length) % images.length);
-      } else if (event.key === "ArrowRight") {
-        onIndexChange((index + 1) % images.length);
-      } else if (event.key === "+" || event.key === "=") {
-        setZoom((value) => Math.min(value + 0.25, 5));
-      } else if (event.key === "-") {
-        setZoom((value) => Math.max(value - 0.25, 1));
-      } else if (event.key === "0") {
-        setZoom(1);
-        setPan({ x: 0, y: 0 });
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [fullscreen, images.length, index, onClose, onIndexChange]);
-
   const toggleFullscreen = async () => {
     const win = currentWindow();
     if (!win) return;
@@ -357,14 +148,6 @@ export function ImageViewer({
 
   if (!image) return null;
 
-  const handleImageError = () => {
-    if (image.thumbnailUrl && displaySrc !== image.thumbnailUrl) {
-      setDisplaySrc(image.thumbnailUrl);
-      return;
-    }
-    setFailed(true);
-  };
-
   return createPortal(
     <div
       ref={rootRef}
@@ -374,104 +157,11 @@ export function ImageViewer({
       role="dialog"
       aria-modal="true"
       aria-label="Image viewer"
-      onClick={(event) => {
-        if ((event.target as HTMLElement | null)?.closest("button")) return;
-        if (suppressTap.current) {
-          suppressTap.current = false;
-          return;
-        }
-        setControlsVisible((visible) => !visible);
-      }}
-      onTouchStart={(event) => {
-        suppressTap.current = false;
-        if (event.touches.length === 2) {
-          const first = event.touches[0];
-          const second = event.touches[1];
-          pinchStart.current = {
-            distance: Math.hypot(
-              first.clientX - second.clientX,
-              first.clientY - second.clientY,
-            ),
-            zoom,
-          };
-          touchStart.current = null;
-          return;
-        }
-        pinchStart.current = null;
-        if (event.touches.length !== 1) return;
-        const touch = event.touches[0];
-        touchStart.current = {
-          x: touch.clientX,
-          y: touch.clientY,
-          panX: pan.x,
-          panY: pan.y,
-        };
-      }}
-      onTouchMove={(event) => {
-        if (event.touches.length === 2 && pinchStart.current) {
-          const first = event.touches[0];
-          const second = event.touches[1];
-          const distance = Math.hypot(
-            first.clientX - second.clientX,
-            first.clientY - second.clientY,
-          );
-          const nextZoom = clamp(
-            pinchStart.current.zoom * (distance / pinchStart.current.distance),
-            1,
-            5,
-          );
-          setZoom(nextZoom);
-          if (nextZoom <= 1) setPan({ x: 0, y: 0 });
-          suppressNextTap();
-          return;
-        }
-        if (
-          event.touches.length === 1 &&
-          touchStart.current &&
-          zoom > 1
-        ) {
-          const touch = event.touches[0];
-          const dx = touch.clientX - touchStart.current.x;
-          const dy = touch.clientY - touchStart.current.y;
-          if (Math.abs(dx) > 3 || Math.abs(dy) > 3) suppressNextTap();
-          setPan(
-            clampPan(
-              {
-                x: touchStart.current.panX + dx,
-                y: touchStart.current.panY + dy,
-              },
-              zoom,
-            ),
-          );
-        }
-      }}
-      onTouchEnd={(event) => {
-        if (pinchStart.current && event.touches.length < 2) {
-          pinchStart.current = null;
-          touchStart.current = null;
-          suppressNextTap();
-          return;
-        }
-        const start = touchStart.current;
-        touchStart.current = null;
-        if (!start || zoom > 1 || images.length < 2) return;
-        const touch = event.changedTouches[0];
-        if (!touch) return;
-        const dx = touch.clientX - start.x;
-        const dy = touch.clientY - start.y;
-        if (Math.abs(dx) < 60 || Math.abs(dy) > 60) return;
-        suppressNextTap();
-        onIndexChange(
-          dx > 0
-            ? (index - 1 + images.length) % images.length
-            : (index + 1) % images.length,
-        );
-      }}
-      onTouchCancel={() => {
-        touchStart.current = null;
-        pinchStart.current = null;
-        suppressTap.current = false;
-      }}
+      onClick={gestures.onRootClick}
+      onTouchStart={gestures.onTouchStart}
+      onTouchMove={gestures.onTouchMove}
+      onTouchEnd={gestures.onTouchEnd}
+      onTouchCancel={gestures.onTouchCancel}
     >
       {displaySrc && !failed ? (
         <img

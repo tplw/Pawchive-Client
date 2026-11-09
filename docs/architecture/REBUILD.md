@@ -257,7 +257,14 @@ These stay identical throughout the migration:
   pagination helpers, download progress merging, media provider/attachment
   adapters, backend shared media-kind module, and post-summary extraction.
   Typecheck, lint, tests, clippy and production build are green.
-- **Next:** Phase 2, the media and player slice.
+- **Phase 2 complete:** `Player.tsx` is split into feature hooks
+  (`useMediaSource`, `usePlaybackProgress`, `useTranscode`, `useFullscreen`,
+  `useMediaSession`, `usePlayerKeyboard`, `useSeekEvent`) and feature UI
+  (`Controls`, `Stage`, `Queue`). `ImageViewer.tsx` delegates source loading,
+  gestures and keyboard/focus handling to `features/media/model`. The backend
+  gained `features/media/MediaService` for `resolve_media`, `get_media_size`
+  and `get_image_dimensions`; Tauri command signatures are unchanged.
+- **Next:** Phase 3, posts, creators and search.
 
 ## Migration phases
 

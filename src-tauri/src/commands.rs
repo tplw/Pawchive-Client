@@ -1,5 +1,6 @@
 use crate::config::{PawchiveConfig, PAGE_SIZE};
 use crate::error::{AppError, AppResult};
+use crate::features::media::service::{MediaDimensions, MediaService, ResolvedMediaInfo};
 use crate::features::posts::summary::{build_post_page, creator_lookup, post_thumbnail};
 use crate::models::{
     now_ts, AccountSession, AccountState, Announcement, AppSettings, Attachment, Comment,
@@ -1362,47 +1363,12 @@ pub async fn get_progress(
     blocking(move || st.db.get_progress(&file_path)).await
 }
 
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ResolvedMediaInfo {
-    /// Loopback URL that streams the file with Range support.
-    pub url: String,
-    pub name: String,
-    pub size: u64,
-    pub kind: MediaKind,
-    pub provider: crate::providers::MediaProvider,
-}
-
 #[tauri::command]
 pub async fn resolve_media(
     state: State<'_, AppState>,
     url: String,
 ) -> AppResult<ResolvedMediaInfo> {
-    let st = st(&state);
-    if crate::mega::is_media_url(&url) {
-        let link = crate::mega::parse_file_link(&url)
-            .ok_or_else(|| AppError::Validation("not a MEGA file link".into()))?;
-        let file = st.mega.resolve(&url).await?;
-        let stream = crate::mega::MegaStream::new(st.mega.client_clone(), link, file.clone());
-        let local_url = st.media_server.register_mega(stream);
-        return Ok(ResolvedMediaInfo {
-            url: local_url,
-            name: file.name.clone(),
-            size: file.size,
-            kind: file.kind(),
-            provider: crate::providers::MediaProvider::Mega,
-        });
-    }
-    let media = st.remote.resolve(&url).await?;
-    let source = media.source(st.remote.client().clone());
-    let local_url = st.media_server.register_remote(source);
-    Ok(ResolvedMediaInfo {
-        url: local_url,
-        name: media.name,
-        size: media.size,
-        kind: media.kind,
-        provider: media.provider,
-    })
+    MediaService::new(st(&state)).resolve(&url).await
 }
 
 #[tauri::command]
@@ -1466,115 +1432,17 @@ pub async fn transcode_media(
     result
 }
 
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MediaDimensions {
-    pub width: usize,
-    pub height: usize,
-}
-
 #[tauri::command]
 pub async fn get_image_dimensions(
     state: State<'_, AppState>,
     url: String,
 ) -> AppResult<Option<MediaDimensions>> {
-    let st = st(&state);
-    let (url, extra_headers) = if crate::remote_media::needs_resolution(&url) {
-        let media = st.remote.resolve(&url).await?;
-        (media.url, media.headers)
-    } else {
-        (
-            crate::media::validate_media_url(&st.cfg, &url)?.to_string(),
-            Vec::new(),
-        )
-    };
-    let mut request = st
-        .http
-        .get(url)
-        .header(reqwest::header::RANGE, "bytes=0-524287")
-        .header(reqwest::header::REFERER, "https://pawchive.pw/");
-    for (name, value) in extra_headers {
-        request = request.header(name, value);
-    }
-    let response = tokio::time::timeout(Duration::from_secs(12), request.send())
-        .await
-        .map_err(|_| AppError::Network("image dimensions request timed out".into()))?
-        .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
-    if !response.status().is_success() && response.status() != reqwest::StatusCode::PARTIAL_CONTENT
-    {
-        return Ok(None);
-    }
-    const MAX_HEADER_BYTES: usize = 512 * 1024;
-    let mut bytes = Vec::with_capacity(MAX_HEADER_BYTES);
-    let mut response = response;
-    while bytes.len() < MAX_HEADER_BYTES {
-        let chunk = tokio::time::timeout(Duration::from_secs(12), response.chunk())
-            .await
-            .map_err(|_| AppError::Timeout)?
-            .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
-        let Some(chunk) = chunk else {
-            break;
-        };
-        let remaining = MAX_HEADER_BYTES.saturating_sub(bytes.len());
-        bytes.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
-    }
-    let Ok(size) = imagesize::blob_size(&bytes) else {
-        return Ok(None);
-    };
-    Ok(Some(MediaDimensions {
-        width: size.width,
-        height: size.height,
-    }))
+    MediaService::new(st(&state)).image_dimensions(&url).await
 }
 
 #[tauri::command]
 pub async fn get_media_size(state: State<'_, AppState>, url: String) -> AppResult<Option<u64>> {
-    let st = st(&state);
-    if crate::mega::is_media_url(&url) {
-        return Ok(st.mega.resolve(&url).await.ok().map(|file| file.size));
-    }
-    if crate::remote_media::needs_resolution(&url) {
-        return Ok(st.remote.resolve(&url).await.ok().map(|media| media.size));
-    }
-    let url = crate::media::validate_media_url(&st.cfg, &url)?;
-    if let Ok(Ok(response)) = tokio::time::timeout(
-        Duration::from_secs(12),
-        st.http
-            .head(url.clone())
-            .header(reqwest::header::REFERER, "https://pawchive.pw/")
-            .send(),
-    )
-    .await
-    {
-        if response.status().is_success() {
-            if let Some(length) = response.content_length() {
-                return Ok(Some(length));
-            }
-        }
-    }
-
-    let response = tokio::time::timeout(
-        Duration::from_secs(12),
-        st.http
-            .get(url)
-            .header(reqwest::header::RANGE, "bytes=0-0")
-            .header(reqwest::header::REFERER, "https://pawchive.pw/")
-            .send(),
-    )
-    .await
-    .map_err(|_| AppError::Network("media size request timed out".into()))?
-    .map_err(|error| AppError::Network(crate::security::network_error_message(&error)))?;
-    if !response.status().is_success() && response.status() != reqwest::StatusCode::PARTIAL_CONTENT
-    {
-        return Ok(None);
-    }
-    let total = response
-        .headers()
-        .get(reqwest::header::CONTENT_RANGE)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.rsplit('/').next())
-        .and_then(|value| value.parse::<u64>().ok());
-    Ok(total.or_else(|| response.content_length()))
+    MediaService::new(st(&state)).size(&url).await
 }
 
 #[tauri::command]

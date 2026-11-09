@@ -16,6 +16,7 @@ vi.mock("../services/api", () => ({
     validateMedia: vi.fn(),
     getProgress: vi.fn(),
     saveProgress: vi.fn(),
+    transcodeMedia: vi.fn(),
     readSubtitle: vi.fn(),
     openExternal: vi.fn(),
     setStatusBarHidden: vi.fn().mockResolvedValue(undefined),
@@ -65,6 +66,7 @@ describe("player", () => {
       updatedAt: 1700000000,
     });
     vi.mocked(api.saveProgress).mockResolvedValue(undefined);
+    vi.mocked(api.transcodeMedia).mockReset();
   });
 
   it("saves progress before navigating to another page", async () => {
@@ -190,6 +192,48 @@ describe("player", () => {
     await waitFor(() => expect(video.src).toBe(artworkItem.url));
     fireEvent.loadedData(video);
     expect(stage.querySelector("img")).toBeNull();
+  });
+
+  it("transcodes unsupported media when the fallback is enabled", async () => {
+    vi.stubGlobal("MediaError", {
+      MEDIA_ERR_SRC_NOT_SUPPORTED: 4,
+      MEDIA_ERR_DECODE: 3,
+      MEDIA_ERR_NETWORK: 2,
+    });
+    try {
+      useAppStore.setState({
+        settings: {
+          ...useAppStore.getState().settings,
+          transcodeMedia: true,
+        },
+      });
+      const transcoded = "http://127.0.0.1:1/media/transcoded";
+      vi.mocked(api.transcodeMedia).mockResolvedValue(transcoded);
+
+      render(<Player />);
+      const video = document.querySelector("video") as HTMLVideoElement;
+      await waitFor(() => expect(video.src).toBe(item.url), { timeout: 3000 });
+      Object.defineProperty(video, "error", {
+        configurable: true,
+        value: { code: 4 },
+      });
+
+      fireEvent.error(video);
+
+      await waitFor(
+        () =>
+          expect(api.transcodeMedia).toHaveBeenCalledWith(
+            item.url,
+            expect.any(String),
+          ),
+        { timeout: 3000 },
+      );
+      await waitFor(() => expect(video.src).toBe(transcoded), {
+        timeout: 3000,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("restores the last playback position after metadata loads", async () => {
