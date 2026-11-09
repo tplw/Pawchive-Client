@@ -5,7 +5,7 @@ import {
   parseFilterKeywords,
   saveCreatorFilter,
   type CreatorFilter,
-} from "../../../lib/creatorFilters";
+} from "../../../shared/lib/creatorFilters";
 
 /** Per-creator filter state, persisted to localStorage on every change. */
 export function useCreatorFilterState({

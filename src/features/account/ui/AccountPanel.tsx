@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
-import { api } from "../../../services/api";
+import { api } from "../../../shared/api";
 import { queryKeys } from "../../../shared/query/keys";
-import { errorMessage } from "../../../lib/constants";
-import { useAppStore } from "../../../stores/app";
-import { SiteIcon } from "../../../components/SiteIcon";
-import { Button, Field, Spinner, TextInput, Toggle } from "../../../components/ui";
+import { errorMessage } from "../../../shared/lib/constants";
+import { useAppStore } from "../../../app/store";
+import { SiteIcon } from "../../../shared/SiteIcon";
+import { Button, Field, Spinner, TextInput, Toggle } from "../../../shared/ui";
 
 export function AccountPanel() {
   const [username, setUsername] = useState("");

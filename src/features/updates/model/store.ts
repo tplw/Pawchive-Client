@@ -1,5 +1,5 @@
-import { api } from "../../../services/api";
-import { errorMessage } from "../../../lib/constants";
+import { api } from "../../../shared/api";
+import { errorMessage } from "../../../shared/lib/constants";
 import type { AppStore, AppStoreApi } from "../../../app/model/types";
 import { pendingUpdateVersion } from "./pendingUpdate";
 

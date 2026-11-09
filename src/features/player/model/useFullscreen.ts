@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { currentWindow } from "../../../lib/window";
-import { errorMessage } from "../../../lib/constants";
-import { useAppStore } from "../../../stores/app";
+import { currentWindow } from "../../../shared/lib/window";
+import { errorMessage } from "../../../shared/lib/constants";
+import { useAppStore } from "../../../app/store";
 
 /** Track native window fullscreen and expose a toggle for the player bar. */
 export function useFullscreen() {

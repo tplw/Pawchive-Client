@@ -1,4 +1,4 @@
-import type { AppSettings, UpdateInfo } from "../../../types";
+import type { AppSettings, UpdateInfo } from "../../../shared/types";
 
 /**
  * Returns the release version that should be announced in the update prompt.

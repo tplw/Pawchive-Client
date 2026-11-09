@@ -1,8 +1,8 @@
-import { api } from "../../../services/api";
+import { api } from "../../../shared/api";
 import {
   applyHideNoMediaToCreators,
   setGlobalHideNoMediaDefault,
-} from "../../../lib/creatorFilters";
+} from "../../../shared/lib/creatorFilters";
 import type { AppStore, AppStoreApi } from "../../../app/model/types";
 
 let settingsSaveChain: Promise<void> = Promise.resolve();

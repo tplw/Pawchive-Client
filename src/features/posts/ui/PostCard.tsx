@@ -10,14 +10,14 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { queryKeys } from "../../../shared/query/keys";
-import { cn, formatDate } from "../../../lib/format";
+import { cn, formatDate } from "../../../shared/lib/format";
 import { activate } from "../../../shared/lib/a11y";
-import { useInView } from "../../../lib/useInView";
-import { navigate } from "../../../lib/router";
-import { api } from "../../../services/api";
-import { useAppStore } from "../../../stores/app";
-import type { MediaKind, PostSummary } from "../../../types";
-import { Skeleton } from "../../../components/ui";
+import { useInView } from "../../../shared/lib/useInView";
+import { navigate } from "../../../shared/lib/router";
+import { api } from "../../../shared/api";
+import { useAppStore } from "../../../app/store";
+import type { MediaKind, PostSummary } from "../../../shared/types";
+import { Skeleton } from "../../../shared/ui";
 import {
   NotImportedBadge,
   ServiceBadge,

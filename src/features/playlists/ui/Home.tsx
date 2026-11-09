@@ -1,33 +1,33 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, Download, LoaderCircle, Play, Plus, Star } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api } from "../../../services/api";
-import { errorMessage } from "../../../lib/constants";
-import { isCreatorBlocked } from "../../../lib/blockedCreators";
+import { api } from "../../../shared/api";
+import { errorMessage } from "../../../shared/lib/constants";
+import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
 import { queryKeys } from "../../../shared/query/keys";
-import { cn } from "../../../lib/format";
-import { postGridMetrics } from "../../../lib/layout";
-import { navigate } from "../../../lib/router";
-import { useAppStore } from "../../../stores/app";
-import { usePlayerStore } from "../../../player/store";
+import { cn } from "../../../shared/lib/format";
+import { postGridMetrics } from "../../../shared/lib/layout";
+import { navigate } from "../../../shared/lib/router";
+import { useAppStore } from "../../../app/store";
+import { usePlayerStore } from "../../player/model/store";
 import {
   isPlayableMediaKind,
   queueItemFromPlaylistItem,
-} from "../../../player/queue";
+} from "../../player/model/queue";
 import {
   CreatorCard,
   CreatorCardSkeleton,
 } from "../../creators/ui/CreatorCard";
 import { PlaylistDialog } from "./PlaylistDialog";
 import { useDownloadActions } from "../../downloads/model/useDownloadActions";
-import { SiteIcon } from "../../../components/SiteIcon";
+import { SiteIcon } from "../../../shared/SiteIcon";
 import {
   Button,
   EmptyState,
   IconButton,
   Skeleton,
-} from "../../../components/ui";
-import type { Playlist } from "../../../types";
+} from "../../../shared/ui";
+import type { Playlist } from "../../../shared/types";
 
 function PlaylistCard({
   playlist,

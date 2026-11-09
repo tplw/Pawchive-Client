@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListMusic, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../../../services/api";
+import { api } from "../../../shared/api";
 import { queryKeys } from "../../../shared/query/keys";
-import { useAppStore } from "../../../stores/app";
-import type { PlaylistItemInput } from "../../../types";
-import { cn } from "../../../lib/format";
-import { Button, EmptyState, Modal, Spinner, TextInput } from "../../../components/ui";
-import { SiteIcon } from "../../../components/SiteIcon";
+import { useAppStore } from "../../../app/store";
+import type { PlaylistItemInput } from "../../../shared/types";
+import { cn } from "../../../shared/lib/format";
+import { Button, EmptyState, Modal, Spinner, TextInput } from "../../../shared/ui";
+import { SiteIcon } from "../../../shared/SiteIcon";
 
 export function PlaylistPicker({
   open,

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useEffect, type RefObject } from "react";
-import { markNavigation } from "../../lib/perf";
-import { routeTitle, routeToHash } from "../../lib/router";
-import type { Route } from "../../types";
+import { markNavigation } from "../../shared/lib/perf";
+import { routeTitle, routeToHash } from "../../shared/lib/router";
+import type { Route } from "../../shared/types";
 
 const SCROLL_STORAGE_KEY = "pawchive-scroll-positions";
 

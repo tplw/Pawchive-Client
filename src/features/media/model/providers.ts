@@ -1,4 +1,4 @@
-import type { MediaProvider } from "../../../types";
+import type { MediaProvider } from "../../../shared/types";
 
 const MEGA_FILE_PATTERN =
   /^https:\/\/(?:www\.)?mega\.(?:nz|co\.nz|io)\/(?:file\/[a-z0-9_-]+#|#![a-z0-9_-]+!)/i;

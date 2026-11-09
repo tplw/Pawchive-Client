@@ -2,9 +2,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
-import type { CreatorSummary, PostSummary } from "../../../types";
-import { DEFAULT_SETTINGS } from "../../../lib/constants";
-import { useAppStore } from "../../../stores/app";
+import type { CreatorSummary, PostSummary } from "../../../shared/types";
+import { DEFAULT_SETTINGS } from "../../../shared/lib/constants";
+import { useAppStore } from "../../../app/store";
 import { CreatorCard } from "./CreatorCard";
 import { PostCard } from "../../posts/ui/PostCard";
 

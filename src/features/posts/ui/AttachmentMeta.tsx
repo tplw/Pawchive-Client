@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { api } from "../../../services/api";
-import { cn, formatBytes, MEDIA_PROVIDER_LABELS } from "../../../lib/format";
-import { needsMediaResolution } from "../../../player/queue";
-import type { Attachment } from "../../../types";
+import { api } from "../../../shared/api";
+import { cn, formatBytes, MEDIA_PROVIDER_LABELS } from "../../../shared/lib/format";
+import { needsMediaResolution } from "../../player/model/queue";
+import type { Attachment } from "../../../shared/types";
 
 const mediaSizeCache = new Map<string, Promise<number | null>>();
 const resolutionCache = new Map<

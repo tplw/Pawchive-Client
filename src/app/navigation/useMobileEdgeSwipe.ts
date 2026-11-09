@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { goBack } from "../../lib/router";
-import { isMobile } from "../../lib/platform";
-import { useAppStore } from "../../stores/app";
-import { usePlayerStore } from "../../player/store";
+import { goBack } from "../../shared/lib/router";
+import { isMobile } from "../../shared/lib/platform";
+import { useAppStore } from "../store";
+import { usePlayerStore } from "../../features/player/model/store";
 
 /** Edge swipe back on touch layouts, or close the queue while expanded. */
 export function useMobileEdgeSwipe() {

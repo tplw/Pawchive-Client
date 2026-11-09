@@ -15,15 +15,15 @@ import {
   UserRound,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { SPEEDS, serviceLabel } from "../../../lib/constants";
-import { removeBlockedCreator } from "../../../lib/blockedCreators";
+import { SPEEDS, serviceLabel } from "../../../shared/lib/constants";
+import { removeBlockedCreator } from "../../../shared/lib/blockedCreators";
 import { queryKeys } from "../../../shared/query/keys";
-import { isAndroid, isIos, isMobile } from "../../../lib/platform";
-import { api } from "../../../services/api";
-import { useAppStore } from "../../../stores/app";
+import { isAndroid, isIos, isMobile } from "../../../shared/lib/platform";
+import { api } from "../../../shared/api";
+import { useAppStore } from "../../../app/store";
 import { AccountPanel } from "../../account/ui/AccountPanel";
-import { Button, Toggle } from "../../../components/ui";
-import type { BlockedCreator, PostCardSize } from "../../../types";
+import { Button, Toggle } from "../../../shared/ui";
+import type { BlockedCreator, PostCardSize } from "../../../shared/types";
 
 const ACCENT_PRESETS = [
   "#d6aea8",

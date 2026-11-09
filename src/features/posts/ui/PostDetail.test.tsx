@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../../../services/api";
+import { api } from "../../../shared/api";
 import { PostDetailPage } from "./PostDetail";
 
-vi.mock("../../../services/api", () => ({
+vi.mock("../../../shared/api", () => ({
   api: {
     getPost: vi.fn(),
     getPostComments: vi.fn(),

@@ -1,5 +1,5 @@
 import { AlertTriangle } from "lucide-react";
-import { cn } from "../../../lib/format";
+import { cn } from "../../../shared/lib/format";
 
 /** Pawchive's red warning marker for posts that lost files to the size limit. */
 export function ExceedsLimitBadge({ className }: { className?: string }) {

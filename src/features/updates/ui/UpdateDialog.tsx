@@ -1,7 +1,7 @@
 import { Download, Sparkles } from "lucide-react";
-import { api } from "../../../services/api";
-import { pendingUpdateVersion, useAppStore } from "../../../stores/app";
-import { Button, Modal } from "../../../components/ui";
+import { api } from "../../../shared/api";
+import { pendingUpdateVersion, useAppStore } from "../../../app/store";
+import { Button, Modal } from "../../../shared/ui";
 
 /**
  * One-time announcement for a new release.

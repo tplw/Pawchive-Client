@@ -1,9 +1,9 @@
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { QueueItem } from "../../../types";
-import { errorMessage } from "../../../lib/constants";
-import { api } from "../../../services/api";
-import { useAppStore } from "../../../stores/app";
+import type { QueueItem } from "../../../shared/types";
+import { errorMessage } from "../../../shared/lib/constants";
+import { api } from "../../../shared/api";
+import { useAppStore } from "../../../app/store";
 
 export type TranscodePhase = "download" | "transcode";
 

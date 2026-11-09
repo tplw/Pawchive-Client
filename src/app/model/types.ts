@@ -4,7 +4,7 @@ import type {
   Route,
   TabName,
   UpdateInfo,
-} from "../../types";
+} from "../../shared/types";
 
 export type ToastKind = "success" | "error" | "info";
 

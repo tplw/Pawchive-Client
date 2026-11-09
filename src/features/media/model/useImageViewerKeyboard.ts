@@ -1,5 +1,5 @@
 import { useEffect, type RefObject } from "react";
-import { currentWindow } from "../../../lib/window";
+import { currentWindow } from "../../../shared/lib/window";
 
 /** Keyboard navigation, zoom shortcuts and the focus trap for the viewer. */
 export function useImageViewerKeyboard({

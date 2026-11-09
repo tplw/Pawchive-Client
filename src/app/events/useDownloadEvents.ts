@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { queryClient } from "../../lib/queryClient";
+import { queryClient } from "../../shared/lib/queryClient";
 import { queryKeys } from "../../shared/query/keys";
-import { useAppStore } from "../../stores/app";
+import { useAppStore } from "../store";
 import { mergeDownloadProgress } from "../../features/downloads/model/downloadEvents";
-import type { DownloadRecord } from "../../types";
+import type { DownloadRecord } from "../../shared/types";
 
 /** Patch the cached download list from background download events. */
 export function useDownloadEvents() {

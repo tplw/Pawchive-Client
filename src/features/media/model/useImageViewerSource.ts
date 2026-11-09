@@ -1,11 +1,11 @@
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
-import type { Attachment } from "../../../types";
-import { api } from "../../../services/api";
+import type { Attachment } from "../../../shared/types";
+import { api } from "../../../shared/api";
 import {
   isMegaFileUrl,
   needsMediaResolution,
-} from "../../../player/queue";
+} from "../../player/model/queue";
 
 /**
  * Load the current image for the viewer. Cached images win; otherwise the

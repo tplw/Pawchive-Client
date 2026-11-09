@@ -8,16 +8,16 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { api } from "../../../services/api";
-import { errorMessage } from "../../../lib/constants";
-import { isCreatorBlocked } from "../../../lib/blockedCreators";
+import { api } from "../../../shared/api";
+import { errorMessage } from "../../../shared/lib/constants";
+import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
 import { DownloadRow } from "./DownloadRow";
 import { queryKeys } from "../../../shared/query/keys";
-import { useAppStore } from "../../../stores/app";
-import { isMobile } from "../../../lib/platform";
+import { useAppStore } from "../../../app/store";
+import { isMobile } from "../../../shared/lib/platform";
 import { PlaylistPicker } from "../../playlists/ui/PlaylistPicker";
-import { Button, ConfirmDialog, EmptyState } from "../../../components/ui";
-import type { PlaylistItemInput } from "../../../types";
+import { Button, ConfirmDialog, EmptyState } from "../../../shared/ui";
+import type { PlaylistItemInput } from "../../../shared/types";
 
 const DOWNLOAD_CHUNK = 80;
 let savedDownloadsVisible = DOWNLOAD_CHUNK;

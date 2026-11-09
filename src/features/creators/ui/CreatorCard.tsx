@@ -1,15 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users } from "lucide-react";
-import { creatorNameLooksAsmr, loadCreatorFilter } from "../../../lib/creatorFilters";
+import { creatorNameLooksAsmr, loadCreatorFilter } from "../../../shared/lib/creatorFilters";
 import { queryKeys } from "../../../shared/query/keys";
-import { cn, formatRelative, shortNumber } from "../../../lib/format";
+import { cn, formatRelative, shortNumber } from "../../../shared/lib/format";
 import { activate } from "../../../shared/lib/a11y";
-import { navigate } from "../../../lib/router";
-import { api } from "../../../services/api";
-import { useAppStore } from "../../../stores/app";
-import type { CreatorSummary } from "../../../types";
-import { Badge, Skeleton } from "../../../components/ui";
-import { SiteIcon } from "../../../components/SiteIcon";
+import { navigate } from "../../../shared/lib/router";
+import { api } from "../../../shared/api";
+import { useAppStore } from "../../../app/store";
+import type { CreatorSummary } from "../../../shared/types";
+import { Badge, Skeleton } from "../../../shared/ui";
+import { SiteIcon } from "../../../shared/SiteIcon";
 import {
   CreatorAvatar,
   CreatorBanner,

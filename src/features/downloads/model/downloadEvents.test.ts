@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DownloadRecord } from "../../../types";
+import type { DownloadRecord } from "../../../shared/types";
 import { mergeDownloadProgress } from "./downloadEvents";
 
 function record(id: string, downloadedBytes = 0): DownloadRecord {

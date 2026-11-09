@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DownloadRecord, PlaylistItem } from "../../../types";
+import type { DownloadRecord, PlaylistItem } from "../../../shared/types";
 import {
   attachmentFromDownload,
   attachmentFromPlaylistItem,

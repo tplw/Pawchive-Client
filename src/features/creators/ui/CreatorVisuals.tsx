@@ -4,10 +4,10 @@ import {
   creatorAvatar,
   creatorBanner,
   serviceLabel,
-} from "../../../lib/constants";
-import { cn } from "../../../lib/format";
-import { useAppStore } from "../../../stores/app";
-import type { Service } from "../../../types";
+} from "../../../shared/lib/constants";
+import { cn } from "../../../shared/lib/format";
+import { useAppStore } from "../../../app/store";
+import type { Service } from "../../../shared/types";
 
 const SERVICE_COLORS: Record<string, string> = {
   patreon: "bg-[#f96854]/12 text-[#ff8a78] border-[#f96854]/25",

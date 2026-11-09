@@ -289,6 +289,13 @@ These stay identical throughout the migration:
   Frontend and backend re-export shims were deleted, tests moved beside their
   features, dead `TODO`/`not implemented` markers are gone, and the README
   project structure reflects the new layout.
+- **Phase 6 follow-up complete:** models were split into
+  `shared/models/{post,creator,library,download,account,settings,common}`;
+  security, MEGA, local HTTP, downloads, SQLite and the Pawchive API client
+  were split into focused submodules. The frontend moved player state/queue
+  into `features/player`, shared utilities into `shared/lib`, shared UI into
+  `shared/`, shell components into `app/shell`, and router wiring into an
+  explicit `app/bootstrap/wireNavigation` call.
 - **Next:** final release smoke test and packaging check.
 
 ## Migration phases

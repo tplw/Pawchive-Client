@@ -1,4 +1,4 @@
-import { errorMessage } from "../../lib/constants";
+import { errorMessage } from "../../shared/lib/constants";
 import type { AppStore, AppStoreApi, ToastKind } from "./types";
 
 let toastCounter = 0;

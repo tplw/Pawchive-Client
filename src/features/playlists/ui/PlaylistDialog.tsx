@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { api } from "../../../services/api";
+import { api } from "../../../shared/api";
 import { queryKeys } from "../../../shared/query/keys";
-import { useAppStore } from "../../../stores/app";
-import { Button, Field, Modal, TextInput } from "../../../components/ui";
+import { useAppStore } from "../../../app/store";
+import { Button, Field, Modal, TextInput } from "../../../shared/ui";
 
 export function PlaylistDialog({
   open,

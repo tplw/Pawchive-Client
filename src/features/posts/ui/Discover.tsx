@@ -1,22 +1,22 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Compass, LoaderCircle, RefreshCw, Users } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { api } from "../../../services/api";
-import { errorMessage } from "../../../lib/constants";
+import { api } from "../../../shared/api";
+import { errorMessage } from "../../../shared/lib/constants";
 import { nextOffset } from "../../../shared/query/pagination";
-import { visibleCreators } from "../../../features/creators/model/feed";
+import { visibleCreators } from "../../creators/model/feed";
 import { visiblePosts } from "../model/feed";
 import { queryKeys } from "../../../shared/query/keys";
-import { cn } from "../../../lib/format";
-import { creatorGridMetrics, postGridMetrics } from "../../../lib/layout";
-import { useAppStore } from "../../../stores/app";
+import { cn } from "../../../shared/lib/format";
+import { creatorGridMetrics, postGridMetrics } from "../../../shared/lib/layout";
+import { useAppStore } from "../../../app/store";
 import {
   CreatorCard,
   CreatorCardSkeleton,
 } from "../../creators/ui/CreatorCard";
 import { PostCard, PostCardSkeleton } from "./PostCard";
-import { CardGrid } from "../../../components/CardGrid";
-import { Button, EmptyState } from "../../../components/ui";
+import { CardGrid } from "../../../shared/CardGrid";
+import { Button, EmptyState } from "../../../shared/ui";
 
 type Tab = "posts" | "creators";
 type Feed = "recent" | "popular";

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { QueueItem } from "../../../types";
+import type { QueueItem } from "../../../shared/types";
 
 /** Keep the OS media controls in sync with the current queue item. */
 export function useMediaSession(item: QueueItem | null | undefined) {

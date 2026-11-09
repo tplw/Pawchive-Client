@@ -2,8 +2,8 @@ import {
   parseRoute,
   routeToHash,
   writeRouteHash,
-} from "../../lib/router";
-import type { Route, TabName } from "../../types";
+} from "../../shared/lib/router";
+import type { Route, TabName } from "../../shared/types";
 import type { AppStore, AppStoreApi, TabStacks } from "./types";
 
 const TAB_NAMES: TabName[] = [

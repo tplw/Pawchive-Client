@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CreatorSummary, PostSummary } from "../../../types";
+import type { CreatorSummary, PostSummary } from "../../../shared/types";
 import { visibleCreators } from "../../creators/model/feed";
 import { visiblePosts } from "./feed";
 

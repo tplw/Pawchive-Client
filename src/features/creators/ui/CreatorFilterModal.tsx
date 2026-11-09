@@ -1,5 +1,5 @@
-import type { CreatorFilter } from "../../../lib/creatorFilters";
-import { Button, Field, Modal, Toggle } from "../../../components/ui";
+import type { CreatorFilter } from "../../../shared/lib/creatorFilters";
+import { Button, Field, Modal, Toggle } from "../../../shared/ui";
 
 export function CreatorFilterModal({
   open,

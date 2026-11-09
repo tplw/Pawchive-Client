@@ -15,26 +15,26 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { api } from "../../../services/api";
-import { errorMessage, serviceLabel } from "../../../lib/constants";
+import { api } from "../../../shared/api";
+import { errorMessage, serviceLabel } from "../../../shared/lib/constants";
 import {
   addBlockedCreator,
   isCreatorBlocked,
-} from "../../../lib/blockedCreators";
-import { BlockedCreatorNotice } from "../../../components/BlockedCreatorNotice";
+} from "../../../shared/lib/blockedCreators";
+import { BlockedCreatorNotice } from "./BlockedCreatorNotice";
 import { nextOffset, uniqueBy } from "../../../shared/query/pagination";
 import { queryKeys } from "../../../shared/query/keys";
 import {
   creatorFilterActive,
   detectAsmrCreator,
   postMatchesCreatorFilter,
-} from "../../../lib/creatorFilters";
-import { cn, formatDate, formatRelative, shortNumber } from "../../../lib/format";
-import { creatorGridMetrics, postGridMetrics } from "../../../lib/layout";
-import { goBack, navigate, routeTitle } from "../../../lib/router";
-import { useAppStore } from "../../../stores/app";
-import { usePlayerStore } from "../../../player/store";
-import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
+} from "../../../shared/lib/creatorFilters";
+import { cn, formatDate, formatRelative, shortNumber } from "../../../shared/lib/format";
+import { creatorGridMetrics, postGridMetrics } from "../../../shared/lib/layout";
+import { goBack, navigate, routeTitle } from "../../../shared/lib/router";
+import { useAppStore } from "../../../app/store";
+import { usePlayerStore } from "../../player/model/store";
+import { useDebouncedValue } from "../../../shared/lib/useDebouncedValue";
 import { PostCard, PostCardSkeleton } from "../../posts/ui/PostCard";
 import {
   CreatorAvatar,
@@ -43,11 +43,11 @@ import {
   ServiceBadge,
 } from "./CreatorVisuals";
 import { CreatorCard, CreatorCardSkeleton } from "./CreatorCard";
-import { CardGrid } from "../../../components/CardGrid";
+import { CardGrid } from "../../../shared/CardGrid";
 import { CreatorFilterModal } from "./CreatorFilterModal";
 import { useCreatorFilterState } from "../model/useCreatorFilterState";
-import { SanitizedHtml } from "../../../components/SanitizedHtml";
-import { SiteIcon } from "../../../components/SiteIcon";
+import { SanitizedHtml } from "../../../shared/SanitizedHtml";
+import { SiteIcon } from "../../../shared/SiteIcon";
 import {
   Badge,
   Button,
@@ -55,7 +55,7 @@ import {
   IconButton,
   SectionHeader,
   Spinner,
-} from "../../../components/ui";
+} from "../../../shared/ui";
 
 type Tab = "posts" | "about" | "announcements" | "similar";
 

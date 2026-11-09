@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
-import type { QueueItem } from "../../../types";
-import { errorMessage } from "../../../lib/constants";
-import { api } from "../../../services/api";
-import { useAppStore } from "../../../stores/app";
-import { isMegaFileUrl, needsMediaResolution } from "../../../player/queue";
+import type { QueueItem } from "../../../shared/types";
+import { errorMessage } from "../../../shared/lib/constants";
+import { api } from "../../../shared/api";
+import { useAppStore } from "../../../app/store";
+import { isMegaFileUrl, needsMediaResolution } from "./queue";
 
 export function isHlsUrl(url: string): boolean {
   return /\.m3u8(?:$|[?#])/i.test(url);

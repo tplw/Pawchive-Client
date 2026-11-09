@@ -1,18 +1,18 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { LoaderCircle, RefreshCw, Search, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../../../services/api";
-import { errorMessage } from "../../../lib/constants";
+import { api } from "../../../shared/api";
+import { errorMessage } from "../../../shared/lib/constants";
 import { nextOffset } from "../../../shared/query/pagination";
 import { visibleCreators } from "../model/feed";
 import { queryKeys } from "../../../shared/query/keys";
-import { cn, shortNumber } from "../../../lib/format";
-import { creatorGridMetrics } from "../../../lib/layout";
-import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
-import { useAppStore } from "../../../stores/app";
+import { cn, shortNumber } from "../../../shared/lib/format";
+import { creatorGridMetrics } from "../../../shared/lib/layout";
+import { useDebouncedValue } from "../../../shared/lib/useDebouncedValue";
+import { useAppStore } from "../../../app/store";
 import { CreatorCard, CreatorCardSkeleton } from "./CreatorCard";
-import { CardGrid } from "../../../components/CardGrid";
-import { Button, EmptyState, SectionHeader } from "../../../components/ui";
+import { CardGrid } from "../../../shared/CardGrid";
+import { Button, EmptyState, SectionHeader } from "../../../shared/ui";
 
 /** Preserve directory filters when navigating to a creator and back. */
 const savedCreatorsView = {

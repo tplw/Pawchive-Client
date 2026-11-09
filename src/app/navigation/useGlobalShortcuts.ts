@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { isEditableTarget } from "../../lib/format";
-import { switchTab } from "../../lib/router";
-import { useAppStore } from "../../stores/app";
+import { isEditableTarget } from "../../shared/lib/format";
+import { switchTab } from "../../shared/lib/router";
+import { useAppStore } from "../store";
 
 /** Global search and tab shortcuts. */
 export function useGlobalShortcuts() {

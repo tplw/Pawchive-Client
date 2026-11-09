@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useAppStore } from "../../stores/app";
+import { useAppStore } from "../store";
 
 /** Restore the hash route and keep it in sync with browser navigation. */
 export function useHashSync() {

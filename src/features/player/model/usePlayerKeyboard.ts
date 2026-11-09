@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { isEditableTarget } from "../../../lib/format";
-import { currentWindow } from "../../../lib/window";
-import { usePlayerStore } from "../../../player/store";
+import { isEditableTarget } from "../../../shared/lib/format";
+import { currentWindow } from "../../../shared/lib/window";
+import { usePlayerStore } from "./store";
 
 /** Global media shortcuts, active only while the player is expanded. */
 export function usePlayerKeyboard({

@@ -14,11 +14,11 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import { SPEEDS } from "../../../lib/constants";
-import { cn, formatDuration } from "../../../lib/format";
-import { isMobile } from "../../../lib/platform";
-import { usePlayerStore } from "../../../player/store";
-import { IconButton } from "../../../components/ui";
+import { SPEEDS } from "../../../shared/lib/constants";
+import { cn, formatDuration } from "../../../shared/lib/format";
+import { isMobile } from "../../../shared/lib/platform";
+import { usePlayerStore } from "../model/store";
+import { IconButton } from "../../../shared/ui";
 
 export function SeekBar({
   value,

@@ -1,13 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../../../services/api";
-import { DEFAULT_SETTINGS } from "../../../lib/constants";
-import { useAppStore } from "../../../stores/app";
-import type { CreatorSummary, PostSummary } from "../../../types";
+import { api } from "../../../shared/api";
+import { DEFAULT_SETTINGS } from "../../../shared/lib/constants";
+import { useAppStore } from "../../../app/store";
+import type { CreatorSummary, PostSummary } from "../../../shared/types";
 import { CreatorProfilePage } from "./CreatorProfile";
 
-vi.mock("../../../services/api", () => ({
+vi.mock("../../../shared/api", () => ({
   api: {
     getCreator: vi.fn(),
     getCreatorProfile: vi.fn(),

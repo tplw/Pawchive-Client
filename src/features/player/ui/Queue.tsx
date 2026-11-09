@@ -6,9 +6,9 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { cn } from "../../../lib/format";
-import { usePlayerStore } from "../../../player/store";
-import { IconButton } from "../../../components/ui";
+import { cn } from "../../../shared/lib/format";
+import { usePlayerStore } from "../model/store";
+import { IconButton } from "../../../shared/ui";
 
 export function QueueList({ className }: { className?: string }) {
   const queue = usePlayerStore((state) => state.queue);

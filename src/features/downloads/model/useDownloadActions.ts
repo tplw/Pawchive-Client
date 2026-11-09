@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api } from "../../../services/api";
+import { api } from "../../../shared/api";
 import { queryKeys } from "../../../shared/query/keys";
 type DownloadRequest = Parameters<typeof api.startDownload>[0];
 

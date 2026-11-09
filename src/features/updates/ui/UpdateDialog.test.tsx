@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "../../../lib/constants";
-import { api } from "../../../services/api";
-import { useAppStore } from "../../../stores/app";
+import { DEFAULT_SETTINGS } from "../../../shared/lib/constants";
+import { api } from "../../../shared/api";
+import { useAppStore } from "../../../app/store";
 import { UpdateDialog } from "./UpdateDialog";
 
-vi.mock("../../../services/api", () => ({
+vi.mock("../../../shared/api", () => ({
   api: {
     saveSettings: vi.fn(),
     openExternal: vi.fn(),

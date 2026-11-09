@@ -1,6 +1,6 @@
-import { api } from "../../../services/api";
-import { errorMessage } from "../../../lib/constants";
-import { queryClient } from "../../../lib/queryClient";
+import { api } from "../../../shared/api";
+import { errorMessage } from "../../../shared/lib/constants";
+import { queryClient } from "../../../shared/lib/queryClient";
 import { queryKeys } from "../../../shared/query/keys";
 import type { AppStore, AppStoreApi } from "../../../app/model/types";
 

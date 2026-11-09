@@ -9,20 +9,20 @@ import {
   X,
 } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
-import { api } from "../../../services/api";
-import { cn, formatBytes, formatRelative } from "../../../lib/format";
+import { api } from "../../../shared/api";
+import { cn, formatBytes, formatRelative } from "../../../shared/lib/format";
 import { queryKeys } from "../../../shared/query/keys";
-import { useAppStore } from "../../../stores/app";
-import { usePlayerStore } from "../../../player/store";
-import { isPlayableMediaKind } from "../../../player/queue";
+import { useAppStore } from "../../../app/store";
+import { usePlayerStore } from "../../player/model/store";
+import { isPlayableMediaKind } from "../../player/model/queue";
 import {
   attachmentFromDownload,
   queueItemFromDownload,
 } from "../../media/model/attachments";
-import { ImageViewer } from "../../../components/ImageViewer";
-import { MediaThumbnail } from "../../../components/MediaThumbnail";
-import { ConfirmDialog, IconButton } from "../../../components/ui";
-import type { Attachment, DownloadRecord } from "../../../types";
+import { ImageViewer } from "../../media/ui/ImageViewer";
+import { MediaThumbnail } from "../../media/ui/MediaThumbnail";
+import { ConfirmDialog, IconButton } from "../../../shared/ui";
+import type { Attachment, DownloadRecord } from "../../../shared/types";
 
 const STATUS_LABEL: Record<DownloadRecord["status"], string> = {
   queued: "Queued",

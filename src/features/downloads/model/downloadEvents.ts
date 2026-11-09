@@ -1,4 +1,4 @@
-import type { DownloadRecord } from "../../../types";
+import type { DownloadRecord } from "../../../shared/types";
 
 /**
  * Merge a download progress event into the cached download list. Progress

@@ -1,6 +1,6 @@
-import { isCreatorBlocked } from "../../../lib/blockedCreators";
+import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
 import { uniqueBy } from "../../../shared/query/pagination";
-import type { BlockedCreator, PostSummary } from "../../../types";
+import type { BlockedCreator, PostSummary } from "../../../shared/types";
 
 /** Filter blocked creators and deduplicate posts by service, creator and id. */
 export function visiblePosts(

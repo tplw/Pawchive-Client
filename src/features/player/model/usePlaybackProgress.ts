@@ -1,9 +1,9 @@
 import { useCallback, useEffect, type RefObject } from "react";
-import type { QueueItem } from "../../../types";
-import { api } from "../../../services/api";
-import { useAppStore } from "../../../stores/app";
-import { usePlayerStore } from "../../../player/store";
-import { cachedProgress, rememberProgress } from "../../../player/progress";
+import type { QueueItem } from "../../../shared/types";
+import { api } from "../../../shared/api";
+import { useAppStore } from "../../../app/store";
+import { usePlayerStore } from "./store";
+import { cachedProgress, rememberProgress } from "./progress";
 
 /**
  * Save and restore playback positions for the current queue item.

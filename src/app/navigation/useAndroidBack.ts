@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { exit, onBackButtonPress } from "@tauri-apps/api/app";
-import { isAndroid } from "../../lib/platform";
-import { handleAndroidBack } from "../../lib/backNavigation";
+import { isAndroid } from "../../shared/lib/platform";
+import { handleAndroidBack } from "../../shared/lib/backNavigation";
 
 /** Route Android hardware back through the in-app back stack. */
 export function useAndroidBack() {

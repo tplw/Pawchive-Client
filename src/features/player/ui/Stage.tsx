@@ -1,8 +1,8 @@
 import { Music2, RotateCcw } from "lucide-react";
 import type { CSSProperties, RefObject } from "react";
-import type { QueueItem } from "../../../types";
-import { cn } from "../../../lib/format";
-import { Button } from "../../../components/ui";
+import type { QueueItem } from "../../../shared/types";
+import { cn } from "../../../shared/lib/format";
+import { Button } from "../../../shared/ui";
 
 /**
  * The persistent media stage. It always renders the same `<video>` element so

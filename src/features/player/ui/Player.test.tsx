@@ -1,0 +1,290 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { api } from "../../../shared/api";
+import { useAppStore } from "../../../app/store";
+import type { QueueItem } from "../../../shared/types";
+import { Player } from "./Player";
+import { clearProgressCache, rememberProgress } from "../model/progress";
+import { usePlayerStore } from "../model/store";
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn().mockResolvedValue(() => undefined),
+}));
+
+vi.mock("../../../shared/api", () => ({
+  api: {
+    validateMedia: vi.fn(),
+    getProgress: vi.fn(),
+    saveProgress: vi.fn(),
+    transcodeMedia: vi.fn(),
+    readSubtitle: vi.fn(),
+    openExternal: vi.fn(),
+    setStatusBarHidden: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+const item: QueueItem = {
+  id: "patreon:1:2:/aa/bb/clip.mp4",
+  url: "https://file.pawchive.pw/data/aa/bb/clip.mp4",
+  filePath: "/aa/bb/clip.mp4",
+  fileName: "clip.mp4",
+  mediaKind: "video",
+  title: "A video",
+  creatorName: "Ada",
+  artwork: null,
+  service: "patreon",
+  creatorId: "1",
+  postId: "2",
+};
+
+describe("player", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearProgressCache();
+    useAppStore.setState({
+      toasts: [],
+      route: { name: "home" },
+      previousRoute: null,
+    });
+    usePlayerStore.setState({
+      queue: [item],
+      currentId: item.id,
+      playing: true,
+      volume: 1,
+      muted: false,
+      speed: 1,
+      expanded: false,
+      currentTime: 0,
+      duration: 0,
+      buffered: 0,
+    });
+    vi.mocked(api.validateMedia).mockResolvedValue(item.url);
+    vi.mocked(api.getProgress).mockResolvedValue({
+      filePath: item.filePath,
+      position: 30,
+      duration: 120,
+      updatedAt: 1700000000,
+    });
+    vi.mocked(api.saveProgress).mockResolvedValue(undefined);
+    vi.mocked(api.transcodeMedia).mockReset();
+  });
+
+  it("saves progress before navigating to another page", async () => {
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    expect(video).not.toBeNull();
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      value: 42,
+    });
+    Object.defineProperty(video, "duration", {
+      configurable: true,
+      value: 120,
+    });
+    fireEvent.loadedMetadata(video);
+    window.dispatchEvent(new Event("pawchive:save-progress"));
+    await waitFor(() =>
+      expect(api.saveProgress).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filePath: "aa/bb/clip.mp4",
+          position: 42,
+          duration: 120,
+        }),
+      ),
+    );
+  });
+
+  it("forces playback when the media element is paused but the UI says playing", () => {
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    expect(video).not.toBeNull();
+    Object.defineProperty(video, "paused", {
+      configurable: true,
+      value: true,
+    });
+    const play = vi.spyOn(video, "play").mockResolvedValue(undefined);
+    fireEvent.click(screen.getByLabelText("Pause"));
+    expect(play).toHaveBeenCalled();
+  });
+
+  it("shows the buffering animation beside the media time", async () => {
+    usePlayerStore.setState({ expanded: true });
+    render(<Player />);
+    const spinner = await screen.findByRole("status", { name: "Buffering" });
+    const time = screen.getByText(/0:00 \/ 0:00/);
+    expect(time.parentElement).toContainElement(spinner);
+    expect(
+      time.compareDocumentPosition(spinner) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("opens the original post from the compact player title", () => {
+    window.location.hash = "#/home";
+    render(<Player />);
+    fireEvent.click(screen.getByTitle("Open original post"));
+    expect(window.location.hash).toBe("#/post/patreon/1/2");
+  });
+
+  it("minimizes the player and opens the post from the expanded title", () => {
+    window.location.hash = "#/home";
+    usePlayerStore.setState({ expanded: true });
+    render(<Player />);
+    fireEvent.click(screen.getByTitle("Open original post"));
+    expect(window.location.hash).toBe("#/post/patreon/1/2");
+    expect(usePlayerStore.getState().expanded).toBe(false);
+  });
+
+  it("expands the player when the compact thumbnail is clicked", () => {
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    expect(video).not.toBeNull();
+    fireEvent.click(video);
+    expect(usePlayerStore.getState().expanded).toBe(true);
+  });
+
+  it("hides and restores the player ui when the media is pressed", () => {
+    usePlayerStore.setState({ expanded: true });
+    render(<Player />);
+
+    const toggle = screen.getByLabelText("Toggle player controls");
+    expect(screen.getByTitle("Open original post")).toBeTruthy();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByTitle("Open original post")).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(screen.getByTitle("Open original post")).toBeTruthy();
+  });
+
+  it("falls back to the direct download when HLS playback is unsupported", async () => {
+    const hlsItem: QueueItem = {
+      ...item,
+      id: "patreon:1:2:/d/hash/clip.mp4",
+      url: "https://t1.pawchive.pw/v/hash/master.m3u8?e=1&s=abc",
+      downloadUrl: "https://t1.pawchive.pw/d/hash/clip.mp4?e=1&s=xyz",
+      filePath: "/d/hash/clip.mp4",
+    };
+    usePlayerStore.setState({ queue: [hlsItem], currentId: hlsItem.id });
+    vi.mocked(api.validateMedia).mockResolvedValue(hlsItem.url);
+
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    await waitFor(() => expect(video.src).toBe(hlsItem.url));
+
+    fireEvent.error(video);
+
+    await waitFor(() => expect(video.src).toBe(hlsItem.downloadUrl));
+  });
+
+  it("shows the playing video instead of the artwork in the mini player", async () => {
+    const artworkItem: QueueItem = {
+      ...item,
+      artwork: "https://img.pawchive.pw/thumbnail/data/aa/bb/cover.jpg",
+    };
+    usePlayerStore.setState({ queue: [artworkItem], currentId: artworkItem.id });
+    vi.mocked(api.validateMedia).mockResolvedValue(artworkItem.url);
+
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    const stage = video.parentElement as HTMLElement;
+    expect(stage.querySelector("img")).not.toBeNull();
+
+    await waitFor(() => expect(video.src).toBe(artworkItem.url));
+    fireEvent.loadedData(video);
+    expect(stage.querySelector("img")).toBeNull();
+  });
+
+  it("transcodes unsupported media when the fallback is enabled", async () => {
+    vi.stubGlobal("MediaError", {
+      MEDIA_ERR_SRC_NOT_SUPPORTED: 4,
+      MEDIA_ERR_DECODE: 3,
+      MEDIA_ERR_NETWORK: 2,
+    });
+    try {
+      useAppStore.setState({
+        settings: {
+          ...useAppStore.getState().settings,
+          transcodeMedia: true,
+        },
+      });
+      const transcoded = "http://127.0.0.1:1/media/transcoded";
+      vi.mocked(api.transcodeMedia).mockResolvedValue(transcoded);
+
+      render(<Player />);
+      const video = document.querySelector("video") as HTMLVideoElement;
+      await waitFor(() => expect(video.src).toBe(item.url), { timeout: 3000 });
+      Object.defineProperty(video, "error", {
+        configurable: true,
+        value: { code: 4 },
+      });
+
+      fireEvent.error(video);
+
+      await waitFor(
+        () =>
+          expect(api.transcodeMedia).toHaveBeenCalledWith(
+            item.url,
+            expect.any(String),
+          ),
+        { timeout: 3000 },
+      );
+      await waitFor(() => expect(video.src).toBe(transcoded), {
+        timeout: 3000,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("restores the last playback position after metadata loads", async () => {
+    render(<Player />);
+    await waitFor(() =>
+      expect(api.getProgress).toHaveBeenCalledWith("aa/bb/clip.mp4"),
+    );
+    const video = document.querySelector("video");
+    expect(video).not.toBeNull();
+    Object.defineProperty(video, "duration", {
+      configurable: true,
+      value: 120,
+    });
+    fireEvent.loadedMetadata(video as HTMLVideoElement);
+    await waitFor(() =>
+      expect((video as HTMLVideoElement).currentTime).toBeCloseTo(30, 1),
+    );
+  });
+
+  it("resumes cached progress after switching to another item", async () => {
+    const next: QueueItem = {
+      ...item,
+      id: "patreon:1:3:/cc/dd/next.mp4",
+      url: "https://file.pawchive.pw/data/cc/dd/next.mp4",
+      filePath: "/cc/dd/next.mp4",
+      fileName: "next.mp4",
+      title: "Next video",
+    };
+    rememberProgress({
+      filePath: "cc/dd/next.mp4",
+      position: 40,
+      duration: 120,
+      updatedAt: 1700000000,
+    });
+    vi.mocked(api.validateMedia).mockImplementation(async (url) => url);
+
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    await waitFor(() => expect(video.src).toBe(item.url));
+    fireEvent.loadedMetadata(video);
+
+    act(() => {
+      usePlayerStore.setState({ queue: [item, next], currentId: next.id });
+    });
+    await waitFor(() => expect(video.src).toBe(next.url));
+
+    Object.defineProperty(video, "duration", {
+      configurable: true,
+      value: 120,
+    });
+    fireEvent.loadedMetadata(video);
+    await waitFor(() => expect(video.currentTime).toBeCloseTo(40, 1));
+  });
+});

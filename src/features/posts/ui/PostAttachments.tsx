@@ -8,9 +8,9 @@ import {
   ListMusic,
   ListPlus,
 } from "lucide-react";
-import type { Attachment, MediaKind } from "../../../types";
-import { cn } from "../../../lib/format";
-import { IconButton, SectionHeader } from "../../../components/ui";
+import type { Attachment, MediaKind } from "../../../shared/types";
+import { cn } from "../../../shared/lib/format";
+import { IconButton, SectionHeader } from "../../../shared/ui";
 import { AttachmentMeta } from "./AttachmentMeta";
 
 const KIND_ICON: Record<MediaKind, typeof ImageIcon> = {

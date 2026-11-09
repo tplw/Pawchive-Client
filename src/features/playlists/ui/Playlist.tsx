@@ -9,22 +9,22 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../../../services/api";
-import { errorMessage } from "../../../lib/constants";
-import { isCreatorBlocked } from "../../../lib/blockedCreators";
+import { api } from "../../../shared/api";
+import { errorMessage } from "../../../shared/lib/constants";
+import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
 import { queryKeys } from "../../../shared/query/keys";
-import { navigate, switchTab } from "../../../lib/router";
-import { useAppStore } from "../../../stores/app";
-import { usePlayerStore } from "../../../player/store";
+import { navigate, switchTab } from "../../../shared/lib/router";
+import { useAppStore } from "../../../app/store";
+import { usePlayerStore } from "../../player/model/store";
 import {
   isPlayableMediaKind,
   queueItemFromPlaylistItem,
-} from "../../../player/queue";
-import { attachmentFromPlaylistItem } from "../../../features/media/model/attachments";
+} from "../../player/model/queue";
+import { attachmentFromPlaylistItem } from "../../media/model/attachments";
 import { useDownloadActions } from "../../downloads/model/useDownloadActions";
-import { ImageViewer } from "../../../components/ImageViewer";
-import { MediaThumbnail } from "../../../components/MediaThumbnail";
-import { SiteIcon } from "../../../components/SiteIcon";
+import { ImageViewer } from "../../media/ui/ImageViewer";
+import { MediaThumbnail } from "../../media/ui/MediaThumbnail";
+import { SiteIcon } from "../../../shared/SiteIcon";
 import {
   Badge,
   Button,
@@ -33,8 +33,8 @@ import {
   IconButton,
   SectionHeader,
   Spinner,
-} from "../../../components/ui";
-import type { Attachment, PlaylistItem } from "../../../types";
+} from "../../../shared/ui";
+import type { Attachment, PlaylistItem } from "../../../shared/types";
 
 function playlistFileName(item: PlaylistItem): string {
   return item.mediaPath.split("/").filter(Boolean).pop() || item.title;

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import { useAppStore } from "../../stores/app";
-import { usePlayerStore } from "../../player/store";
-import { hexToRgbTriplet } from "../../lib/format";
+import { useAppStore } from "../store";
+import { usePlayerStore } from "../../features/player/model/store";
+import { hexToRgbTriplet } from "../../shared/lib/format";
 
 /** One-time app startup, theme application and player settings sync. */
 export function useBootstrap() {

@@ -3,7 +3,7 @@ import type {
   DownloadRecord,
   PlaylistItem,
   QueueItem,
-} from "../../../types";
+} from "../../../shared/types";
 import { providerForUrl } from "./providers";
 
 /** Build the image-viewer attachment for a playlist item. */

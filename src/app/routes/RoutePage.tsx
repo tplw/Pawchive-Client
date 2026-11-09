@@ -4,7 +4,7 @@ import { HomePage, PlaylistPage } from "../../features/playlists";
 import { DiscoverPage, PostDetailPage } from "../../features/posts";
 import { SearchPage } from "../../features/search";
 import { SettingsPage } from "../../features/settings";
-import type { Route } from "../../types";
+import type { Route } from "../../shared/types";
 
 export function RoutePage({ route }: { route: Route }) {
   switch (route.name) {

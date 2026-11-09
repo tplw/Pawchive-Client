@@ -14,23 +14,23 @@ import {
   Users,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../../../services/api";
-import { errorMessage } from "../../../lib/constants";
+import { api } from "../../../shared/api";
+import { errorMessage } from "../../../shared/lib/constants";
 import { nextOffset } from "../../../shared/query/pagination";
-import { visibleCreators } from "../../../features/creators/model/feed";
-import { visiblePosts } from "../../../features/posts/model/feed";
+import { visibleCreators } from "../../creators/model/feed";
+import { visiblePosts } from "../../posts/model/feed";
 import { queryKeys } from "../../../shared/query/keys";
-import { cn } from "../../../lib/format";
-import { creatorGridMetrics, postGridMetrics } from "../../../lib/layout";
-import { useAppStore } from "../../../stores/app";
-import { recordTiming } from "../../../lib/perf";
-import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
-import { navigate } from "../../../lib/router";
+import { cn } from "../../../shared/lib/format";
+import { creatorGridMetrics, postGridMetrics } from "../../../shared/lib/layout";
+import { useAppStore } from "../../../app/store";
+import { recordTiming } from "../../../shared/lib/perf";
+import { useDebouncedValue } from "../../../shared/lib/useDebouncedValue";
+import { navigate } from "../../../shared/lib/router";
 import { CreatorCard } from "../../creators/ui/CreatorCard";
 import { PostCard, PostCardSkeleton } from "../../posts/ui/PostCard";
-import { CardGrid } from "../../../components/CardGrid";
-import { Button, EmptyState, SectionHeader, TextInput } from "../../../components/ui";
-import type { MediaKind } from "../../../types";
+import { CardGrid } from "../../../shared/CardGrid";
+import { Button, EmptyState, SectionHeader, TextInput } from "../../../shared/ui";
+import type { MediaKind } from "../../../shared/types";
 
 type ContentFilter = "all" | "posts" | "creators";
 
