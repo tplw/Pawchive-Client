@@ -67,3 +67,6 @@ artifacts/*
 *.mobileprovision
 *.jks
 *.keystore
+
+# Local Python helper cache
+__pycache__/
