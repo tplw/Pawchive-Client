@@ -296,7 +296,13 @@ These stay identical throughout the migration:
   into `features/player`, shared utilities into `shared/lib`, shared UI into
   `shared/`, shell components into `app/shell`, and router wiring into an
   explicit `app/bootstrap/wireNavigation` call.
-- **Next:** final release smoke test and packaging check.
+- **Release smoke check (macOS arm64):** `npm run tauri build` produced
+  `Pawchive.app` (8.83 MiB) and `Pawchive_1.0.5_aarch64.dmg` (4.52 MiB). The
+  DMG mounted correctly and contained the app. The built app launched without
+  errors; Home, Discover, Search, Downloads and Settings rendered, and a live
+  search for "asmr" returned creator results. No error, warning or panic lines
+  appeared in the unified log during the run. The app is ad-hoc signed, as
+  expected for the local build.
 
 ## Migration phases
 
