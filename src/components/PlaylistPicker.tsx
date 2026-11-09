@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListMusic, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
+import { queryKeys } from "../shared/query/keys";
 import { useAppStore } from "../stores/app";
 import type { PlaylistItemInput } from "../types";
 import { cn } from "../lib/format";
@@ -39,7 +40,7 @@ export function PlaylistPicker({
   }, []);
 
   const playlists = useQuery({
-    queryKey: ["playlists"],
+    queryKey: queryKeys.playlists(),
     queryFn: () => api.listPlaylists(),
     enabled: open,
     staleTime: 20_000,
@@ -105,8 +106,8 @@ export function PlaylistPicker({
         count === 1 ? "Added to playlist" : `Added ${count} items`,
         name,
       );
-      void queryClient.invalidateQueries({ queryKey: ["playlists"] });
-      void queryClient.invalidateQueries({ queryKey: ["playlist-items"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlists() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlistItems() });
       onClose();
     },
     onError: (error) => reportError(error, "Could not add to playlist"),

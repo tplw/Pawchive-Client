@@ -1,15 +1,16 @@
 use crate::config::{PawchiveConfig, PAGE_SIZE};
 use crate::error::{AppError, AppResult};
+use crate::features::posts::summary::{build_post_page, creator_lookup, post_thumbnail};
 use crate::models::{
     now_ts, AccountSession, AccountState, Announcement, AppSettings, Attachment, Comment,
     CreatorPage, CreatorProfile, CreatorSummary, DownloadRecord, DownloadRequest, MediaKind,
-    PlaybackProgress, Playlist, PlaylistItem, Post, PostDetail, PostPage, PostSummary, Revision,
+    PlaybackProgress, Playlist, PlaylistItem, PostDetail, PostPage, PostSummary, Revision,
     SearchPage,
 };
 use crate::security::{sanitize_html, validate_search_query, validate_service};
 use crate::state::AppState;
 use reqwest::cookie::CookieStore;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
@@ -447,44 +448,6 @@ pub async fn get_similar_creators(
 
 /* --------------------------------- posts -------------------------------- */
 
-fn creator_lookup(st: &AppState, posts: &[Post]) -> HashMap<(String, String), String> {
-    let mut map = HashMap::new();
-    for post in posts {
-        let key = (post.service.clone(), post.user.clone());
-        if map.contains_key(&key) {
-            continue;
-        }
-        if let Ok(Some(creator)) = st.db.get_creator(&post.service, &post.user) {
-            map.insert(key, creator.name);
-        }
-    }
-    map
-}
-
-fn thumbnail_for_file(st: &AppState, file: &crate::models::FileRef) -> Option<String> {
-    if crate::models::media_kind_for_file(file) != MediaKind::Image {
-        return None;
-    }
-    if let Some(temp) = file.temp_url() {
-        if let Ok(url) = crate::security::validate_media_remote_url(temp) {
-            return Some(url.to_string());
-        }
-    }
-    if file.path.starts_with("https://") {
-        Some(file.path.clone())
-    } else if !file.path.trim().is_empty() {
-        Some(st.cfg.thumbnail_url(&file.path))
-    } else {
-        None
-    }
-}
-
-fn post_thumbnail(st: &AppState, post: &Post) -> Option<String> {
-    post.all_files_including_direct()
-        .iter()
-        .find_map(|file| thumbnail_for_file(st, file))
-}
-
 /// Thumbnail lookups are best-effort. Remember failures for the rest of the
 /// process so polling the Downloads page cannot hammer the API for posts that
 /// simply do not contain an image.
@@ -505,38 +468,6 @@ fn mark_thumbnail_attempted(key: &str) {
     {
         attempts.insert(key.to_string());
     }
-}
-
-fn build_post_page(st: &AppState, posts: Vec<Post>, offset: i64) -> AppResult<PostPage> {
-    let has_more = posts.len() as i64 >= PAGE_SIZE;
-    let names = creator_lookup(st, &posts);
-    let settings = st.settings();
-    let items = posts
-        .iter()
-        .filter(|post| {
-            !crate::filters::is_hidden(
-                post,
-                names
-                    .get(&(post.service.clone(), post.user.clone()))
-                    .map(String::as_str),
-                &settings,
-            )
-        })
-        .map(|post| {
-            PostSummary::from_post(
-                &st.cfg,
-                post,
-                names
-                    .get(&(post.service.clone(), post.user.clone()))
-                    .cloned(),
-            )
-        })
-        .collect();
-    Ok(PostPage {
-        items,
-        offset,
-        has_more,
-    })
 }
 
 #[tauri::command]
@@ -1678,6 +1609,7 @@ mod tests {
     use crate::api::ApiClient;
     use crate::config::{NetworkSettings, PawchiveConfig};
     use crate::db::Db;
+    use crate::models::Post;
     use std::sync::{Arc, Mutex, RwLock};
 
     fn test_state(settings: AppSettings) -> AppState {

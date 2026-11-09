@@ -27,6 +27,8 @@ import {
 import { useAppStore } from "./stores/app";
 import { usePlayerStore } from "./player/store";
 import { queryClient } from "./lib/queryClient";
+import { mergeDownloadProgress } from "./features/downloads/model/downloadEvents";
+import { queryKeys } from "./shared/query/keys";
 import { isAndroid, isMobile } from "./lib/platform";
 import { handleAndroidBack } from "./lib/backNavigation";
 import type { DownloadRecord, Route } from "./types";
@@ -325,14 +327,10 @@ export default function App() {
       // Patch the cached list instead of refetching it on every tick.
       const updated = event.payload;
       if (!updated?.id) return;
-      queryClient.setQueryData<DownloadRecord[]>(["downloads"], (records) => {
-        if (!records) return records;
-        const index = records.findIndex((record) => record.id === updated.id);
-        if (index === -1) return [updated, ...records];
-        const next = records.slice();
-        next[index] = { ...next[index], ...updated };
-        return next;
-      });
+      queryClient.setQueryData<DownloadRecord[]>(
+        queryKeys.downloads(),
+        (records) => mergeDownloadProgress(records, updated),
+      );
     }).then((fn) => {
       if (disposed) fn();
       else unlistenProgress = fn;
@@ -340,15 +338,15 @@ export default function App() {
     void listen<DownloadRecord>("download://complete", () => {
       // Completion is visible in the Downloads page. Avoid one toast per file
       // when a post or playlist queues dozens of downloads.
-      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
-      void queryClient.invalidateQueries({ queryKey: ["playlist-items"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlistItems() });
     }).then((fn) => {
       if (disposed) fn();
       else unlistenComplete = fn;
     });
     void listen<DownloadRecord>("download://error", (event) => {
       toast("error", "Download failed", event.payload.error ?? event.payload.fileName);
-      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
     }).then((fn) => {
       if (disposed) fn();
       else unlistenError = fn;

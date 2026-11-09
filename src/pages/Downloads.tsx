@@ -15,9 +15,14 @@ import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
 import { isCreatorBlocked } from "../lib/blockedCreators";
 import { cn, formatBytes, formatRelative } from "../lib/format";
+import { queryKeys } from "../shared/query/keys";
 import { useAppStore } from "../stores/app";
 import { usePlayerStore } from "../player/store";
-import { isPlayableMediaKind, providerForUrl } from "../player/queue";
+import { isPlayableMediaKind } from "../player/queue";
+import {
+  attachmentFromDownload,
+  queueItemFromDownload,
+} from "../features/media/model/attachments";
 import { isMobile } from "../lib/platform";
 import { ImageViewer } from "../components/ImageViewer";
 import { MediaThumbnail } from "../components/MediaThumbnail";
@@ -79,31 +84,19 @@ const DownloadRow = memo(function DownloadRow({
   }, [record.filePath, record.mediaKind, record.status]);
 
   const image = useMemo<Attachment>(
-    () => ({
-      name: record.title || record.fileName,
-      path: record.filePath,
-      url: localUrl ?? record.thumbnailUrl ?? record.url,
-      thumbnailUrl: record.thumbnailUrl ?? record.url,
-      kind: "image",
-      provider: providerForUrl(record.url),
-      ext: record.fileName.split(".").pop() ?? "",
-      previewOnly: false,
-    }),
-    [
-      localUrl,
-      record.fileName,
-      record.filePath,
-      record.thumbnailUrl,
-      record.title,
-      record.url,
-    ],
+    () =>
+      attachmentFromDownload(
+        record,
+        localUrl ?? record.thumbnailUrl ?? record.url,
+      ),
+    [localUrl, record],
   );
 
   const cancel = useMutation({
     mutationFn: () => api.cancelDownload(record.id),
     onSuccess: () => {
       toast("info", "Download cancelled", record.fileName);
-      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
     },
     onError: (error) => reportError(error, "Could not cancel download"),
   });
@@ -111,7 +104,7 @@ const DownloadRow = memo(function DownloadRow({
   const remove = useMutation({
     mutationFn: () => api.deleteDownload(record.id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
     },
     onError: (error) => reportError(error, "Could not delete download"),
   });
@@ -120,31 +113,14 @@ const DownloadRow = memo(function DownloadRow({
     mutationFn: () => api.retryDownload(record.id),
     onSuccess: () => {
       toast("info", "Download requeued", record.fileName);
-      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
     },
     onError: (error) => reportError(error, "Could not retry download"),
   });
 
   const play = async () => {
     try {
-      playItems([
-        {
-          id: record.id,
-          url: record.url,
-          localPath: record.filePath,
-          filePath: record.filePath,
-          fileName: record.fileName,
-          mediaKind: record.mediaKind,
-          title: record.title || record.fileName,
-          creatorName: record.creatorName,
-          artwork:
-            record.thumbnailUrl ??
-            (record.mediaKind === "image" ? record.url : null),
-          service: record.service,
-          creatorId: record.creatorId,
-          postId: record.postId,
-        },
-      ]);
+      playItems([queueItemFromDownload(record)]);
     } catch (error) {
       reportError(error, "Could not play download");
     }
@@ -312,7 +288,7 @@ export function DownloadsPage() {
   }, [visibleCount]);
 
   const downloads = useQuery({
-    queryKey: ["downloads"],
+    queryKey: queryKeys.downloads(),
     queryFn: () => api.listDownloads(),
     refetchInterval: (query) => {
       const data = query.state.data;
@@ -327,7 +303,7 @@ export function DownloadsPage() {
     mutationFn: () => api.clearCompletedDownloads(),
     onSuccess: (count) => {
       toast("success", "Downloads cleared", `${count} completed item${count === 1 ? "" : "s"}.`);
-      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
     },
     onError: (error) => reportError(error, "Could not clear downloads"),
   });
@@ -340,8 +316,8 @@ export function DownloadsPage() {
         "All downloads cleared",
         `${count} item${count === 1 ? "" : "s"} removed.`,
       );
-      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
-      void queryClient.invalidateQueries({ queryKey: ["playlist-items"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlistItems() });
     },
     onError: (error) => reportError(error, "Could not clear all downloads"),
   });

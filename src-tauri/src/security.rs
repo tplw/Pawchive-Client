@@ -1,5 +1,4 @@
 use crate::error::{AppError, AppResult};
-use crate::models::MediaKind;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use url::Url;
@@ -417,27 +416,7 @@ fn is_windows_reserved_name(name: &str) -> bool {
         && (b'1'..=b'9').contains(&bytes[3])
 }
 
-pub fn file_extension(name: &str) -> String {
-    Path::new(name)
-        .extension()
-        .map(|e| e.to_string_lossy().to_ascii_lowercase())
-        .unwrap_or_default()
-}
-
-pub fn media_kind_for(name: &str) -> MediaKind {
-    match file_extension(name).as_str() {
-        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif" | "bmp" | "jxl" | "svg" => {
-            MediaKind::Image
-        }
-        "mp4" | "webm" | "mkv" | "mov" | "avi" | "m4v" | "ogv" | "m3u8" | "ts" => MediaKind::Video,
-        "mp3" | "flac" | "wav" | "aac" | "ogg" | "opus" | "m4a" | "m4b" | "wma" | "aiff" => {
-            MediaKind::Audio
-        }
-        "pdf" | "zip" | "rar" | "7z" | "tar" | "gz" | "txt" | "doc" | "docx" | "xls" | "xlsx"
-        | "ppt" | "pptx" | "psd" | "clip" | "epub" | "cbz" | "cbr" => MediaKind::Document,
-        _ => MediaKind::Other,
-    }
-}
+pub use crate::shared::media_kind::{file_extension, media_kind_for};
 
 /// Sanitize creator-authored HTML before it reaches the webview.
 pub fn sanitize_html(raw: &str) -> String {
@@ -526,6 +505,7 @@ pub fn sanitize_html(raw: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shared::media_kind::MediaKind;
 
     #[test]
     fn accepts_public_external_media_but_rejects_private_hosts() {

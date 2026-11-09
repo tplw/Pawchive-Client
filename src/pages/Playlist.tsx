@@ -12,14 +12,15 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
 import { isCreatorBlocked } from "../lib/blockedCreators";
+import { queryKeys } from "../shared/query/keys";
 import { navigate, switchTab } from "../lib/router";
 import { useAppStore } from "../stores/app";
 import { usePlayerStore } from "../player/store";
-import { providerForUrl } from "../player/queue";
 import {
   isPlayableMediaKind,
   queueItemFromPlaylistItem,
 } from "../player/queue";
+import { attachmentFromPlaylistItem } from "../features/media/model/attachments";
 import { ImageViewer } from "../components/ImageViewer";
 import { MediaThumbnail } from "../components/MediaThumbnail";
 import { SiteIcon } from "../components/SiteIcon";
@@ -54,12 +55,12 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
   const enqueue = usePlayerStore((state) => state.enqueue);
 
   const playlist = useQuery({
-    queryKey: ["playlist", playlistId],
+    queryKey: queryKeys.playlist(playlistId),
     queryFn: () => api.getPlaylist(playlistId),
     staleTime: 20_000,
   });
   const items = useQuery({
-    queryKey: ["playlist-items", playlistId],
+    queryKey: queryKeys.playlistItems(playlistId),
     queryFn: () => api.listPlaylistItems(playlistId),
     staleTime: 20_000,
   });
@@ -108,19 +109,12 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
 
   const images = useMemo<Attachment[]>(
     () =>
-      imageItems.map((item) => {
-        const fileName = playlistFileName(item);
-        return {
-          name: item.title || fileName,
-          path: item.mediaPath,
-          url: localImageUrls[item.id] ?? item.mediaUrl,
-          thumbnailUrl: item.thumbnailUrl ?? item.mediaUrl,
-          kind: "image",
-          provider: providerForUrl(localImageUrls[item.id] ?? item.mediaUrl),
-          ext: fileName.split(".").pop() ?? "",
-          previewOnly: false,
-        };
-      }),
+      imageItems.map((item) =>
+        attachmentFromPlaylistItem(
+          item,
+          localImageUrls[item.id] ?? item.mediaUrl,
+        ),
+      ),
     [imageItems, localImageUrls],
   );
 
@@ -128,16 +122,16 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
     if (!items.data) return;
     // Thumbnail enrichment runs in the backend while items load. Refresh the
     // playlist card and header so a newly discovered cover appears immediately.
-    void queryClient.invalidateQueries({ queryKey: ["playlists"] });
-    void queryClient.invalidateQueries({ queryKey: ["playlist", playlistId] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.playlists() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.playlist(playlistId) });
   }, [items.data, items.dataUpdatedAt, playlistId, queryClient]);
 
   const removeItem = useMutation({
     mutationFn: (id: number) => api.removePlaylistItem(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["playlist-items", playlistId] });
-      void queryClient.invalidateQueries({ queryKey: ["playlists"] });
-      void queryClient.invalidateQueries({ queryKey: ["playlist", playlistId] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlistItems(playlistId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlists() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlist(playlistId) });
     },
     onError: (error) => reportError(error, "Could not remove item"),
   });
@@ -146,7 +140,7 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
     mutationFn: () => api.deletePlaylist(playlistId),
     onSuccess: () => {
       toast("success", "Playlist deleted");
-      void queryClient.invalidateQueries({ queryKey: ["playlists"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlists() });
       navigate({ name: "home" });
     },
     onError: (error) => reportError(error, "Could not delete playlist"),
@@ -156,7 +150,7 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
     mutationFn: () => api.downloadPlaylist(playlistId),
     onSuccess: (count) => {
       toast("success", "Download started", `${count} file${count === 1 ? "" : "s"} queued.`);
-      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
     },
     onError: (error) => reportError(error, "Could not download playlist"),
   });
@@ -210,7 +204,7 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
       })
       .then(() => {
         toast("success", "Download started", playlistFileName(item));
-        void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
       })
       .catch((error) => reportError(error, "Could not download item"));
   };

@@ -17,6 +17,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
 import { isCreatorBlocked } from "../lib/blockedCreators";
+import { nextOffset, uniqueBy } from "../shared/query/pagination";
+import { queryKeys } from "../shared/query/keys";
 import { cn } from "../lib/format";
 import { creatorGridMetrics, postGridMetrics } from "../lib/layout";
 import { useAppStore } from "../stores/app";
@@ -30,7 +32,7 @@ import {
 } from "../components/cards";
 import { CardGrid } from "../components/CardGrid";
 import { Button, EmptyState, SectionHeader, TextInput } from "../components/ui";
-import type { CreatorSummary, MediaKind, PostSummary } from "../types";
+import type { MediaKind } from "../types";
 
 type ContentFilter = "all" | "posts" | "creators";
 
@@ -109,7 +111,7 @@ export function SearchPage({ query }: { query: string }) {
   const valid = debounced.length >= 3;
 
   const results = useInfiniteQuery({
-    queryKey: ["search", debounced, service, media, sort],
+    queryKey: queryKeys.search(debounced, service, media, sort),
     queryFn: ({ pageParam, signal }) =>
       api.searchAll({
         query: debounced,
@@ -120,13 +122,13 @@ export function SearchPage({ query }: { query: string }) {
         signal,
       }),
     initialPageParam: 0,
-    getNextPageParam: (last) => (last.hasMore ? last.offset + 50 : undefined),
+    getNextPageParam: (last) => nextOffset(last, 50),
     enabled: valid && content !== "creators",
     staleTime: 60_000,
   });
 
   const creatorSearch = useInfiniteQuery({
-    queryKey: ["creators", "search", debounced, service, creatorSort],
+    queryKey: queryKeys.creatorsSearch(debounced, service, creatorSort),
     queryFn: ({ pageParam }) =>
       api.listCreators({
         query: debounced,
@@ -136,42 +138,37 @@ export function SearchPage({ query }: { query: string }) {
         limit: 60,
       }),
     initialPageParam: 0,
-    getNextPageParam: (last) => (last.hasMore ? last.offset + 60 : undefined),
+    getNextPageParam: (last) => nextOffset(last, 60),
     enabled: valid && content === "creators",
     staleTime: 30_000,
   });
 
-  const posts = useMemo(() => {
-    const map = new Map<string, PostSummary>();
-    for (const page of results.data?.pages ?? []) {
-      for (const post of page.posts) {
-        if (isCreatorBlocked(blockedCreators, post.service, post.user)) continue;
-        map.set(`${post.service}:${post.user}:${post.id}`, post);
-      }
-    }
-    return [...map.values()];
-  }, [results.data, blockedCreators]);
+  const posts = useMemo(
+    () =>
+      uniqueBy(
+        (results.data?.pages ?? [])
+          .flatMap((page) => page.posts)
+          .filter(
+            (post) =>
+              !isCreatorBlocked(blockedCreators, post.service, post.user),
+          ),
+        (post) => `${post.service}:${post.user}:${post.id}`,
+      ),
+    [results.data, blockedCreators],
+  );
 
   const creators = useMemo(() => {
-    const map = new Map<string, CreatorSummary>();
-    if (content === "creators") {
-      for (const page of creatorSearch.data?.pages ?? []) {
-        for (const creator of page.items) {
-          if (isCreatorBlocked(blockedCreators, creator.service, creator.id)) {
-            continue;
-          }
-          map.set(`${creator.service}:${creator.id}`, creator);
-        }
-      }
-    } else {
-      for (const creator of results.data?.pages[0]?.creators ?? []) {
-        if (isCreatorBlocked(blockedCreators, creator.service, creator.id)) {
-          continue;
-        }
-        map.set(`${creator.service}:${creator.id}`, creator);
-      }
-    }
-    return [...map.values()];
+    const source =
+      content === "creators"
+        ? (creatorSearch.data?.pages ?? []).flatMap((page) => page.items)
+        : (results.data?.pages[0]?.creators ?? []);
+    return uniqueBy(
+      source.filter(
+        (creator) =>
+          !isCreatorBlocked(blockedCreators, creator.service, creator.id),
+      ),
+      (creator) => `${creator.service}:${creator.id}`,
+    );
   }, [blockedCreators, content, creatorSearch.data, results.data]);
 
   const limitations = results.data?.pages[0]?.limitations ?? [];

@@ -22,6 +22,8 @@ import {
   isCreatorBlocked,
 } from "../lib/blockedCreators";
 import { BlockedCreatorNotice } from "../components/BlockedCreatorNotice";
+import { nextOffset, uniqueBy } from "../shared/query/pagination";
+import { queryKeys } from "../shared/query/keys";
 import {
   creatorFilterActive,
   detectAsmrCreator,
@@ -62,7 +64,6 @@ import {
   Spinner,
   Toggle,
 } from "../components/ui";
-import type { PostSummary } from "../types";
 
 type Tab = "posts" | "about" | "announcements" | "similar";
 
@@ -119,36 +120,36 @@ function CreatorProfileContent({
   const saveSettings = useAppStore((state) => state.saveSettings);
 
   const creator = useQuery({
-    queryKey: ["creator", service, creatorId],
+    queryKey: queryKeys.creator(service, creatorId),
     queryFn: () => api.getCreator(service, creatorId),
     staleTime: 60_000,
   });
   const profile = useQuery({
-    queryKey: ["creator-profile", service, creatorId],
+    queryKey: queryKeys.creatorProfile(service, creatorId),
     queryFn: ({ signal }) => api.getCreatorProfile(service, creatorId, signal),
     staleTime: 300_000,
   });
   const links = useQuery({
-    queryKey: ["creator-links", service, creatorId],
+    queryKey: queryKeys.creatorLinks(service, creatorId),
     queryFn: ({ signal }) => api.getCreatorLinks(service, creatorId, signal),
     staleTime: 300_000,
   });
   const announcements = useQuery({
-    queryKey: ["creator-announcements", service, creatorId],
+    queryKey: queryKeys.creatorAnnouncements(service, creatorId),
     queryFn: ({ signal }) =>
       api.getCreatorAnnouncements(service, creatorId, signal),
     staleTime: 180_000,
     enabled: tab === "announcements",
   });
   const similar = useQuery({
-    queryKey: ["creator-similar", service, creatorId],
+    queryKey: queryKeys.creatorSimilar(service, creatorId),
     queryFn: ({ signal }) =>
       api.getSimilarCreators(service, creatorId, signal),
     staleTime: 300_000,
     enabled: tab === "similar",
   });
   const posts = useInfiniteQuery({
-    queryKey: ["creator-posts", service, creatorId, postQuery],
+    queryKey: queryKeys.creatorPosts(service, creatorId, postQuery),
     queryFn: ({ pageParam, signal }) =>
       api.getCreatorPosts({
         service,
@@ -158,19 +159,18 @@ function CreatorProfileContent({
         signal,
       }),
     initialPageParam: 0,
-    getNextPageParam: (last) => (last.hasMore ? last.offset + 50 : undefined),
+    getNextPageParam: (last) => nextOffset(last, 50),
     staleTime: 60_000,
   });
 
-  const postItems = useMemo(() => {
-    const map = new Map<string, PostSummary>();
-    for (const page of posts.data?.pages ?? []) {
-      for (const post of page.items) {
-        map.set(`${post.service}:${post.user}:${post.id}`, post);
-      }
-    }
-    return [...map.values()];
-  }, [posts.data]);
+  const postItems = useMemo(
+    () =>
+      uniqueBy(
+        (posts.data?.pages ?? []).flatMap((page) => page.items),
+        (post) => `${post.service}:${post.user}:${post.id}`,
+      ),
+    [posts.data],
+  );
 
   useEffect(() => {
     const next = loadCreatorFilter(service, creatorId);
@@ -263,9 +263,9 @@ function CreatorProfileContent({
         favorited ? "Creator added to favorites" : "Creator removed from favorites",
         name,
       );
-      void queryClient.invalidateQueries({ queryKey: ["favorites", "creators"] });
-      void queryClient.invalidateQueries({ queryKey: ["creator", service, creatorId] });
-      void queryClient.invalidateQueries({ queryKey: ["creators"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.favoritesCreators() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.creator(service, creatorId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.creators() });
     },
     onError: (error) => reportError(error, "Could not update favorite"),
   });

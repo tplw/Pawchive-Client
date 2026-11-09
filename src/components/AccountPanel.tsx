@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { api } from "../services/api";
+import { queryKeys } from "../shared/query/keys";
 import { errorMessage } from "../lib/constants";
 import { useAppStore } from "../stores/app";
 import { SiteIcon } from "./SiteIcon";
@@ -18,7 +19,7 @@ export function AccountPanel() {
   const saveSettings = useAppStore((state) => state.saveSettings);
 
   const account = useQuery({
-    queryKey: ["account"],
+    queryKey: queryKeys.account(),
     queryFn: () => api.getAccountState(),
     staleTime: 30_000,
   });
@@ -29,7 +30,7 @@ export function AccountPanel() {
       queryClient.setQueryData(["account"], state);
       setPassword("");
       toast("success", "Signed in", state.username ?? "Pawchive account");
-      void queryClient.invalidateQueries({ queryKey: ["favorites", "creators"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.favoritesCreators() });
     },
     onError: (error) => reportError(error, "Could not sign in"),
   });
@@ -51,8 +52,8 @@ export function AccountPanel() {
         "Favorites synced",
         `${count} creator${count === 1 ? "" : "s"} added to your local favorites.`,
       );
-      void queryClient.invalidateQueries({ queryKey: ["favorites", "creators"] });
-      void queryClient.invalidateQueries({ queryKey: ["creators"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.favoritesCreators() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.creators() });
     },
     onError: (error) => reportError(error, "Could not sync favorites"),
   });

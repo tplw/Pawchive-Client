@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
 import { isCreatorBlocked } from "../lib/blockedCreators";
+import { nextOffset, uniqueBy } from "../shared/query/pagination";
+import { queryKeys } from "../shared/query/keys";
 import { cn, shortNumber } from "../lib/format";
 import { creatorGridMetrics } from "../lib/layout";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
@@ -11,7 +13,6 @@ import { useAppStore } from "../stores/app";
 import { CreatorCard, CreatorCardSkeleton } from "../components/cards";
 import { CardGrid } from "../components/CardGrid";
 import { Button, EmptyState, SectionHeader } from "../components/ui";
-import type { CreatorSummary } from "../types";
 
 /** Preserve directory filters when navigating to a creator and back. */
 const savedCreatorsView = {
@@ -48,7 +49,7 @@ export function CreatorsPage({ query = "" }: { query?: string }) {
   }, [search, service, sort]);
 
   const creators = useInfiniteQuery({
-    queryKey: ["creators", "directory", debouncedSearch, service, sort],
+    queryKey: queryKeys.creatorsDirectory(debouncedSearch, service, sort),
     queryFn: ({ pageParam }) =>
       api.listCreators({
         query: debouncedSearch || undefined,
@@ -58,22 +59,23 @@ export function CreatorsPage({ query = "" }: { query?: string }) {
         limit: 60,
       }),
     initialPageParam: 0,
-    getNextPageParam: (last) => (last.hasMore ? last.offset + 60 : undefined),
+    getNextPageParam: (last) => nextOffset(last, 60),
     staleTime: 30_000,
   });
 
-  const items = useMemo(() => {
-    const map = new Map<string, CreatorSummary>();
-    for (const page of creators.data?.pages ?? []) {
-      for (const creator of page.items) {
-        if (isCreatorBlocked(blockedCreators, creator.service, creator.id)) {
-          continue;
-        }
-        map.set(`${creator.service}:${creator.id}`, creator);
-      }
-    }
-    return [...map.values()];
-  }, [blockedCreators, creators.data]);
+  const items = useMemo(
+    () =>
+      uniqueBy(
+        (creators.data?.pages ?? [])
+          .flatMap((page) => page.items)
+          .filter(
+            (creator) =>
+              !isCreatorBlocked(blockedCreators, creator.service, creator.id),
+          ),
+        (creator) => `${creator.service}:${creator.id}`,
+      ),
+    [blockedCreators, creators.data],
+  );
 
   const total = creators.data?.pages[0]?.total ?? 0;
   const loadMore = useCallback(() => {

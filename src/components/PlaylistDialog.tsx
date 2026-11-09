@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { queryKeys } from "../shared/query/keys";
 import { useAppStore } from "../stores/app";
 import { Button, Field, Modal, TextInput } from "./ui";
 
@@ -30,7 +31,7 @@ export function PlaylistDialog({
     mutationFn: () => api.createPlaylist(name.trim(), description.trim()),
     onSuccess: (playlist) => {
       toast("success", "Playlist created", playlist.name);
-      void queryClient.invalidateQueries({ queryKey: ["playlists"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlists() });
       setName("");
       setDescription("");
       onClose();

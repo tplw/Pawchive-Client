@@ -18,6 +18,7 @@ import {
   serviceLabel,
 } from "../lib/constants";
 import { creatorNameLooksAsmr, loadCreatorFilter } from "../lib/creatorFilters";
+import { queryKeys } from "../shared/query/keys";
 import { cn, formatDate, formatRelative, shortNumber } from "../lib/format";
 import { navigate } from "../lib/router";
 import { useInView } from "../lib/useInView";
@@ -230,9 +231,9 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
         favorited ? "Creator added to favorites" : "Creator removed from favorites",
         creator.name,
       );
-      void queryClient.invalidateQueries({ queryKey: ["favorites", "creators"] });
-      void queryClient.invalidateQueries({ queryKey: ["creators"] });
-      void queryClient.invalidateQueries({ queryKey: ["creator", creator.service, creator.id] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.favoritesCreators() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.creators() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.creator(creator.service, creator.id) });
     },
     onError: (error) => reportError(error, "Could not update favorite"),
   });
@@ -452,7 +453,7 @@ export function PostCard({
       (post.mediaKinds?.length ?? 0) === 0,
   );
   const mediaInfo = useQuery({
-    queryKey: ["post-summary", post.service, post.user, post.id],
+    queryKey: queryKeys.postSummary(post.service, post.user, post.id),
     queryFn: () =>
       api.getPostSummary({
         service: post.service,

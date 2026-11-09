@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { SPEEDS, serviceLabel } from "../lib/constants";
 import { removeBlockedCreator } from "../lib/blockedCreators";
+import { queryKeys } from "../shared/query/keys";
 import { isAndroid, isIos, isMobile } from "../lib/platform";
 import { api } from "../services/api";
 import { useAppStore } from "../stores/app";
@@ -67,7 +68,7 @@ export function SettingsPage() {
   const lastVolumeSave = useRef<number | null>(null);
   const lastKeywordSave = useRef<string | null>(null);
   const transcodeAvailable = useQuery({
-    queryKey: ["can-transcode"],
+    queryKey: queryKeys.canTranscode(),
     queryFn: () => api.canTranscode(),
     staleTime: Infinity,
   });
@@ -83,10 +84,10 @@ export function SettingsPage() {
   }, [settings.hiddenKeywords, settings.hideAiPosts]);
 
   const invalidateFilters = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["posts"] });
-    void queryClient.invalidateQueries({ queryKey: ["search"] });
-    void queryClient.invalidateQueries({ queryKey: ["creator-posts"] });
-    void queryClient.invalidateQueries({ queryKey: ["creator-similar"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.postsAll() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.searchAll() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.creatorPostsAll() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.creatorSimilarAll() });
   }, [queryClient]);
 
   useEffect(() => {

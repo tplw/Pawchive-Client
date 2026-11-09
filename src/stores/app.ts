@@ -19,6 +19,7 @@ import {
   writeRouteHash,
 } from "../lib/router";
 import { queryClient } from "../lib/queryClient";
+import { queryKeys } from "../shared/query/keys";
 
 export type ToastKind = "success" | "error" | "info";
 
@@ -190,9 +191,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
             await api.syncAccountFavorites();
             await Promise.all([
               queryClient.invalidateQueries({
-                queryKey: ["favorites", "creators"],
+                queryKey: queryKeys.favoritesCreators(),
               }),
-              queryClient.invalidateQueries({ queryKey: ["creators"] }),
+              queryClient.invalidateQueries({ queryKey: queryKeys.creators() }),
             ]);
           } catch {
             // Auto-sync is best-effort; the account may be offline/expired.
@@ -260,14 +261,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const total = await api.syncCreators();
       set({ indexState: "ready", indexCount: total });
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["creators"] }),
-        queryClient.invalidateQueries({ queryKey: ["creator"] }),
-        queryClient.invalidateQueries({ queryKey: ["creator-similar"] }),
-        queryClient.invalidateQueries({ queryKey: ["favorites", "creators"] }),
-        queryClient.invalidateQueries({ queryKey: ["posts"] }),
-        queryClient.invalidateQueries({ queryKey: ["search"] }),
-        queryClient.invalidateQueries({ queryKey: ["creator-posts"] }),
-        queryClient.invalidateQueries({ queryKey: ["post"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.creators() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.creatorAll() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.creatorSimilarAll() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.favoritesCreators() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.postsAll() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.searchAll() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.creatorPostsAll() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.postAll() }),
       ]);
     } catch (error) {
       const message = errorMessage(error);

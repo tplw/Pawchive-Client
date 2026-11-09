@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
 import { isCreatorBlocked } from "../lib/blockedCreators";
+import { nextOffset, uniqueBy } from "../shared/query/pagination";
+import { queryKeys } from "../shared/query/keys";
 import { cn } from "../lib/format";
 import { creatorGridMetrics, postGridMetrics } from "../lib/layout";
 import { useAppStore } from "../stores/app";
@@ -15,7 +17,6 @@ import {
 } from "../components/cards";
 import { CardGrid } from "../components/CardGrid";
 import { Button, EmptyState } from "../components/ui";
-import type { CreatorSummary, PostSummary } from "../types";
 
 type Tab = "posts" | "creators";
 type Feed = "recent" | "popular";
@@ -60,27 +61,27 @@ export function DiscoverPage() {
   const creatorMetrics = creatorGridMetrics(postCardSize);
 
   const posts = useInfiniteQuery({
-    queryKey: ["posts", "discover"],
+    queryKey: queryKeys.postsDiscover(),
     queryFn: ({ pageParam, signal }) =>
       api.getRecentPosts({ offset: pageParam, signal }),
     initialPageParam: 0,
-    getNextPageParam: (last) => (last.hasMore ? last.offset + 50 : undefined),
+    getNextPageParam: (last) => nextOffset(last, 50),
     enabled: tab === "posts" && feed === "recent",
     staleTime: 60_000,
   });
 
   const popular = useInfiniteQuery({
-    queryKey: ["posts", "popular"],
+    queryKey: queryKeys.postsPopular(),
     queryFn: ({ pageParam, signal }) =>
       api.getPopularPosts({ offset: pageParam, signal }),
     initialPageParam: 0,
-    getNextPageParam: (last) => (last.hasMore ? last.offset + 50 : undefined),
+    getNextPageParam: (last) => nextOffset(last, 50),
     enabled: tab === "posts" && feed === "popular",
     staleTime: 60_000,
   });
 
   const creators = useInfiniteQuery({
-    queryKey: ["creators", "discover", service, sort],
+    queryKey: queryKeys.creatorsDiscover(service, sort),
     queryFn: ({ pageParam }) =>
       api.listCreators({
         service: service || undefined,
@@ -89,23 +90,26 @@ export function DiscoverPage() {
         limit: 60,
       }),
     initialPageParam: 0,
-    getNextPageParam: (last) => (last.hasMore ? last.offset + 60 : undefined),
+    getNextPageParam: (last) => nextOffset(last, 60),
     enabled: tab === "creators",
     staleTime: 60_000,
   });
 
   const activePosts = feed === "popular" ? popular : posts;
 
-  const postItems = useMemo(() => {
-    const map = new Map<string, PostSummary>();
-    for (const page of activePosts.data?.pages ?? []) {
-      for (const post of page.items) {
-        if (isCreatorBlocked(blockedCreators, post.service, post.user)) continue;
-        map.set(`${post.service}:${post.user}:${post.id}`, post);
-      }
-    }
-    return [...map.values()];
-  }, [activePosts.data, blockedCreators]);
+  const postItems = useMemo(
+    () =>
+      uniqueBy(
+        (activePosts.data?.pages ?? [])
+          .flatMap((page) => page.items)
+          .filter(
+            (post) =>
+              !isCreatorBlocked(blockedCreators, post.service, post.user),
+          ),
+        (post) => `${post.service}:${post.user}:${post.id}`,
+      ),
+    [activePosts.data, blockedCreators],
+  );
 
   const visiblePostItems = useMemo(
     () =>
@@ -115,18 +119,19 @@ export function DiscoverPage() {
     [postItems, service],
   );
 
-  const creatorItems = useMemo(() => {
-    const map = new Map<string, CreatorSummary>();
-    for (const page of creators.data?.pages ?? []) {
-      for (const creator of page.items) {
-        if (isCreatorBlocked(blockedCreators, creator.service, creator.id)) {
-          continue;
-        }
-        map.set(`${creator.service}:${creator.id}`, creator);
-      }
-    }
-    return [...map.values()];
-  }, [creators.data, blockedCreators]);
+  const creatorItems = useMemo(
+    () =>
+      uniqueBy(
+        (creators.data?.pages ?? [])
+          .flatMap((page) => page.items)
+          .filter(
+            (creator) =>
+              !isCreatorBlocked(blockedCreators, creator.service, creator.id),
+          ),
+        (creator) => `${creator.service}:${creator.id}`,
+      ),
+    [creators.data, blockedCreators],
+  );
 
   const loadMorePosts = useCallback(() => {
     if (activePosts.hasNextPage && !activePosts.isFetchingNextPage) {

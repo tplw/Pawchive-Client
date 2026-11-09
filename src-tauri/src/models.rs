@@ -1,30 +1,10 @@
-use crate::security::{file_extension, media_kind_for, safe_filename};
+use crate::security::safe_filename;
+use crate::shared::media_kind::{file_extension, media_kind_for};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashSet};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum MediaKind {
-    Image,
-    Video,
-    Audio,
-    Document,
-    #[default]
-    Other,
-}
-
-impl MediaKind {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Image => "image",
-            Self::Video => "video",
-            Self::Audio => "audio",
-            Self::Document => "document",
-            Self::Other => "other",
-        }
-    }
-}
+pub use crate::shared::media_kind::MediaKind;
 
 /// Accepts the several timestamp shapes the archive uses: Unix seconds as a
 /// number, numeric strings, and ISO-8601 strings with or without an offset.

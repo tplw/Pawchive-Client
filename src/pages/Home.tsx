@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { errorMessage } from "../lib/constants";
 import { isCreatorBlocked } from "../lib/blockedCreators";
+import { queryKeys } from "../shared/query/keys";
 import { cn } from "../lib/format";
 import { postGridMetrics } from "../lib/layout";
 import { navigate } from "../lib/router";
@@ -209,12 +210,12 @@ export function HomePage() {
   };
 
   const playlists = useQuery({
-    queryKey: ["playlists"],
+    queryKey: queryKeys.playlists(),
     queryFn: () => api.listPlaylists(),
     staleTime: 20_000,
   });
   const favorites = useQuery({
-    queryKey: ["favorites", "creators"],
+    queryKey: queryKeys.favoritesCreators(),
     queryFn: () => api.listFavoriteCreators(),
     staleTime: 20_000,
   });
@@ -255,7 +256,7 @@ export function HomePage() {
     try {
       const count = await api.downloadPlaylist(playlist.id);
       toast("success", "Download started", `${count} file${count === 1 ? "" : "s"} queued.`);
-      void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
     } catch (error) {
       reportError(error, "Could not download playlist");
     } finally {

@@ -42,6 +42,7 @@ import { PlaylistPicker } from "../components/PlaylistPicker";
 import { SanitizedHtml } from "../components/SanitizedHtml";
 import { BlockedCreatorNotice } from "../components/BlockedCreatorNotice";
 import { isCreatorBlocked } from "../lib/blockedCreators";
+import { queryKeys } from "../shared/query/keys";
 import { needsMediaResolution, queueItemFromAttachment } from "../player/queue";
 import { Badge, Button, EmptyState, IconButton, SectionHeader, Spinner } from "../components/ui";
 import type { Attachment, MediaKind, PlaylistItemInput } from "../types";
@@ -214,20 +215,20 @@ function PostDetailContent({
   const [navigating, setNavigating] = useState(false);
 
   const post = useQuery({
-    queryKey: ["post", service, creatorId, postId],
+    queryKey: queryKeys.post(service, creatorId, postId),
     queryFn: ({ signal }) =>
       api.getPost({ service, creatorId, postId, signal }),
     staleTime: 120_000,
   });
   const comments = useQuery({
-    queryKey: ["comments", service, creatorId, postId],
+    queryKey: queryKeys.comments(service, creatorId, postId),
     queryFn: ({ signal }) =>
       api.getPostComments({ service, creatorId, postId, signal }),
     enabled: tab === "comments",
     staleTime: 60_000,
   });
   const revisions = useQuery({
-    queryKey: ["revisions", service, creatorId, postId],
+    queryKey: queryKeys.revisions(service, creatorId, postId),
     queryFn: ({ signal }) =>
       api.getPostRevisions({ service, creatorId, postId, signal }),
     enabled: tab === "revisions",
