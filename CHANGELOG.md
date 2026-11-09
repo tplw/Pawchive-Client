@@ -4,6 +4,34 @@ All notable changes to Pawchive Client are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project follows [Semantic Versioning](https://semver.org/).
 
+## 1.0.5.1 - 2026-11-09
+
+Internal rebuild release. The app keeps its existing commands, events, routes,
+storage keys, UI and user-facing behavior; release artifacts are rebuilt from
+the refactored codebase.
+
+### Changed
+
+- Reorganized the frontend into `app/`, `shared/` and vertical feature slices
+  for posts, creators, search, media, player, downloads, playlists, settings,
+  account and updates.
+- Split the backend Tauri command surface from feature services and moved
+  infrastructure into SQLite, API, provider, local HTTP, download and transcode
+  modules.
+- Broke the largest backend modules into focused submodules for models,
+  security, MEGA, GoFile, media serving, downloads, SQLite and API endpoints.
+- Added characterization and regression tests around query keys, download
+  events, media conversions, pagination, search ranking, playback progress,
+  transcoding and image-viewer helpers.
+- Removed the temporary page/component compatibility shims and wired router
+  navigation explicitly during bootstrap.
+
+### Compatibility
+
+- Existing installations keep their settings, playlists, downloads, playback
+  progress, blocked creators, account session and update preferences.
+- Bundle metadata uses `1.0.6` internally while the release tag is `v1.0.5.1`.
+
 ## Unreleased
 
 ### Added
