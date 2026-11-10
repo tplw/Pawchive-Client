@@ -92,21 +92,30 @@ impl RemoteResolver {
 
     pub async fn resolve(&self, raw: &str) -> AppResult<RemoteMedia> {
         let key = raw.trim().to_string();
-        {
+        // Direct archive/external links can be short-lived signed URLs. Cache
+        // provider metadata, but always re-probe direct links so a stale entry
+        // cannot keep an expired URL alive in the player.
+        let cacheable = !matches!(
+            provider_for_url(&key),
+            MediaProvider::Pawchive | MediaProvider::External
+        );
+        if cacheable {
             let cache = self.cache.lock().await;
             if let Some(hit) = cache.get(&key).filter(|hit| hit.fresh(RESOLVE_TTL)) {
                 return Ok(hit.value.clone());
             }
         }
         let media = self.resolve_uncached(&key).await?;
-        let mut cache = self.cache.lock().await;
-        cache.insert(
-            key,
-            Timed {
-                value: media.clone(),
-                at: Instant::now(),
-            },
-        );
+        if cacheable {
+            let mut cache = self.cache.lock().await;
+            cache.insert(
+                key,
+                Timed {
+                    value: media.clone(),
+                    at: Instant::now(),
+                },
+            );
+        }
         Ok(media)
     }
 

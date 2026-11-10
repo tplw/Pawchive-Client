@@ -78,6 +78,8 @@ the refactored codebase.
   broken cache entry cannot cause repeated playback failures.
 - Decode failures now show an actionable message instead of the generic
   "media could not be played" text.
+- Retrying after a failed transcode attempt resets the transcode guard so the
+  fallback can be tried again.
 
 - Android release builds no longer render a blank WebView by disabling R8
   minification until the keep rules are verified.
