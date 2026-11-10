@@ -5,7 +5,6 @@ import {
   Maximize,
   Minimize,
   Pause,
-  PictureInPicture2,
   Play,
   Plus,
   SkipBack,
@@ -260,9 +259,6 @@ export function ExpandedControls({
   showQueue,
   onToggleQueue,
   onAddToPlaylist,
-  showPip,
-  pipActive,
-  onTogglePip,
   fullscreen,
   onToggleFullscreen,
   onOpenPost,
@@ -289,9 +285,6 @@ export function ExpandedControls({
   showQueue: boolean;
   onToggleQueue: () => void;
   onAddToPlaylist: () => void;
-  showPip: boolean;
-  pipActive: boolean;
-  onTogglePip: () => void;
   fullscreen: boolean;
   onToggleFullscreen: () => void;
   onOpenPost: () => void;
@@ -340,20 +333,6 @@ export function ExpandedControls({
             className="text-white/70 hover:bg-white/10 hover:text-white"
             onClick={onToggleQueue}
           />
-          {showPip ? (
-            <IconButton
-              label={
-                pipActive
-                  ? "Exit picture in picture"
-                  : "Picture in picture"
-              }
-              icon={PictureInPicture2}
-              size="sm"
-              active={pipActive}
-              className="text-white/70 hover:bg-white/10 hover:text-white"
-              onClick={onTogglePip}
-            />
-          ) : null}
           {!isMobile ? (
             <IconButton
               label={fullscreen ? "Exit fullscreen" : "Fullscreen"}

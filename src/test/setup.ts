@@ -74,10 +74,3 @@ try {
     },
   });
 }
-
-if (!("PictureInPicture" in window)) {
-  Object.defineProperty(document, "pictureInPictureElement", {
-    configurable: true,
-    value: null,
-  });
-}

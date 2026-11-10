@@ -32,7 +32,6 @@ import {
 } from "../model/useMediaSource";
 import { usePlaybackProgress } from "../model/usePlaybackProgress";
 import { useTranscode } from "../model/useTranscode";
-import { usePictureInPicture } from "../model/usePictureInPicture";
 
 export function Player() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -95,7 +94,6 @@ export function Player() {
   );
   const isAudio = item?.mediaKind === "audio";
   const { fullscreen, setFullscreen, toggleFullscreen } = useFullscreen();
-  const pip = usePictureInPicture(videoRef, item?.id);
   const { startTranscode, resetTranscode, transcodeText } = useTranscode({
     item,
     setSource,
@@ -508,9 +506,6 @@ export function Player() {
       showQueue={showQueue}
       onToggleQueue={() => setShowQueue((value) => !value)}
       onAddToPlaylist={openPlaylistPicker}
-      showPip={pip.supported && !isAudio}
-      pipActive={pip.active}
-      onTogglePip={() => void pip.toggle()}
       fullscreen={fullscreen}
       onToggleFullscreen={() => void toggleFullscreen()}
       onOpenPost={openOriginalPost}
