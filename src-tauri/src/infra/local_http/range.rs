@@ -49,3 +49,15 @@ pub(super) fn parse_range(request: &str, length: u64) -> Option<(u64, u64)> {
     }
     None
 }
+
+/// Parse an upstream `Content-Range: bytes start-end/total` header.
+pub(super) fn parse_content_range(value: &str) -> Option<(u64, u64, u64)> {
+    let value = value.trim().strip_prefix("bytes ")?;
+    let (range, total) = value.split_once('/')?;
+    let (start, end) = range.split_once('-')?;
+    Some((
+        start.trim().parse().ok()?,
+        end.trim().parse().ok()?,
+        total.trim().parse().ok()?,
+    ))
+}

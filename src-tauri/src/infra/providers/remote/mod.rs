@@ -168,14 +168,32 @@ impl RemoteResolver {
                     ],
                 )
             }
+            MediaProvider::Pawchive | MediaProvider::External => {
+                // Direct archive/external files use the same loopback proxy as
+                // providers. This gives the webview stable Range handling,
+                // Referer headers and a useful error instead of an opaque
+                // media element failure.
+                let url = validate_media_remote_url(raw)?.to_string();
+                let fallback_name = url::Url::parse(raw)
+                    .ok()
+                    .and_then(|parsed| {
+                        parsed
+                            .path_segments()
+                            .and_then(|mut segments| segments.next_back())
+                            .filter(|name| !name.is_empty())
+                            .map(percent_decode)
+                    })
+                    .unwrap_or_else(|| "media".to_string());
+                (
+                    url,
+                    fallback_name,
+                    None,
+                    vec![("Referer".to_string(), "https://pawchive.pw/".to_string())],
+                )
+            }
             MediaProvider::Mega => {
                 return Err(AppError::Validation(
                     "MEGA links are resolved by the MEGA resolver".into(),
-                ))
-            }
-            _ => {
-                return Err(AppError::Validation(
-                    "not a supported external media provider link".into(),
                 ))
             }
         };

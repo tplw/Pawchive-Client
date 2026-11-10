@@ -96,14 +96,14 @@ export function Player() {
   const isAudio = item?.mediaKind === "audio";
   const { fullscreen, setFullscreen, toggleFullscreen } = useFullscreen();
   const pip = usePictureInPicture(videoRef, item?.id);
-  const { startTranscode, transcodeText } = useTranscode({
+  const { startTranscode, resetTranscode, transcodeText } = useTranscode({
     item,
     setSource,
     setLoading,
     setError,
     setPlaying,
   });
-  const { onLoadedMetadata, onError } = useMediaSource({
+  const { onLoadedMetadata, onError, retry } = useMediaSource({
     item,
     videoRef,
     resumeRef,
@@ -450,10 +450,8 @@ export function Player() {
       onError={onError}
       onClick={onVideoClick}
       onRetry={() => {
-        setError(null);
-        setLoading(true);
-        videoRef.current?.load();
-        setPlaying(true);
+        resetTranscode();
+        retry();
       }}
     />
   );

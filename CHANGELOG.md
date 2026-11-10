@@ -68,6 +68,17 @@ the refactored codebase.
 
 ### Fixed
 
+- Player retries now re-run media resolution instead of only reloading an
+  already-empty video element.
+- Direct archive and external files fall back through the loopback media proxy
+  after network or decode errors, adding Range handling and provider headers.
+- Remote media proxying rejects expired login pages, mismatched Content-Range
+  windows and truncated upstream responses instead of decoding corrupt bytes.
+- Media caching refuses partial provider windows and HTML error responses, so a
+  broken cache entry cannot cause repeated playback failures.
+- Decode failures now show an actionable message instead of the generic
+  "media could not be played" text.
+
 - Android release builds no longer render a blank WebView by disabling R8
   minification until the keep rules are verified.
 - Rapid settings changes no longer roll back or flicker because of out-of-order

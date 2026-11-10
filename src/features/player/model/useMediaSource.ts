@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { QueueItem } from "../../../shared/types";
 import { errorMessage } from "../../../shared/lib/constants";
 import { api } from "../../../shared/api";
@@ -54,6 +54,9 @@ export function useMediaSource({
   const toast = useAppStore((state) => state.toast);
   const settings = useAppStore((state) => state.settings);
   const hlsFallbackRef = useRef<string | null>(null);
+  const proxyFallbackRef = useRef<string | null>(null);
+  const previousItemRef = useRef<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     setVideoReady(false);
@@ -61,6 +64,7 @@ export function useMediaSource({
 
   useEffect(() => {
     hlsFallbackRef.current = null;
+    proxyFallbackRef.current = null;
   }, [item?.id]);
 
   useEffect(() => {
@@ -80,7 +84,10 @@ export function useMediaSource({
     setError(null);
     setLoading(true);
     setVideoAspect(null);
-    resumeRef.current = 0;
+    if (previousItemRef.current !== item.id) {
+      previousItemRef.current = item.id;
+      resumeRef.current = 0;
+    }
     loadedItemRef.current = null;
 
     const loadRemote = () => {
@@ -159,7 +166,20 @@ export function useMediaSource({
     setLoading,
     setSource,
     setVideoAspect,
+    reloadToken,
   ]);
+
+  const retry = useCallback(() => {
+    const video = videoRef.current;
+    if (video && Number.isFinite(video.currentTime) && video.currentTime > 0) {
+      resumeRef.current = video.currentTime;
+    }
+    hlsFallbackRef.current = null;
+    proxyFallbackRef.current = null;
+    setError(null);
+    setLoading(true);
+    setReloadToken((value) => value + 1);
+  }, [hlsFallbackRef, resumeRef, setError, setLoading, videoRef]);
 
   const onLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
@@ -227,28 +247,73 @@ export function useMediaSource({
       startTranscode();
       return;
     }
+
+    const directUrl = item?.downloadUrl ?? item?.url;
+    const canProxy =
+      Boolean(item) &&
+      Boolean(directUrl?.startsWith("https://")) &&
+      !item?.localPath &&
+      !isHlsUrl(item?.url ?? "") &&
+      !source?.startsWith("http://127.0.0.1") &&
+      (code === undefined ||
+        code === 0 ||
+        code === MediaError.MEDIA_ERR_ABORTED ||
+        code === MediaError.MEDIA_ERR_NETWORK ||
+        code === MediaError.MEDIA_ERR_DECODE);
+
     const message =
       code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
         ? UNSUPPORTED_MEDIA
         : code === MediaError.MEDIA_ERR_NETWORK
           ? INTERRUPTED_MEDIA
-          : GENERIC_MEDIA_ERROR;
-    setError(message);
-    setLoading(false);
-    setPlaying(false);
-    toast("error", "Playback failed", message);
+          : code === MediaError.MEDIA_ERR_DECODE
+            ? "The media stream could not be decoded. Retrying may help if the file was interrupted."
+            : GENERIC_MEDIA_ERROR;
+
+    const fail = (finalMessage: string) => {
+      setError(finalMessage);
+      setLoading(false);
+      setPlaying(false);
+      toast("error", "Playback failed", finalMessage);
+    };
+
+    if (canProxy && item && directUrl) {
+      const video = videoRef.current;
+      if (video && Number.isFinite(video.currentTime) && video.currentTime > 0) {
+        resumeRef.current = video.currentTime;
+      }
+      proxyFallbackRef.current = item.id;
+      setError(null);
+      setLoading(true);
+      setPlaying(true);
+      void api
+        .resolveMedia(directUrl)
+        .then((media) => {
+          if (proxyFallbackRef.current !== item.id) return;
+          setSource(media.url);
+        })
+        .catch(() => {
+          if (proxyFallbackRef.current === item.id) fail(message);
+        });
+      return;
+    }
+
+    fail(message);
   }, [
     hlsFallbackRef,
     item,
+    proxyFallbackRef,
+    resumeRef,
     setError,
     setLoading,
     setPlaying,
     setSource,
     settings.transcodeMedia,
+    source,
     startTranscode,
     toast,
     videoRef,
   ]);
 
-  return { onLoadedMetadata, onError };
+  return { onLoadedMetadata, onError, retry };
 }

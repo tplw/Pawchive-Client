@@ -42,6 +42,39 @@ fn valid_extension(value: &str) -> bool {
     !value.is_empty() && value.len() <= 8 && value.chars().all(|ch| ch.is_ascii_alphanumeric())
 }
 
+fn content_range_total(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    headers
+        .get(reqwest::header::CONTENT_RANGE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.rsplit('/').next())
+        .and_then(|value| value.trim().parse::<u64>().ok())
+}
+
+fn is_complete_download(
+    status: reqwest::StatusCode,
+    content_length: Option<u64>,
+    range_total: Option<u64>,
+) -> bool {
+    if status != reqwest::StatusCode::PARTIAL_CONTENT {
+        return true;
+    }
+    match (content_length, range_total) {
+        (Some(length), Some(total)) => length >= total,
+        _ => false,
+    }
+}
+
+fn is_html_content_type(headers: &reqwest::header::HeaderMap) -> bool {
+    headers
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.split(';').next().unwrap_or_default().trim())
+        .is_some_and(|value| {
+            value.eq_ignore_ascii_case("text/html")
+                || value.eq_ignore_ascii_case("application/xhtml+xml")
+        })
+}
+
 fn url_hash(raw: &str) -> AppResult<String> {
     let url = Url::parse(raw)?;
     let mut hasher = Sha256::new();
@@ -185,8 +218,29 @@ pub async fn cache_media(
             response.status().as_u16()
         )));
     }
+    if is_html_content_type(response.headers()) {
+        // Expired provider links often answer with a login page. Streaming
+        // keeps the original error handling in the player instead of caching
+        // HTML under a media filename.
+        if let Some(media) = &remote {
+            let source = media.source(state.remote.client().clone());
+            return Ok(state.media_server.register_remote(source));
+        }
+        return Ok(url.clone());
+    }
 
-    let total = response.content_length();
+    let range_total = content_range_total(response.headers());
+    let content_length = response.content_length();
+    if !is_complete_download(response.status(), content_length, range_total) {
+        // Some providers cap ranges. Never turn a partial window into a
+        // complete cache entry; stream it through the provider proxy instead.
+        if let Some(media) = &remote {
+            let source = media.source(state.remote.client().clone());
+            return Ok(state.media_server.register_remote(source));
+        }
+        return Ok(url);
+    }
+    let total = range_total.or(content_length);
     if total.is_some_and(|length| length > max_bytes) {
         if let Some(media) = &remote {
             let source = media.source(state.remote.client().clone());
@@ -267,6 +321,15 @@ pub async fn cache_media(
         .await
         .map_err(|error| AppError::Io(format!("could not flush media cache: {error}")))?;
     drop(file);
+
+    if total.is_some_and(|expected| downloaded != expected) {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        if let Some(media) = &remote {
+            let source = media.source(state.remote.client().clone());
+            return Ok(state.media_server.register_remote(source));
+        }
+        return Ok(url);
+    }
 
     tokio::fs::rename(&temp_path, &final_path)
         .await
@@ -376,6 +439,26 @@ pub(crate) async fn cleanup_stale(dir: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_partial_cache_windows() {
+        assert!(!is_complete_download(
+            reqwest::StatusCode::PARTIAL_CONTENT,
+            Some(4),
+            Some(10)
+        ));
+        assert!(is_complete_download(
+            reqwest::StatusCode::PARTIAL_CONTENT,
+            Some(10),
+            Some(10)
+        ));
+        assert!(!is_complete_download(
+            reqwest::StatusCode::PARTIAL_CONTENT,
+            Some(4),
+            None
+        ));
+        assert!(is_complete_download(reqwest::StatusCode::OK, Some(4), None));
+    }
 
     #[test]
     fn cache_names_are_stable_and_use_the_url_extension() {

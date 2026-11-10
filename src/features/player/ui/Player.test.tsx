@@ -17,6 +17,7 @@ vi.mock("../../../shared/api", () => ({
     getProgress: vi.fn(),
     saveProgress: vi.fn(),
     transcodeMedia: vi.fn(),
+    resolveMedia: vi.fn(),
     readSubtitle: vi.fn(),
     openExternal: vi.fn(),
     setStatusBarHidden: vi.fn().mockResolvedValue(undefined),
@@ -194,6 +195,41 @@ describe("player", () => {
     expect(stage.querySelector("img")).toBeNull();
   });
 
+  it("retries direct media through the loopback proxy after a network error", async () => {
+    vi.stubGlobal("MediaError", {
+      MEDIA_ERR_SRC_NOT_SUPPORTED: 4,
+      MEDIA_ERR_DECODE: 3,
+      MEDIA_ERR_NETWORK: 2,
+    });
+    try {
+      const proxied = "http://127.0.0.1:1/media/proxy";
+      vi.mocked(api.resolveMedia).mockResolvedValue({
+        url: proxied,
+        name: "clip.mp4",
+        size: 10,
+        kind: "video",
+        provider: "pawchive",
+      });
+      render(<Player />);
+      const video = document.querySelector("video") as HTMLVideoElement;
+      await waitFor(() => expect(video.src).toBe(item.url), { timeout: 3000 });
+      Object.defineProperty(video, "error", {
+        configurable: true,
+        value: { code: 2 },
+      });
+
+      fireEvent.error(video);
+
+      await waitFor(
+        () => expect(api.resolveMedia).toHaveBeenCalledWith(item.url),
+        { timeout: 3000 },
+      );
+      await waitFor(() => expect(video.src).toBe(proxied), { timeout: 3000 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("transcodes unsupported media when the fallback is enabled", async () => {
     vi.stubGlobal("MediaError", {
       MEDIA_ERR_SRC_NOT_SUPPORTED: 4,
@@ -234,6 +270,20 @@ describe("player", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("retries source resolution when loading failed", async () => {
+    vi.mocked(api.validateMedia)
+      .mockRejectedValueOnce(new Error("temporary network failure"))
+      .mockResolvedValue(item.url);
+
+    render(<Player />);
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(api.validateMedia).toHaveBeenCalledTimes(2));
+    const video = document.querySelector("video") as HTMLVideoElement;
+    await waitFor(() => expect(video.src).toBe(item.url));
   });
 
   it("restores the last playback position after metadata loads", async () => {

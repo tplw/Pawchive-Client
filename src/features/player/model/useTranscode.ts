@@ -103,11 +103,20 @@ export function useTranscode({
     }
   }, [item, setError, setLoading, setPlaying, setSource, toast]);
 
+  const resetTranscode = useCallback(() => {
+    const pending = requestRef.current;
+    requestRef.current = null;
+    attemptedRef.current = null;
+    setProgress(null);
+    setPhase(null);
+    if (pending) void api.cancelRequest(pending).catch(() => undefined);
+  }, []);
+
   const text = phase
     ? `${phase === "download" ? "Downloading" : "Transcoding"}${
         progress !== null ? ` ${Math.round(progress)}%` : "…"
       }`
     : null;
 
-  return { startTranscode, transcodeText: text };
+  return { startTranscode, resetTranscode, transcodeText: text };
 }

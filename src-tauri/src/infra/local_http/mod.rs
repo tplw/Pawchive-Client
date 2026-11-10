@@ -2,7 +2,7 @@ mod mime;
 mod range;
 
 use mime::content_type;
-use range::{is_not_modified, parse_range};
+use range::{is_not_modified, parse_content_range, parse_range};
 
 pub use mime::content_type_for_name;
 
@@ -404,6 +404,79 @@ async fn serve_remote(
         .await;
     }
 
+    let upstream_content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.split(';').next().unwrap_or_default().trim())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if upstream_content_type == "text/html" || upstream_content_type == "application/xhtml+xml" {
+        tracing::warn!(
+            content_type = %upstream_content_type,
+            "remote media provider returned a web page instead of media"
+        );
+        return respond_status(
+            &mut socket,
+            "502 Bad Gateway",
+            "media provider returned a web page; the link may have expired",
+        )
+        .await;
+    }
+
+    // Validate the upstream range before claiming to the webview that it
+    // matches the requested bytes. A provider that ignores the Range header
+    // or returns a different window must be aligned or rejected; otherwise
+    // the media decoder receives corrupt data mid-stream.
+    let (upstream_start, _upstream_end) = if upstream_status == reqwest::StatusCode::PARTIAL_CONTENT
+    {
+        let Some((upstream_start, upstream_end, upstream_total)) = response
+            .headers()
+            .get(reqwest::header::CONTENT_RANGE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(parse_content_range)
+        else {
+            return respond_status(
+                &mut socket,
+                "502 Bad Gateway",
+                "media provider returned an invalid range",
+            )
+            .await;
+        };
+        if upstream_total != length || upstream_start > start || upstream_end < end {
+            tracing::warn!(
+                upstream_start,
+                upstream_end,
+                upstream_total,
+                requested_start = start,
+                requested_end = end,
+                expected_length = length,
+                "remote media provider returned a mismatched range"
+            );
+            return respond_status(
+                &mut socket,
+                "502 Bad Gateway",
+                "media provider returned a mismatched range",
+            )
+            .await;
+        }
+        (upstream_start, upstream_end)
+    } else {
+        (0, length.saturating_sub(1))
+    };
+    if upstream_status == reqwest::StatusCode::OK {
+        if let Some(upstream_length) = response.content_length() {
+            if upstream_length < start.saturating_add(body_length) {
+                return respond_status(
+                    &mut socket,
+                    "502 Bad Gateway",
+                    "media provider returned a truncated file",
+                )
+                .await;
+            }
+        }
+    }
+
     write_media_headers(
         &mut socket,
         status,
@@ -414,13 +487,10 @@ async fn serve_remote(
     )
     .await?;
 
-    // Some providers ignore Range on the first request and answer 200 with
-    // the whole file. Skip to the requested offset so seeking still works.
-    let skip = if upstream_status == reqwest::StatusCode::OK {
-        start
-    } else {
-        0
-    };
+    // Some providers ignore Range and answer 200 with the whole file. Skip to
+    // the requested offset so seeking still works. A 206 that starts before
+    // the requested offset is aligned the same way.
+    let skip = start.saturating_sub(upstream_start);
     stream_remote_body(socket, response, skip, body_length).await
 }
 
@@ -699,6 +769,71 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), reqwest::StatusCode::PARTIAL_CONTENT);
         assert_eq!(response.bytes().await.unwrap().as_ref(), b"2345");
+    }
+
+    #[tokio::test]
+    async fn aligns_a_partial_response_that_starts_before_the_requested_range() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(206)
+                    .insert_header("Content-Range", "bytes 0-9/10")
+                    .set_body_bytes(b"0123456789".to_vec()),
+            )
+            .mount(&mock)
+            .await;
+        let server = LocalMediaServer::start().unwrap();
+        let url = server.register_remote(RemoteSource {
+            client: reqwest::Client::new(),
+            url: format!("{}/file", mock.uri()),
+            headers: Vec::new(),
+            size: 10,
+            content_type: "video/mp4".into(),
+            etag: "\"remote-test\"".into(),
+        });
+        let response = reqwest::Client::new()
+            .get(url)
+            .header(reqwest::header::RANGE, "bytes=2-5")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::PARTIAL_CONTENT);
+        assert_eq!(response.bytes().await.unwrap().as_ref(), b"2345");
+    }
+
+    #[tokio::test]
+    async fn rejects_html_from_an_expired_provider_url() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "text/html")
+                    .set_body_bytes(b"<html>login</html>".to_vec()),
+            )
+            .mount(&mock)
+            .await;
+        let server = LocalMediaServer::start().unwrap();
+        let url = server.register_remote(RemoteSource {
+            client: reqwest::Client::new(),
+            url: format!("{}/file", mock.uri()),
+            headers: Vec::new(),
+            size: 10,
+            content_type: "video/mp4".into(),
+            etag: "\"remote-test\"".into(),
+        });
+        let response = reqwest::Client::new()
+            .get(url)
+            .header(reqwest::header::RANGE, "bytes=0-3")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::BAD_GATEWAY);
     }
 
     #[test]
