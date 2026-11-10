@@ -54,7 +54,10 @@ or certificate before installing. See [docs/IOS.md](docs/IOS.md) for details.
   post/creator search, filters, sorting and a locally indexed creator
   directory for instant search.
 - **Built-in player** persistent mini-player, queue, speed control, subtitles,
-  fullscreen, resume position and optional desktop ffmpeg transcoding.
+  fullscreen, resume position, lock-screen/headset controls, mobile
+  Picture-in-Picture and optional desktop ffmpeg transcoding.
+- **Native navigation** tab stacks, mobile edge swipe and back buttons, plus
+  desktop browser-style mouse, trackpad and keyboard back/forward actions.
 - **Image viewer** full-screen gallery with swipe navigation and pinch-to-zoom.
 - **Playlists & favorites** local playlists for audio, video and images, plus
   starred creators on Home.
