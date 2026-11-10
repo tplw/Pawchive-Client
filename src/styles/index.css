@@ -458,3 +458,26 @@ input[type="range"]::-webkit-slider-thumb {
     padding-right: max(env(safe-area-inset-right), 56px);
   }
 }
+
+/* Native-feeling touch feedback without changing desktop hover behavior. */
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+@media (hover: none) {
+  .mobile-tabbar button {
+    min-height: 54px;
+  }
+
+  .mobile-tabbar button:active,
+  .site-card:active {
+    transform: scale(0.97);
+  }
+}

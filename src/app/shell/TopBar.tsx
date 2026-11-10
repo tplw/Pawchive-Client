@@ -17,10 +17,21 @@ export function TopBar() {
 
   if (isMobile) {
     return (
-      <header className="topbar flex shrink-0 items-center justify-between border-b border-line/60 bg-base/90 px-4">
-        <h1 className="truncate text-[15px] font-bold text-ink">
-          {routeTitle(route)}
-        </h1>
+      <header className="topbar flex shrink-0 items-center justify-between gap-2 border-b border-line/60 bg-base/90 px-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          {canGoBack ? (
+            <IconButton
+              label="Back"
+              icon={ArrowLeft}
+              size="md"
+              className="h-10 w-10 shrink-0"
+              onClick={() => goBack()}
+            />
+          ) : null}
+          <h1 className="truncate px-1 text-[15px] font-bold text-ink">
+            {routeTitle(route)}
+          </h1>
+        </div>
         <BrandPaw size={30} />
       </header>
     );

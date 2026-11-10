@@ -36,6 +36,14 @@ the refactored codebase.
 
 ### Added
 
+- Media Session transport controls so lock-screen and headphone play/pause,
+  previous/next, stop and 10-second seek actions work with the built-in player.
+- Desktop browser-style navigation: mouse back/forward buttons, horizontal
+  trackpad swipes and Alt/Cmd back/forward shortcuts.
+- Mobile-only Picture-in-Picture control for video playback, with standard and
+  iOS WebKit presentation-mode support.
+- A mobile top-bar back button and native touch feedback on tabs and cards.
+
 - Android target with the shared mobile shell, bottom tabs, safe-area layout,
   hardware back navigation and ARM64/ARMv7/x86/x86_64 builds.
 - Android build helper (`scripts/android.sh`), npm scripts, documentation and
