@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../../shared/api";
 import { PostDetailPage } from "./PostDetail";
+import { clearPostFeeds, rememberPostFeed } from "../model/postNavigation";
+import type { PostDetail, PostSummary } from "../../../shared/types";
 
 vi.mock("../../../shared/api", () => ({
   api: {
@@ -135,5 +137,46 @@ describe("post detail", () => {
         "Some files exceed the archive size limit and weren't saved",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("skips posts hidden by the creator filter when navigating", async () => {
+    clearPostFeeds();
+    const summary = (id: string): PostSummary =>
+      ({ id, service: "fanbox", user: "7", title: id }) as PostSummary;
+    rememberPostFeed({
+      service: "fanbox",
+      creatorId: "7",
+      visible: [summary("99"), summary("101")],
+      all: [summary("99"), summary("100"), summary("101")],
+      hasMore: false,
+    });
+    const detail = {
+      post: {
+        id: "99",
+        user: "7",
+        service: "fanbox",
+        title: "Filtered post",
+        content: "",
+        embed: {},
+        attachments: [],
+        file: null,
+        added: 1700000000,
+        published: 1700000000,
+        edited: null,
+        shared_file: false,
+        next: "100",
+        prev: null,
+      },
+      attachments: [],
+      creator: { id: "7", name: "Grace Hopper", service: "fanbox" },
+      next: "100",
+      prev: null,
+    } as unknown as PostDetail;
+    vi.mocked(api.getPost).mockResolvedValue(detail);
+
+    wrapper(<PostDetailPage service="fanbox" creatorId="7" postId="99" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Next post" }));
+    expect(window.location.hash).toBe("#/post/fanbox/7/101");
+    clearPostFeeds();
   });
 });

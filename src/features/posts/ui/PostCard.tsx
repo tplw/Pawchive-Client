@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   FileText,
   Film,
   Headphones,
   Image as ImageIcon,
   Layers,
+  LoaderCircle,
   Music2,
   Play,
 } from "lucide-react";
@@ -16,6 +17,8 @@ import { useInView } from "../../../shared/lib/useInView";
 import { navigate } from "../../../shared/lib/router";
 import { api } from "../../../shared/api";
 import { useAppStore } from "../../../app/store";
+import { usePlayerStore } from "../../player/model/store";
+import { queueItemFromAttachment } from "../../player/model/queue";
 import type { MediaKind, PostSummary } from "../../../shared/types";
 import { Skeleton } from "../../../shared/ui";
 import {
@@ -42,7 +45,12 @@ export function PostCard({
   const [imageFailed, setImageFailed] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const cardSize = useAppStore((state) => state.settings.postCardSize);
-  const { ref: cardRef, inView } = useInView<HTMLElement>();
+  const { ref: cardRef, inView } = useInView<HTMLElement>();  const queryClient = useQueryClient();
+  const playItems = usePlayerStore((state) => state.playItems);
+  const toast = useAppStore((state) => state.toast);
+  const reportError = useAppStore((state) => state.reportError);
+  const [startingPlayback, setStartingPlayback] = useState(false);
+
   const needsEnrichment = Boolean(
     enrichMedia &&
       post.attachmentCount > 0 &&
@@ -111,6 +119,78 @@ export function PostCard({
     </>
   );
 
+  const playPost = async () => {
+    if (startingPlayback) return;
+    setStartingPlayback(true);
+    try {
+      const detail = await queryClient.fetchQuery({
+        queryKey: queryKeys.post(post.service, post.user, post.id),
+        queryFn: () =>
+          api.getPost({
+            service: post.service,
+            creatorId: post.user,
+            postId: post.id,
+          }),
+        staleTime: 120_000,
+      });
+      const playable = detail.attachments.filter(
+        (attachment) =>
+          attachment.kind === "audio" || attachment.kind === "video",
+      );
+      if (playable.length === 0) {
+        toast("info", "Nothing to play", "This post has no playable media.");
+        return;
+      }
+      const images = detail.attachments.filter(
+        (attachment) => attachment.kind === "image",
+      );
+      const creatorName =
+        detail.creator?.name ?? post.creatorName ?? post.user;
+      playItems(
+        playable.map((attachment) =>
+          queueItemFromAttachment(attachment, {
+            title: detail.post.title || attachment.name,
+            creatorName,
+            artwork: images[0]?.thumbnailUrl ?? null,
+            service: post.service,
+            creatorId: post.user,
+            postId: post.id,
+          }),
+        ),
+        0,
+      );
+    } catch (error) {
+      reportError(error, "Could not play post");
+    } finally {
+      setStartingPlayback(false);
+    }
+  };
+
+  const canPlay = kinds.some(
+    (kind) => kind === "audio" || kind === "video",
+  );
+
+  const playControl = canPlay ? (
+    <button
+      type="button"
+      aria-label={`Play ${post.title || "post"}`}
+      title="Play now"
+      disabled={startingPlayback}
+      onClick={(event) => {
+        event.stopPropagation();
+        void playPost();
+      }}
+      onKeyDown={(event) => event.stopPropagation()}
+      className="grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-black/70 text-white/85 shadow-lg transition hover:bg-accent hover:text-black focus-visible:ring-2 focus-visible:ring-accent/70 disabled:opacity-60"
+    >
+      {startingPlayback ? (
+        <LoaderCircle className="h-3 w-3 animate-spin" />
+      ) : (
+        <Play className="h-3 w-3" fill="currentColor" />
+      )}
+    </button>
+  ) : null;
+
   const mediaBadges = (
     <div className="flex items-center gap-1.5">
       {kinds.length > 0 ? (
@@ -157,7 +237,10 @@ export function PostCard({
         <div className="absolute inset-0 overflow-hidden">{thumbnail}</div>
         <div className="absolute inset-x-2 top-2 flex items-start justify-between gap-2">
           <ServiceBadge service={post.service} />
-          {mediaBadges}
+          <div className="flex items-center gap-1">
+            {mediaBadges}
+            {playControl}
+          </div>
         </div>
         <div className="absolute inset-x-0 bottom-0 p-2.5">
           <h3 className="line-clamp-2 text-xs font-bold leading-snug text-white drop-shadow">
@@ -198,10 +281,8 @@ export function PostCard({
       >
         {thumbnail}
         <div className="absolute bottom-2 left-2">{mediaBadges}</div>
-        {kinds.includes("video") || kinds.includes("audio") ? (
-          <span className="touch-visible absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/70 text-white/80 opacity-0 transition group-hover:opacity-100">
-            <Play className="h-3 w-3" fill="currentColor" />
-          </span>
+        {playControl ? (
+          <div className="absolute right-2 top-2 z-10">{playControl}</div>
         ) : null}
       </div>
       <div

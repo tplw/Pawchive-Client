@@ -41,6 +41,11 @@ the refactored codebase.
 - Desktop browser-style navigation: mouse back/forward buttons, horizontal
   trackpad swipes and Alt/Cmd back/forward shortcuts.
 - A mobile top-bar back button and native touch feedback on tabs and cards.
+- A play button on post cards that starts the post's audio/video queue without
+  opening the post first.
+- Post-detail Previous/Next navigation now follows the active creator filters.
+- Auto-detected ASMR creators are remembered so their ASMR tag appears on
+  creator cards after the profile has been viewed.
 
 - Android target with the shared mobile shell, bottom tabs, safe-area layout,
   hardware back navigation and ARM64/ARMv7/x86/x86_64 builds.

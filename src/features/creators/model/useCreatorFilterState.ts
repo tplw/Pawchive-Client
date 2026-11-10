@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getGlobalHideNoMediaDefault,
   loadCreatorFilter,
@@ -47,6 +47,15 @@ export function useCreatorFilterState({
     setFilter(next);
     saveCreatorFilter(service, creatorId, next);
   };
+  const markAutoAsmr = useCallback(() => {
+    setFilter((current) => {
+      if (current.asmr !== undefined) return current;
+      const next = { ...current, asmr: true };
+      saveCreatorFilter(service, creatorId, next);
+      return next;
+    });
+  }, [creatorId, service]);
+
 
   const clearFilter = () => {
     updateFilter({
@@ -71,6 +80,7 @@ export function useCreatorFilterState({
     filter,
     keywordText,
     updateFilter,
+    markAutoAsmr,
     clearFilter,
     changeKeywords,
   };

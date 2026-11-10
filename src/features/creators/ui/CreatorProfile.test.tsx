@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../../shared/api";
 import { DEFAULT_SETTINGS } from "../../../shared/lib/constants";
+import { loadCreatorFilter } from "../../../shared/lib/creatorFilters";
 import { useAppStore } from "../../../app/store";
 import type { CreatorSummary, PostSummary } from "../../../shared/types";
 import { CreatorProfilePage } from "./CreatorProfile";
@@ -86,6 +87,21 @@ describe("creator profile", () => {
         is_favorite: false,
       },
     ]);
+  });
+
+  it("persists auto-detected ASMR for creator previews", async () => {
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
+    vi.mocked(api.getCreatorPosts).mockResolvedValue({
+      items: [{ ...post, title: "ASMR whisper session" }],
+      offset: 0,
+      hasMore: false,
+    });
+
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    await waitFor(() =>
+      expect(loadCreatorFilter("patreon", "42").asmr).toBe(true),
+    );
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
   });
 
   it("searches this creator's posts", async () => {

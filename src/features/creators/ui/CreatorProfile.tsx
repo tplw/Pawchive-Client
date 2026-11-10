@@ -11,7 +11,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../shared/api";
 import { errorMessage } from "../../../shared/lib/constants";
 import {
@@ -41,6 +41,7 @@ import {
 } from "./CreatorVisuals";
 import { CreatorCard, CreatorCardSkeleton } from "./CreatorCard";
 import { CardGrid } from "../../../shared/CardGrid";
+import { rememberPostFeed } from "../../posts/model/postNavigation";
 import { CreatorAbout } from "./CreatorAbout";
 import { CreatorAnnouncements } from "./CreatorAnnouncements";
 import { CreatorFilterModal } from "./CreatorFilterModal";
@@ -87,8 +88,14 @@ function CreatorProfileContent({
   const hideNoMediaDefault = useAppStore(
     (state) => state.settings.hideNoMedia,
   );
-  const { filter, keywordText, updateFilter, clearFilter, changeKeywords } =
-    useCreatorFilterState({ service, creatorId, hideNoMediaDefault });
+  const {
+    filter,
+    keywordText,
+    updateFilter,
+    markAutoAsmr,
+    clearFilter,
+    changeKeywords,
+  } = useCreatorFilterState({ service, creatorId, hideNoMediaDefault });
   const hideUnavailablePosts = useAppStore(
     (state) => state.settings.hideUnavailablePosts,
   );
@@ -186,6 +193,9 @@ function CreatorProfileContent({
     () => detectAsmrCreator(name, details?.description, postItems),
     [name, details?.description, postItems],
   );
+  useEffect(() => {
+    if (detectedAsmr) markAutoAsmr();
+  }, [detectedAsmr, markAutoAsmr]);
   const isAsmr = filter.asmr ?? detectedAsmr;
   const autoAudioOnly = isAsmr && autoDetectAsmr && filter.asmr !== false;
   const effectiveFilter = useMemo(
@@ -197,6 +207,15 @@ function CreatorProfileContent({
       postItems.filter((post) => postMatchesCreatorFilter(post, effectiveFilter)),
     [postItems, effectiveFilter],
   );
+  useEffect(() => {
+    rememberPostFeed({
+      service,
+      creatorId,
+      visible: filteredPostItems,
+      all: postItems,
+      hasMore: Boolean(posts.hasNextPage),
+    });
+  }, [creatorId, filteredPostItems, postItems, posts.hasNextPage, service]);
   const similarCreators = useMemo(
     () =>
       (similar.data ?? []).filter(

@@ -32,6 +32,7 @@ import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
 import { queryKeys } from "../../../shared/query/keys";
 import { PostAttachments } from "./PostAttachments";
 import { PostDiscussion } from "./PostDiscussion";
+import { neighborForPost } from "../model/postNavigation";
 import { useDownloadActions } from "../../downloads/model/useDownloadActions";
 import { queueItemFromAttachment } from "../../player/model/queue";
 import { Badge, Button, EmptyState, Spinner } from "../../../shared/ui";
@@ -238,6 +239,25 @@ function PostDetailContent({
     }
   };
 
+  const previousPostId = detail
+    ? neighborForPost({
+        service,
+        creatorId,
+        postId,
+        direction: -1,
+        fallbackId: detail.prev ?? null,
+      })
+    : null;
+  const nextPostId = detail
+    ? neighborForPost({
+        service,
+        creatorId,
+        postId,
+        direction: 1,
+        fallbackId: detail.next ?? null,
+      })
+    : null;
+
   const postNotFound = isAppError(post.error) && post.error.code === "not_found";
   const isNotImportedPost =
     detail?.post.origin?.trim().toLowerCase() === "kemono";
@@ -320,24 +340,24 @@ function PostDetailContent({
         <ArrowLeft className="h-3.5 w-3.5" /> {backLabel}
       </button>
 
-      {detail.next || detail.prev ? (
+      {nextPostId || previousPostId ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          {detail.prev ? (
+          {previousPostId ? (
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => openPost(detail.prev ?? "")}
+              onClick={() => openPost(previousPostId)}
             >
               <ArrowLeft className="h-3.5 w-3.5" /> Previous post
             </Button>
           ) : (
             <span />
           )}
-          {detail.next ? (
+          {nextPostId ? (
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => openPost(detail.next ?? "")}
+              onClick={() => openPost(nextPostId)}
             >
               Next post <ArrowRight className="h-3.5 w-3.5" />
             </Button>
