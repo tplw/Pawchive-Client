@@ -1,3 +1,4 @@
+import groovy.json.JsonSlurper
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -5,6 +6,44 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("rust")
+}
+
+// reqwest 0.13 enables rustls-platform-verifier, whose Android certificate
+// verifier ships as a small Kotlin AAR inside the cargo package. Point Gradle
+// at that package's local Maven repository instead of vendoring the binary.
+data class RustlsPlatformVerifier(val repository: String, val version: String)
+
+val rustlsPlatformVerifier: RustlsPlatformVerifier by lazy {
+    val metadata = providers.exec {
+        workingDir = rootProject.projectDir
+        commandLine(
+            "cargo",
+            "metadata",
+            "--format-version",
+            "1",
+            "--filter-platform",
+            "aarch64-linux-android",
+            "--manifest-path",
+            rootProject.file("../../Cargo.toml").absolutePath,
+        )
+    }.standardOutput.asText.get()
+    @Suppress("UNCHECKED_CAST")
+    val packages =
+        (JsonSlurper().parseText(metadata) as Map<String, Any>)["packages"]
+            as List<Map<String, Any>>
+    val packageInfo =
+        packages.first { it["name"] == "rustls-platform-verifier-android" }
+    RustlsPlatformVerifier(
+        File(packageInfo["manifest_path"] as String)
+            .parentFile
+            .resolve("maven")
+            .absolutePath,
+        packageInfo["version"] as String,
+    )
+}
+
+repositories {
+    maven { url = uri(rustlsPlatformVerifier.repository) }
 }
 
 val tauriProperties = Properties().apply {
@@ -69,6 +108,7 @@ rust {
 }
 
 dependencies {
+    implementation("rustls:rustls-platform-verifier:${rustlsPlatformVerifier.version}")
     implementation("androidx.webkit:webkit:1.14.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.activity:activity-ktx:1.10.1")

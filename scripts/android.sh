@@ -94,6 +94,10 @@ if [ -z "${NDK_HOME:-}" ] && [ -d "$ANDROID_HOME/ndk" ]; then
 fi
 if [ -n "${NDK_HOME:-}" ]; then
   export NDK_HOME
+  # aws-lc-sys (pulled in by Proton's SDK) looks for these names when it
+  # configures its CMake build for Android.
+  export ANDROID_NDK_ROOT="$NDK_HOME"
+  export ANDROID_NDK="$NDK_HOME"
 fi
 
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/build-tools/37.0.0:$ANDROID_HOME/build-tools/36.0.0:$ANDROID_HOME/build-tools/35.0.0:$PATH"

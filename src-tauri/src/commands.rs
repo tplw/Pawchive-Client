@@ -668,6 +668,7 @@ mod tests {
             download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
             http: reqwest::Client::new(),
             mega: crate::infra::providers::mega::MegaResolver::new(reqwest::Client::new()),
+            proton: Arc::new(crate::infra::providers::proton::ProtonResolver::new()),
             remote: std::sync::Arc::new(crate::infra::providers::remote::RemoteResolver::new(
                 reqwest::Client::new(),
             )),

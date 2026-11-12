@@ -83,7 +83,7 @@ or certificate before installing. See [docs/IOS.md](docs/IOS.md) for details.
 ## Requirements
 
 - Node.js 20.19+ (or 22.12+) and npm.
-- Rust stable (minimum 1.90).
+- Rust stable (minimum 1.96).
 - [Tauri 2 platform prerequisites](https://v2.tauri.app/start/prerequisites/):
   - **macOS**: Xcode command line tools.
   - **Windows**: WebView2 and the Microsoft C++ build tools.

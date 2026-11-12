@@ -101,6 +101,8 @@ pub fn run() {
                     ))
                 })?;
             let mega = crate::infra::providers::mega::MegaResolver::new(http.clone());
+            let proton =
+                std::sync::Arc::new(crate::infra::providers::proton::ProtonResolver::new());
             let remote = std::sync::Arc::new(crate::infra::providers::remote::RemoteResolver::new(
                 http.clone(),
             ));
@@ -134,6 +136,7 @@ pub fn run() {
                 download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
                 http,
                 mega,
+                proton,
                 remote,
                 app_data_dir: data_dir,
                 default_download_dir,

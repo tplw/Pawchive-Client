@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isMegaFileUrl, needsMediaResolution, playbackProgressKey } from "./queue";
+import {
+  isMegaFileUrl,
+  needsMediaResolution,
+  playbackProgressKey,
+  providerForUrl,
+} from "./queue";
 
 describe("playback progress key", () => {
   it("uses the archive-relative path for post, playlist and download entries", () => {
@@ -25,6 +30,19 @@ describe("playback progress key", () => {
         filePath: "C:\\Users\\Ada\\Downloads\\clip.mp4",
       }),
     ).toBe("C:/Users/Ada/Downloads/clip.mp4");
+  });
+
+  it("keeps Proton files from the same share separate", () => {
+    const first = playbackProgressKey({
+      url: "https://drive.proton.me/urls/token?pawchive_node=vol~one#pass",
+      filePath: "https://drive.proton.me/urls/token?pawchive_node=vol~one#pass",
+    });
+    const second = playbackProgressKey({
+      url: "https://drive.proton.me/urls/token?pawchive_node=vol~two#pass",
+      filePath: "https://drive.proton.me/urls/token?pawchive_node=vol~two#pass",
+    });
+    expect(first).not.toBe(second);
+    expect(first).toContain("pawchive_node=vol~one");
   });
 });
 
@@ -74,6 +92,23 @@ describe("provider resolution", () => {
       needsMediaResolution("https://www.dropbox.com/scl/fi/abc/clip.mp4?dl=0"),
     ).toBe(true);
     expect(needsMediaResolution("https://gofile.io/d/41qLzaRk")).toBe(true);
+    expect(
+      needsMediaResolution("https://drive.proton.me/urls/abc#password"),
+    ).toBe(true);
+  });
+
+  it("classifies Proton share and child links", () => {
+    expect(providerForUrl("https://drive.proton.me/urls/abc#password")).toBe(
+      "proton",
+    );
+    expect(
+      providerForUrl(
+        "https://drive.proton.me/urls/abc?pawchive_node=vol~link#password",
+      ),
+    ).toBe("proton");
+    expect(providerForUrl("https://proton.me/urls/abc#password")).toBe(
+      "external",
+    );
   });
 
   it("leaves direct archive and third-party media alone", () => {

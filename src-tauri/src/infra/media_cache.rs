@@ -114,9 +114,11 @@ fn remote_cache_path(
 }
 
 pub fn cached_url(state: &AppState, raw: &str) -> AppResult<Option<String>> {
-    // MEGA files are decrypted while streaming and never stored in the plain
-    // media cache. The player uses the MEGA range server instead.
-    if crate::infra::providers::mega::is_media_url(raw) {
+    // MEGA and Proton Drive files are decrypted while streaming and never
+    // stored in the plain media cache. The player uses their range servers.
+    if crate::infra::providers::mega::is_media_url(raw)
+        || crate::infra::providers::proton::is_proton_url(raw)
+    {
         return Ok(None);
     }
     // Provider links are cached under the resolved filename's extension, but
@@ -157,6 +159,11 @@ pub async fn cache_media(
     if crate::infra::providers::mega::is_media_url(raw) {
         return Err(AppError::Validation(
             "MEGA media is decrypted while streaming and cannot be cached directly".into(),
+        ));
+    }
+    if crate::infra::providers::proton::is_proton_url(raw) {
+        return Err(AppError::Validation(
+            "Proton Drive media is decrypted while streaming and cannot be cached directly".into(),
         ));
     }
     let (url, extra_headers, remote) = if crate::infra::providers::remote::needs_resolution(raw) {

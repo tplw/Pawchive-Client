@@ -35,6 +35,11 @@ export function playbackProgressKey(item: Pick<QueueItem, "url" | "filePath">): 
       .replace(/^\/data\/?/, "")
       .replace(/^\/+/, "");
     if (path) {
+      if (url.hostname === "drive.proton.me") {
+        // Every file in a Proton share uses the same `/urls/<token>` path, so
+        // the child node query is what keeps their resume positions distinct.
+        return `${url.hostname}${url.pathname}${url.search}`;
+      }
       return url.hostname.endsWith("pawchive.pw")
         ? path
         : `${url.hostname}/${path}`;

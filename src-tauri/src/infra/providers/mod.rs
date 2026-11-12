@@ -1,5 +1,6 @@
 pub(crate) mod direct;
 pub(crate) mod mega;
+pub(crate) mod proton;
 pub(crate) mod remote;
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +15,7 @@ pub enum MediaProvider {
     #[default]
     Pawchive,
     Mega,
+    Proton,
     GoogleDrive,
     Dropbox,
     Gofile,
@@ -25,6 +27,7 @@ impl MediaProvider {
         match self {
             Self::Pawchive => "pawchive",
             Self::Mega => "mega",
+            Self::Proton => "proton",
             Self::GoogleDrive => "googleDrive",
             Self::Dropbox => "dropbox",
             Self::Gofile => "gofile",
@@ -52,6 +55,7 @@ pub fn provider_for_host(host: &str) -> MediaProvider {
         "mega.nz" | "www.mega.nz" | "mega.co.nz" | "www.mega.co.nz" | "mega.io" | "www.mega.io" => {
             MediaProvider::Mega
         }
+        "drive.proton.me" | "www.drive.proton.me" => MediaProvider::Proton,
         "drive.google.com" | "drive.usercontent.google.com" | "docs.google.com" => {
             MediaProvider::GoogleDrive
         }
@@ -81,6 +85,14 @@ mod tests {
         assert_eq!(
             provider_for_url("https://mega.nz/file/abc#def"),
             MediaProvider::Mega
+        );
+        assert_eq!(
+            provider_for_url("https://drive.proton.me/urls/abc#password"),
+            MediaProvider::Proton
+        );
+        assert_eq!(
+            provider_for_url("https://drive.proton.me/urls/abc?pawchive_node=vol~link#password"),
+            MediaProvider::Proton
         );
         assert_eq!(
             provider_for_url("https://drive.google.com/file/d/abc/view"),

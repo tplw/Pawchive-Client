@@ -10,6 +10,11 @@ use std::sync::Arc;
 
 /// Post feeds, detail enrichment and comment/revision orchestration.
 /// Tauri commands stay thin wrappers around this service.
+enum ProviderMedia {
+    Remote(Box<crate::infra::providers::remote::RemoteMedia>),
+    Proton(Box<crate::infra::providers::proton::ProtonFile>),
+}
+
 pub(crate) struct PostService {
     state: AppState,
 }
@@ -94,16 +99,18 @@ impl PostService {
             .into_iter()
             .filter_map(|file| Attachment::new(&self.state.cfg, &file))
             .collect();
-        // Public Drive and MEGA folder links are expanded into their individual
-        // files so they can be played, queued and downloaded like direct links.
+        // Public Drive, MEGA and Proton folder links are expanded into their
+        // individual files so they can be played, queued and downloaded like
+        // direct links.
         let mut attachments = crate::infra::providers::remote::expand_folders(
             &self.state.mega,
+            &self.state.proton,
             &self.state.remote,
             attachments,
         )
         .await;
         // MEGA links hide their filename, size and media kind behind encrypted
-        // attributes. Google Drive, Dropbox and GoFile links have no media
+        // attributes. Proton and the other provider links have no media
         // extension either. Resolve them now so the player queue and attachment
         // list classify them like any other archive file. Failures stay
         // non-fatal: the link is still visible and the player reports the error
@@ -140,9 +147,11 @@ impl PostService {
         let gate = Arc::new(tokio::sync::Semaphore::new(4));
         let mut jobs = tokio::task::JoinSet::new();
         for (index, attachment) in attachments.iter().enumerate() {
-            if crate::infra::providers::mega::is_media_url(&attachment.url)
-                || !crate::infra::providers::remote::needs_resolution(&attachment.url)
-            {
+            if crate::infra::providers::mega::is_media_url(&attachment.url) {
+                continue;
+            }
+            let is_proton = crate::infra::providers::proton::is_proton_url(&attachment.url);
+            if !is_proton && !crate::infra::providers::remote::needs_resolution(&attachment.url) {
                 continue;
             }
             let state = self.state.clone();
@@ -150,7 +159,29 @@ impl PostService {
             let gate = gate.clone();
             jobs.spawn(async move {
                 let _permit = gate.acquire_owned().await.ok();
-                (index, state.remote.resolve(&url).await.ok())
+                if is_proton {
+                    (
+                        index,
+                        state
+                            .proton
+                            .resolve(&url)
+                            .await
+                            .ok()
+                            .map(Box::new)
+                            .map(ProviderMedia::Proton),
+                    )
+                } else {
+                    (
+                        index,
+                        state
+                            .remote
+                            .resolve(&url)
+                            .await
+                            .ok()
+                            .map(Box::new)
+                            .map(ProviderMedia::Remote),
+                    )
+                }
             });
         }
         while let Some(joined) = jobs.join_next().await {
@@ -160,13 +191,29 @@ impl PostService {
             let Some(attachment) = attachments.get_mut(index) else {
                 continue;
             };
-            attachment.name = media.name.clone();
-            attachment.ext = crate::shared::security::file_extension(&media.name);
-            attachment.kind = media.kind;
-            attachment.provider = media.provider;
-            if attachment.kind == MediaKind::Image {
-                let source = media.source(self.state.remote.client().clone());
-                attachment.thumbnail_url = Some(self.state.media_server.register_remote(source));
+            match media {
+                ProviderMedia::Remote(media) => {
+                    attachment.name = media.name.clone();
+                    attachment.ext = crate::shared::security::file_extension(&media.name);
+                    attachment.kind = media.kind;
+                    attachment.provider = media.provider;
+                    if attachment.kind == MediaKind::Image {
+                        let source = media.source(self.state.remote.client().clone());
+                        attachment.thumbnail_url =
+                            Some(self.state.media_server.register_remote(source));
+                    }
+                }
+                ProviderMedia::Proton(file) => {
+                    attachment.name = file.name.clone();
+                    attachment.ext = crate::shared::security::file_extension(&file.name);
+                    attachment.kind = file.kind;
+                    attachment.provider = crate::infra::providers::MediaProvider::Proton;
+                    if attachment.kind == MediaKind::Image {
+                        let stream = crate::infra::providers::proton::ProtonStream::new(*file);
+                        attachment.thumbnail_url =
+                            Some(self.state.media_server.register_proton(stream));
+                    }
+                }
             }
         }
         let creator = self

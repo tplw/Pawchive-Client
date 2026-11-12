@@ -4,6 +4,8 @@ use crate::shared::models::MediaKind;
 use reqwest::StatusCode;
 use std::time::Duration;
 
+const MAX_HEADER_BYTES: usize = 512 * 1024;
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ResolvedMediaInfo {
@@ -53,6 +55,18 @@ impl MediaService {
                 provider: crate::infra::providers::MediaProvider::Mega,
             });
         }
+        if crate::infra::providers::proton::is_proton_url(url) {
+            let file = self.state.proton.resolve(url).await?;
+            let stream = crate::infra::providers::proton::ProtonStream::new(file.clone());
+            let local_url = self.state.media_server.register_proton(stream);
+            return Ok(ResolvedMediaInfo {
+                url: local_url,
+                name: file.name.clone(),
+                size: file.size,
+                kind: file.kind,
+                provider: crate::infra::providers::MediaProvider::Proton,
+            });
+        }
         let media = self.state.remote.resolve(url).await?;
         let source = media.source(self.state.remote.client().clone());
         let local_url = self.state.media_server.register_remote(source);
@@ -72,6 +86,15 @@ impl MediaService {
             return Ok(self
                 .state
                 .mega
+                .resolve(url)
+                .await
+                .ok()
+                .map(|file| file.size));
+        }
+        if crate::infra::providers::proton::is_proton_url(url) {
+            return Ok(self
+                .state
+                .proton
                 .resolve(url)
                 .await
                 .ok()
@@ -132,6 +155,20 @@ impl MediaService {
 
     /// Read just enough of an image to detect its dimensions.
     pub(crate) async fn image_dimensions(&self, url: &str) -> AppResult<Option<MediaDimensions>> {
+        if crate::infra::providers::proton::is_proton_url(url) {
+            let file = self.state.proton.resolve(url).await?;
+            let bytes = self
+                .state
+                .proton
+                .read_range(&file, 0, MAX_HEADER_BYTES as u64)
+                .await?;
+            return Ok(imagesize::blob_size(&bytes)
+                .ok()
+                .map(|size| MediaDimensions {
+                    width: size.width,
+                    height: size.height,
+                }));
+        }
         let (url, extra_headers) = if crate::infra::providers::remote::needs_resolution(url) {
             let media = self.state.remote.resolve(url).await?;
             (media.url, media.headers)
@@ -159,7 +196,6 @@ impl MediaService {
         if !response.status().is_success() && response.status() != StatusCode::PARTIAL_CONTENT {
             return Ok(None);
         }
-        const MAX_HEADER_BYTES: usize = 512 * 1024;
         let mut bytes = Vec::with_capacity(MAX_HEADER_BYTES);
         let mut response = response;
         while bytes.len() < MAX_HEADER_BYTES {

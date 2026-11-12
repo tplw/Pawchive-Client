@@ -205,6 +205,11 @@ impl RemoteResolver {
                     "MEGA links are resolved by the MEGA resolver".into(),
                 ))
             }
+            MediaProvider::Proton => {
+                return Err(AppError::Validation(
+                    "Proton Drive links are resolved by the Proton resolver".into(),
+                ))
+            }
         };
 
         let direct_url = validate_media_remote_url(&direct_url)?.to_string();
@@ -254,11 +259,12 @@ fn folder_file_attachment(
     }
 }
 
-/// Expand public Google Drive and MEGA folder links into individual file
-/// attachments. Failures keep the folder link visible (and marked preview-only
-/// so the UI does not offer a download that cannot work).
+/// Expand public Google Drive, MEGA and Proton Drive folder links into
+/// individual file attachments. Failures keep the folder link visible (and
+/// marked preview-only so the UI does not offer a download that cannot work).
 pub async fn expand_folders(
     mega: &crate::infra::providers::mega::MegaResolver,
+    proton: &crate::infra::providers::proton::ProtonResolver,
     remote: &RemoteResolver,
     attachments: Vec<crate::shared::models::Attachment>,
 ) -> Vec<crate::shared::models::Attachment> {
@@ -311,6 +317,46 @@ pub async fn expand_folders(
             expanded.push(attachment);
             continue;
         }
+        if let Some(link) = crate::infra::providers::proton::parse_link(&attachment.url) {
+            match proton.expand(&link).await {
+                Ok(crate::infra::providers::proton::ProtonExpansion::File(file)) => {
+                    let url = file.url();
+                    attachment.name = file.name.clone();
+                    attachment.ext = crate::shared::security::file_extension(&file.name);
+                    attachment.kind = file.kind;
+                    attachment.provider = MediaProvider::Proton;
+                    attachment.path = url.clone();
+                    attachment.url = url.clone();
+                    attachment.download_url = url;
+                }
+                Ok(crate::infra::providers::proton::ProtonExpansion::Folder(files))
+                    if !files.is_empty() =>
+                {
+                    for file in files {
+                        let url = file.url();
+                        if !seen_urls.insert(url.clone()) {
+                            continue;
+                        }
+                        expanded.push(folder_file_attachment(
+                            url,
+                            file.name,
+                            MediaProvider::Proton,
+                        ));
+                    }
+                    continue;
+                }
+                Ok(crate::infra::providers::proton::ProtonExpansion::Folder(_)) => {
+                    attachment.name = "Proton Drive folder".into();
+                    attachment.kind = crate::shared::models::MediaKind::Other;
+                    attachment.preview_only = true;
+                    expanded.push(attachment);
+                    continue;
+                }
+                // Leave the original link visible so opening the post can show
+                // a useful error instead of silently dropping it.
+                Err(_) => {}
+            }
+        }
         expanded.push(attachment);
     }
     expanded
@@ -320,7 +366,10 @@ pub async fn expand_folders(
 pub fn needs_resolution(raw: &str) -> bool {
     matches!(
         provider_for_url(raw),
-        MediaProvider::GoogleDrive | MediaProvider::Dropbox | MediaProvider::Gofile
+        MediaProvider::GoogleDrive
+            | MediaProvider::Dropbox
+            | MediaProvider::Gofile
+            | MediaProvider::Proton
     )
 }
 
@@ -415,6 +464,7 @@ fn provider_label(provider: MediaProvider) -> &'static str {
         MediaProvider::Dropbox => "Dropbox",
         MediaProvider::Gofile => "GoFile",
         MediaProvider::Mega => "MEGA",
+        MediaProvider::Proton => "Proton Drive",
         MediaProvider::Pawchive => "Pawchive",
         MediaProvider::External => "the media provider",
     }

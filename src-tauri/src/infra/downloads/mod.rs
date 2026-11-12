@@ -46,7 +46,19 @@ pub async fn enqueue(
         request.file_name = file.name.clone();
         request.media_kind = file.kind().as_str().to_string();
     }
+    let proton_file = if !crate::infra::providers::mega::is_media_url(url.as_str())
+        && crate::infra::providers::proton::is_proton_url(url.as_str())
+    {
+        Some(state.proton.resolve(url.as_str()).await?)
+    } else {
+        None
+    };
+    if let Some(file) = &proton_file {
+        request.file_name = file.name.clone();
+        request.media_kind = file.kind.as_str().to_string();
+    }
     if !crate::infra::providers::mega::is_media_url(url.as_str())
+        && proton_file.is_none()
         && crate::infra::providers::remote::needs_resolution(url.as_str())
     {
         let media = state.remote.resolve(url.as_str()).await?;
@@ -251,11 +263,16 @@ pub async fn download_post(
         .into_iter()
         .filter_map(|file| Attachment::new(&state.cfg, &file))
         .collect();
-    // A post may link a Drive or MEGA folder instead of individual files.
-    // Expand it before queueing so every contained file is downloaded.
-    let attachments =
-        crate::infra::providers::remote::expand_folders(&state.mega, &state.remote, attachments)
-            .await;
+    // A post may link a Drive, MEGA or Proton Drive folder instead of
+    // individual files. Expand it before queueing so every contained file is
+    // downloaded.
+    let attachments = crate::infra::providers::remote::expand_folders(
+        &state.mega,
+        &state.proton,
+        &state.remote,
+        attachments,
+    )
+    .await;
     let files: Vec<(Attachment, MediaKind)> = attachments
         .into_iter()
         .filter(|attachment| !attachment.preview_only)
@@ -381,6 +398,7 @@ mod tests {
             download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
             http: reqwest::Client::new(),
             mega: crate::infra::providers::mega::MegaResolver::new(reqwest::Client::new()),
+            proton: std::sync::Arc::new(crate::infra::providers::proton::ProtonResolver::new()),
             remote: std::sync::Arc::new(crate::infra::providers::remote::RemoteResolver::new(
                 reqwest::Client::new(),
             )),

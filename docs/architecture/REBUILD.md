@@ -10,7 +10,7 @@ Make the code easy to understand without losing any core function:
 - browsing, creator profiles, posts, search and filters
 - playback, queue, image viewer and progress
 - downloads, retries, playlists, caching and transcoding
-- MEGA, Google Drive, Dropbox and GoFile media
+- MEGA, Proton Drive, Google Drive, Dropbox and GoFile media
 - settings, creator filters, blocked creators, account and updates
 
 The rebuild is incremental. Working behavior is never deleted before its replacement
@@ -35,7 +35,9 @@ passes the existing tests and a manual smoke check.
 
 - Frontend: `app/` shell, `shared/` infrastructure, `features/` vertical slices with one public `index.ts`.
 - Backend: modular monolith by feature. Tauri commands stay thin at the boundary; each feature owns its service/use cases. Shared infrastructure (SQLite, Pawchive API, providers, loopback HTTP) lives under `infra/`.
-- No new runtime dependencies.
+- No new runtime dependencies during the rebuild. Proton Drive support later
+  adds `proton-drive-rs` because its SRP/OpenPGP public-link implementation is
+  not practical to reimplement safely.
 - No behavior, route, command, event, storage-key or CSS-contract changes during migration.
 
 ### Frontend target tree

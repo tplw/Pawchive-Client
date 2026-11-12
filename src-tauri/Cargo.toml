@@ -4,7 +4,7 @@ version = "1.0.6"
 description = "A native desktop and mobile client for the Pawchive archive"
 authors = ["Pawchive Client Contributors"]
 edition = "2021"
-rust-version = "1.90"
+rust-version = "1.96"
 license = "MIT"
 repository = "https://github.com/tplw/Pawchive-Client"
 homepage = "https://github.com/tplw/Pawchive-Client"
@@ -48,10 +48,16 @@ aes = "0.8.4"
 ctr = "0.9.2"
 base64 = "0.22.1"
 uuid = { version = "1.29.0", features = ["v4"] }
+proton-drive-rs = "0.11.0"
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = "0.6"
 objc2-ui-kit = "0.3"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.21", default-features = false }
+ndk-context = "0.1"
+rustls-platform-verifier = "0.6"
 
 [dev-dependencies]
 wiremock = "0.6.5"

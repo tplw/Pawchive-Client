@@ -90,6 +90,9 @@ async fn download_file(
     if crate::infra::providers::mega::is_media_url(&record.url) {
         return download_mega_file(state, app, record, token).await;
     }
+    if crate::infra::providers::proton::is_proton_url(&record.url) {
+        return download_proton_file(state, app, record, token).await;
+    }
     if crate::infra::providers::remote::needs_resolution(&record.url) {
         let media = state.remote.resolve(&record.url).await?;
         let request = media
@@ -201,6 +204,46 @@ async fn download_mega_file(
     let mut last_emit = Instant::now();
     let (_, downloaded) = crate::infra::providers::mega::download_to_path(
         &state.mega,
+        &url,
+        &path,
+        u64::MAX,
+        Some(token),
+        |downloaded, _total| {
+            record.downloaded_bytes = downloaded as i64;
+            if last_emit.elapsed() >= Duration::from_millis(220) {
+                last_emit = Instant::now();
+                let _ = state.db.update_download(
+                    &record.id,
+                    record.downloaded_bytes,
+                    record.total_bytes,
+                    "downloading",
+                    None,
+                );
+                let _ = app.emit("download://progress", record.clone());
+            }
+        },
+    )
+    .await?;
+    record.downloaded_bytes = downloaded as i64;
+    Ok(())
+}
+
+async fn download_proton_file(
+    state: &AppState,
+    app: &AppHandle,
+    record: &mut DownloadRecord,
+    token: &CancellationToken,
+) -> AppResult<()> {
+    let file = state.proton.resolve(&record.url).await?;
+    record.total_bytes = Some(file.size as i64);
+    state
+        .db
+        .update_download(&record.id, 0, record.total_bytes, "downloading", None)?;
+    let path = PathBuf::from(&record.file_path);
+    let url = record.url.clone();
+    let mut last_emit = Instant::now();
+    let (_, downloaded) = crate::infra::providers::proton::download_to_path(
+        &state.proton,
         &url,
         &path,
         u64::MAX,

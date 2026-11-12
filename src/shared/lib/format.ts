@@ -3,6 +3,7 @@ import type { MediaProvider } from "../types";
 export const MEDIA_PROVIDER_LABELS: Record<MediaProvider, string> = {
   pawchive: "Pawchive",
   mega: "MEGA",
+  proton: "Proton Drive",
   googleDrive: "Google Drive",
   dropbox: "Dropbox",
   gofile: "GoFile",

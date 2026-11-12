@@ -78,8 +78,10 @@ impl FileRef {
 /// The archive occasionally gives a cover image a video-looking `name`.
 /// Prefer the actual path extension when it is a recognised media type.
 pub fn media_kind_for_file(file: &FileRef) -> MediaKind {
-    if crate::infra::providers::mega::is_media_url(&file.path) {
-        // The real name lives in encrypted MEGA metadata. Treat links as
+    if crate::infra::providers::mega::is_media_url(&file.path)
+        || crate::infra::providers::proton::is_proton_url(&file.path)
+    {
+        // The real name lives in encrypted provider metadata. Treat links as
         // video until `get_post` resolves the extension so they stay playable.
         return MediaKind::Video;
     }
@@ -166,6 +168,12 @@ impl Post {
             .iter()
             .map(|file| file.path.trim_matches('/').to_string())
             .collect();
+        let existing_urls: HashSet<String> = self
+            .all_files()
+            .iter()
+            .filter_map(|file| url::Url::parse(file.path.trim()).ok())
+            .map(|url| url.to_string())
+            .collect();
         let existing_names: HashSet<String> = self
             .all_files()
             .iter()
@@ -184,6 +192,9 @@ impl Post {
                 Ok(url) => url,
                 Err(_) => continue,
             };
+            if existing_urls.contains(&parsed.to_string()) {
+                continue;
+            }
             let path = parsed.path().trim_matches('/');
             if existing_paths.contains(path) {
                 continue;
@@ -194,6 +205,8 @@ impl Post {
                 safe_filename(&format!("mega-{}", link.handle))
             } else if let Some(link) = crate::infra::providers::mega::parse_folder_link(&raw) {
                 safe_filename(&format!("mega-folder-{}", link.handle))
+            } else if let Some(link) = crate::infra::providers::proton::parse_link(&raw) {
+                safe_filename(&format!("proton-{}", link.token))
             } else if let Some(id) = crate::infra::providers::remote::drive_file_id(&raw) {
                 safe_filename(&format!("drive-{id}"))
             } else if let Some(id) = crate::infra::providers::remote::drive_folder_id(&raw) {

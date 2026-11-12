@@ -176,12 +176,36 @@ pub async fn transcode_media(
     let source_max_bytes = max_bytes.saturating_mul(4).max(1024 * 1024 * 1024);
     let source_path = cache_dir.join(format!(".transcode-source-{}.bin", uuid::Uuid::new_v4()));
     let is_mega = crate::infra::providers::mega::is_media_url(raw_url);
-    let is_remote = crate::infra::providers::remote::needs_resolution(raw_url);
+    let is_proton = crate::infra::providers::proton::is_proton_url(raw_url);
+    let is_remote = !is_proton && crate::infra::providers::remote::needs_resolution(raw_url);
     let result = async {
         if is_mega {
             let mut last_emit = Instant::now();
             crate::infra::providers::mega::download_to_path(
                 &state.mega,
+                raw_url,
+                &source_path,
+                source_max_bytes,
+                token,
+                |downloaded, total| {
+                    if last_emit.elapsed() >= Duration::from_millis(150) {
+                        last_emit = Instant::now();
+                        emit(
+                            app,
+                            &request_id,
+                            "download",
+                            total.map(|total| (downloaded as f64 / total as f64) * 100.0),
+                            Some(downloaded),
+                            total,
+                        );
+                    }
+                },
+            )
+            .await?;
+        } else if is_proton {
+            let mut last_emit = Instant::now();
+            crate::infra::providers::proton::download_to_path(
+                &state.proton,
                 raw_url,
                 &source_path,
                 source_max_bytes,

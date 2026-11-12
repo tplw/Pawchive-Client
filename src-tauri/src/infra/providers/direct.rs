@@ -33,9 +33,20 @@ fn mega_folder_regex() -> &'static Regex {
     })
 }
 
+fn proton_url_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?i)(?:https?://)?(?:www\.)?drive\.proton\.me/urls/[a-z0-9_\-=]+(?:[?#][^\s"'<>]*)?"#,
+        )
+        .expect("valid Proton Drive link regex")
+    })
+}
+
 /// Drive, Dropbox and GoFile links do not end in a media extension, so the
-/// direct-media pass above cannot see them. Keep the match tight enough that
-/// ordinary profile/folder pages are not turned into attachments.
+/// direct-media pass above cannot see them. Proton links have their own pass
+/// because their password lives in the URL fragment. Keep the matches tight
+/// enough that ordinary profile/folder pages are not turned into attachments.
 fn provider_url_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -111,6 +122,19 @@ pub fn extract(text: &str) -> Vec<String> {
             out.push(url);
         }
     }
+    // Proton Drive public links carry their password in the fragment and have
+    // no media extension either.
+    for found in proton_url_regex().find_iter(text) {
+        let Some(url) = normalize(found.as_str()) else {
+            continue;
+        };
+        if !crate::infra::providers::proton::is_media_url(&url) {
+            continue;
+        }
+        if seen.insert(url.clone()) {
+            out.push(url);
+        }
+    }
     // Google Drive, Dropbox and GoFile share links also lack media
     // extensions. Their provider-specific resolvers decide whether the link
     // points at a playable file.
@@ -158,6 +182,22 @@ mod tests {
                 "https://img.example.com/cover.jpg".to_string(),
                 "https://example.net/audio/track.mp3".to_string(),
                 "https://files.example.org/old.m4a".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn extracts_proton_share_links() {
+        let text = r#"
+            <a href="https://drive.proton.me/urls/AbC_123#correct-horse">proton</a>
+            <a href="drive.proton.me/urls/Def-456#another-pass">scheme-less</a>
+            <a href="https://proton.me/urls/nope#password">not drive</a>
+        "#;
+        assert_eq!(
+            extract(text),
+            vec![
+                "https://drive.proton.me/urls/AbC_123#correct-horse".to_string(),
+                "https://drive.proton.me/urls/Def-456#another-pass".to_string(),
             ]
         );
     }

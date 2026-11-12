@@ -33,6 +33,7 @@ pub struct RemoteSource {
 enum MediaSource {
     File(PathBuf),
     Mega(Arc<crate::infra::providers::mega::MegaStream>),
+    Proton(Arc<crate::infra::providers::proton::ProtonStream>),
     Remote(Arc<RemoteSource>),
 }
 
@@ -108,6 +109,15 @@ impl LocalMediaServer {
         let token = uuid::Uuid::new_v4().simple().to_string();
         if let Ok(mut tokens) = self.tokens.lock() {
             tokens.insert(token.clone(), MediaSource::Mega(Arc::new(stream)));
+        }
+        format!("{}/media/{token}", self.base_url)
+    }
+
+    /// Register a decrypted Proton Drive range stream.
+    pub fn register_proton(&self, stream: crate::infra::providers::proton::ProtonStream) -> String {
+        let token = uuid::Uuid::new_v4().simple().to_string();
+        if let Ok(mut tokens) = self.tokens.lock() {
+            tokens.insert(token.clone(), MediaSource::Proton(Arc::new(stream)));
         }
         format!("{}/media/{token}", self.base_url)
     }
@@ -188,6 +198,7 @@ async fn handle_connection(mut socket: TcpStream, server: LocalMediaServer) -> s
     match source {
         MediaSource::File(path) => serve_file(socket, request, &method, path).await,
         MediaSource::Mega(stream) => serve_mega(socket, request, &method, stream).await,
+        MediaSource::Proton(stream) => serve_proton(socket, request, &method, stream).await,
         MediaSource::Remote(source) => serve_remote(socket, request, &method, source).await,
     }
 }
@@ -309,6 +320,121 @@ async fn serve_mega(
                     break;
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+async fn serve_proton(
+    mut socket: TcpStream,
+    request: String,
+    method: &str,
+    stream: Arc<crate::infra::providers::proton::ProtonStream>,
+) -> std::io::Result<()> {
+    let length = stream.file.size;
+    let etag = format!("\"proton-{}-{length:x}\"", stream.file.uid);
+    if is_not_modified(&request, &etag) {
+        return respond_not_modified(&mut socket, &etag).await;
+    }
+
+    let range = parse_range(&request, length);
+    let content_type = stream
+        .file
+        .content_type
+        .as_deref()
+        .unwrap_or_else(|| content_type_for_name(&stream.file.name));
+    // Never let a shared file masquerade as a web page on the loopback origin.
+    let content_type = if matches!(content_type, "text/html" | "application/xhtml+xml") {
+        "application/octet-stream"
+    } else {
+        content_type
+    };
+
+    let (status, start, end) = match range {
+        Some((start, end)) => ("206 Partial Content", start, end),
+        None => ("200 OK", 0, length.saturating_sub(1)),
+    };
+    let body_length = if length == 0 {
+        0
+    } else {
+        end.saturating_sub(start) + 1
+    };
+
+    // Open the pinned revision before writing headers so an expired share is
+    // reported as a real HTTP error instead of a truncated 200.
+    let has_body = method == "GET" && body_length > 0;
+    let reader = if has_body {
+        match stream.reader().await {
+            Ok(reader) => Some(reader),
+            Err(error) => {
+                tracing::warn!(%error, "could not open Proton Drive media");
+                return respond_status(
+                    &mut socket,
+                    "502 Bad Gateway",
+                    "Proton Drive media is unavailable",
+                )
+                .await;
+            }
+        }
+    } else {
+        None
+    };
+
+    write_media_headers(
+        &mut socket,
+        status,
+        content_type,
+        body_length,
+        &etag,
+        if length == 0 {
+            None
+        } else {
+            Some((start, end, length))
+        },
+    )
+    .await?;
+
+    if let Some(reader) = reader {
+        // Read whole Proton blocks. `RevisionReader::read_at` decrypts every
+        // block that overlaps the requested range but does not cache them, so
+        // asking for arbitrary 1 MiB slices would fetch the same 4 MiB block
+        // repeatedly. Aligning each read to a block fetches it exactly once.
+        let block_sizes = reader.block_sizes();
+        let mut block_start = 0u64;
+        let mut block_index = 0usize;
+        while block_index < block_sizes.len()
+            && block_start.saturating_add(block_sizes[block_index]) <= start
+        {
+            block_start = block_start.saturating_add(block_sizes[block_index]);
+            block_index += 1;
+        }
+
+        let mut offset = start;
+        while offset <= end && block_index < block_sizes.len() {
+            let block_end = block_start.saturating_add(block_sizes[block_index]);
+            let requested = block_end.saturating_sub(block_start);
+            match stream.read_at(block_start, requested).await {
+                Ok(chunk) if chunk.len() as u64 == requested => {
+                    let from = (offset - block_start) as usize;
+                    let to = ((end + 1 - block_start) as usize).min(chunk.len());
+                    if from < to {
+                        socket.write_all(&chunk[from..to]).await?;
+                        offset = block_start + to as u64;
+                    } else {
+                        offset = block_end;
+                    }
+                }
+                Ok(_) => {
+                    tracing::warn!("Proton Drive returned a short block");
+                    break;
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "Proton Drive media stream ended early");
+                    break;
+                }
+            }
+            block_start = block_end;
+            block_index += 1;
         }
     }
     Ok(())

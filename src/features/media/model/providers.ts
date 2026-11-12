@@ -15,6 +15,7 @@ export function needsMediaResolution(url: string): boolean {
   const provider = providerForUrl(url);
   return (
     provider === "mega" ||
+    provider === "proton" ||
     provider === "googleDrive" ||
     provider === "dropbox" ||
     provider === "gofile"
@@ -34,6 +35,9 @@ export function providerForUrl(url: string): MediaProvider {
   }
   if (/^(?:www\.)?mega\.(?:nz|co\.nz|io)$/.test(host)) {
     return "mega";
+  }
+  if (host === "drive.proton.me" || host === "www.drive.proton.me") {
+    return "proton";
   }
   if (
     host === "drive.google.com" ||

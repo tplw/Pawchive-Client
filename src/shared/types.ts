@@ -2,6 +2,7 @@ export type MediaKind = "image" | "video" | "audio" | "document" | "other";
 export type MediaProvider =
   | "pawchive"
   | "mega"
+  | "proton"
   | "googleDrive"
   | "dropbox"
   | "gofile"

@@ -219,6 +219,33 @@ mod tests {
     }
 
     #[test]
+    fn includes_proton_direct_media_links() {
+        let cfg = crate::shared::config::PawchiveConfig::default();
+        let post = Post {
+            id: "1".into(),
+            service: "patreon".into(),
+            user: "2".into(),
+            title: "Proton share".into(),
+            content: r#"<p>Watch <a href="https://drive.proton.me/urls/AbC_123#correct-horse">this</a></p>"#
+                .into(),
+            ..Default::default()
+        };
+        let files = post.all_files_including_direct();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "proton-AbC_123");
+        assert_eq!(
+            files[0].path,
+            "https://drive.proton.me/urls/AbC_123#correct-horse"
+        );
+        let attachment = Attachment::new(&cfg, &files[0]).unwrap();
+        assert_eq!(attachment.kind, MediaKind::Video);
+        assert_eq!(
+            attachment.provider,
+            crate::infra::providers::MediaProvider::Proton
+        );
+    }
+
+    #[test]
     fn prefers_the_real_path_extension_for_media_kind() {
         let file = FileRef {
             name: "Tetoween ESP.mp4".into(),
