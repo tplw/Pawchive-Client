@@ -4,6 +4,7 @@ import { errorMessage } from "../../../shared/lib/constants";
 import { api } from "../../../shared/api";
 import { useAppStore } from "../../../app/store";
 import { isMegaFileUrl, needsMediaResolution } from "./queue";
+import { withProviderPassword } from "../../../shared/lib/providerPasswords";
 
 export function isHlsUrl(url: string): boolean {
   return /\.m3u8(?:$|[?#])/i.test(url);
@@ -96,8 +97,7 @@ export function useMediaSource({
       // them and returns a loopback URL with the same HTTP Range support as
       // locally cached Pawchive media.
       if (needsMediaResolution(item.url)) {
-        void api
-          .resolveMedia(item.url)
+        void withProviderPassword(item.url, () => api.resolveMedia(item.url))
           .then((media) => {
             if (!cancelled) setSource(media.url);
           })
@@ -286,8 +286,7 @@ export function useMediaSource({
       setError(null);
       setLoading(true);
       setPlaying(true);
-      void api
-        .resolveMedia(directUrl)
+      void withProviderPassword(directUrl, () => api.resolveMedia(directUrl))
         .then((media) => {
           if (proxyFallbackRef.current !== item.id) return;
           setSource(media.url);

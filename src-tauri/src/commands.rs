@@ -540,6 +540,43 @@ pub async fn resolve_media(
 }
 
 #[tauri::command]
+pub async fn set_provider_password(
+    state: State<'_, AppState>,
+    url: String,
+    password: String,
+    remember: bool,
+) -> AppResult<()> {
+    let st = st(&state);
+    let key = crate::infra::providers::password_key(&url)
+        .ok_or_else(|| AppError::Validation("this link does not use a provider password".into()))?;
+    blocking(move || st.passwords.set(&key, &password, remember)).await
+}
+
+#[tauri::command]
+pub async fn forget_provider_password(state: State<'_, AppState>, url: String) -> AppResult<()> {
+    let st = st(&state);
+    let key = crate::infra::providers::password_key(&url)
+        .ok_or_else(|| AppError::Validation("this link does not use a provider password".into()))?;
+    blocking(move || {
+        st.passwords.remove(&key);
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn unlock_provider_link(state: State<'_, AppState>, url: String) -> AppResult<()> {
+    let st = st(&state);
+    if crate::infra::providers::proton::is_proton_url(&url) {
+        return st.proton.unlock(&url).await;
+    }
+    if crate::infra::providers::mega::password_key(&url).is_some() {
+        return st.mega.unlock(&url).await;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn validate_media(state: State<'_, AppState>, url: String) -> AppResult<String> {
     let st = st(&state);
     crate::infra::media::validate_media_url(&st.cfg, &url).map(|url| url.to_string())
@@ -669,6 +706,7 @@ mod tests {
             http: reqwest::Client::new(),
             mega: crate::infra::providers::mega::MegaResolver::new(reqwest::Client::new()),
             proton: Arc::new(crate::infra::providers::proton::ProtonResolver::new()),
+            passwords: Arc::new(crate::infra::provider_passwords::ProviderPasswords::in_memory()),
             remote: std::sync::Arc::new(crate::infra::providers::remote::RemoteResolver::new(
                 reqwest::Client::new(),
             )),

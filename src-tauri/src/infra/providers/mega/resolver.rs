@@ -4,6 +4,8 @@ use super::crypto::{
 use super::links::{
     parse_file_link, parse_folder_file_link, MegaFile, MegaFolderFile, MegaFolderLink, MegaLink,
 };
+use super::password::{decrypt_protected_link, is_protected_link, password_key, PasswordLinkError};
+use crate::infra::provider_passwords::ProviderPasswords;
 use crate::shared::error::{AppError, AppResult};
 use crate::shared::security::{safe_filename, validate_media_remote_url};
 use base64::Engine;
@@ -15,6 +17,7 @@ use std::time::{Duration, Instant};
 
 const API_URL: &str = "https://g.api.mega.co.nz/cs";
 const CACHE_TTL: Duration = Duration::from_secs(30 * 60);
+const DECRYPTED_TTL: Duration = Duration::from_secs(10 * 60);
 const API_TIMEOUT: Duration = Duration::from_secs(20);
 static NEXT_SEQUENCE: AtomicI64 = AtomicI64::new(1);
 
@@ -183,14 +186,23 @@ pub struct MegaResolver {
     client: reqwest::Client,
     cache: Arc<Mutex<HashMap<String, CachedFile>>>,
     folders: Arc<Mutex<HashMap<String, CachedFolder>>>,
+    passwords: Arc<ProviderPasswords>,
+    decrypted: Arc<Mutex<HashMap<String, (String, Instant)>>>,
 }
 
 impl MegaResolver {
+    #[cfg(test)]
     pub fn new(client: reqwest::Client) -> Self {
+        Self::with_passwords(client, Arc::new(ProviderPasswords::in_memory()))
+    }
+
+    pub fn with_passwords(client: reqwest::Client, passwords: Arc<ProviderPasswords>) -> Self {
         Self {
             client,
             cache: Arc::new(Mutex::new(HashMap::new())),
             folders: Arc::new(Mutex::new(HashMap::new())),
+            passwords,
+            decrypted: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -261,7 +273,70 @@ impl MegaResolver {
         }
     }
 
+    /// Decrypt a `#P!` link into the standard link, or return `None` when the
+    /// URL is not password protected.
+    pub async fn decrypt_link(&self, raw: &str) -> AppResult<Option<String>> {
+        if !is_protected_link(raw) {
+            return Ok(None);
+        }
+        let key = password_key(raw)
+            .ok_or_else(|| AppError::Validation("invalid MEGA password-protected link".into()))?;
+        let password = self
+            .passwords
+            .get(&key)
+            .ok_or_else(|| AppError::PasswordRequired {
+                provider: "MEGA",
+                url: raw.to_string(),
+                rejected: false,
+            })?;
+        let cache_key = format!("{raw}\u{0}{password}");
+        if let Ok(cache) = self.decrypted.lock() {
+            if let Some((link, at)) = cache.get(&cache_key) {
+                if at.elapsed() < DECRYPTED_TTL {
+                    return Ok(Some(link.clone()));
+                }
+            }
+        }
+
+        let raw_owned = raw.to_string();
+        let password_owned = password.clone();
+        let result = crate::shared::task::blocking(move || {
+            Ok(decrypt_protected_link(&raw_owned, &password_owned))
+        })
+        .await?;
+        match result {
+            Ok(link) => {
+                if let Ok(mut cache) = self.decrypted.lock() {
+                    if cache.len() >= 64 {
+                        cache.clear();
+                    }
+                    cache.insert(cache_key, (link.clone(), Instant::now()));
+                }
+                Ok(Some(link))
+            }
+            Err(PasswordLinkError::WrongPassword) => {
+                self.passwords.remove(&key);
+                Err(AppError::PasswordRequired {
+                    provider: "MEGA",
+                    url: raw.to_string(),
+                    rejected: true,
+                })
+            }
+            Err(PasswordLinkError::Invalid) => Err(AppError::Validation(
+                "invalid MEGA password-protected link".into(),
+            )),
+        }
+    }
+
+    /// Validate a password-protected link without fetching its metadata.
+    pub async fn unlock(&self, raw: &str) -> AppResult<()> {
+        let _ = self.decrypt_link(raw).await?;
+        Ok(())
+    }
+
     pub async fn resolve(&self, raw: &str) -> AppResult<MegaFile> {
+        let decrypted = self.decrypt_link(raw).await?;
+        let raw = decrypted.as_deref().unwrap_or(raw);
         if let Some(link) = parse_file_link(raw) {
             let key = Self::cache_key(&link);
             if let Some(file) = self.cached(&key) {

@@ -61,6 +61,7 @@ export function AttachmentMeta({
   } | null>(null);
 
   useEffect(() => {
+    if (attachment.locked) return;
     let cancelled = false;
     void mediaSize(attachment.downloadUrl ?? attachment.url).then((value) => {
       if (!cancelled) setSize(value);
@@ -68,10 +69,15 @@ export function AttachmentMeta({
     return () => {
       cancelled = true;
     };
-  }, [attachment.downloadUrl, attachment.url]);
+  }, [attachment.downloadUrl, attachment.locked, attachment.url]);
 
   useEffect(() => {
-    if (attachment.kind !== "video" && attachment.kind !== "image") return;
+    if (
+      attachment.locked ||
+      (attachment.kind !== "video" && attachment.kind !== "image")
+    ) {
+      return;
+    }
     let cancelled = false;
     const key = `${attachment.kind}:${attachment.url}`;
     const cached = resolutionCache.get(key);
@@ -102,7 +108,12 @@ export function AttachmentMeta({
     return () => {
       cancelled = true;
     };
-  }, [attachment.kind, attachment.thumbnailUrl, attachment.url]);
+  }, [
+    attachment.kind,
+    attachment.locked,
+    attachment.thumbnailUrl,
+    attachment.url,
+  ]);
 
   const parts: string[] = [MEDIA_PROVIDER_LABELS[attachment.provider]];
   if (resolution) parts.push(`${resolution.width}×${resolution.height}`);

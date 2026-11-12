@@ -18,6 +18,7 @@ mod stream;
 
 pub use stream::{download_to_path, ProtonStream};
 
+use crate::infra::provider_passwords::ProviderPasswords;
 use crate::shared::error::{AppError, AppResult};
 use crate::shared::media_kind::{file_extension, media_kind_for, MediaKind};
 use crate::shared::security::safe_filename;
@@ -25,6 +26,7 @@ use proton_drive_rs::proton_sdk::config::ProtonClientConfiguration;
 use proton_drive_rs::proton_sdk::error::ProtonError;
 use proton_drive_rs::proton_sdk::ids::{LinkId, NodeUid, VolumeId};
 use proton_drive_rs::{Node, NodeKind, ProtonDrivePublicLinkClient, RevisionReader};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -133,10 +135,16 @@ pub struct ProtonResolver {
     clients: Mutex<HashMap<String, Timed<ProtonDrivePublicLinkClient>>>,
     files: Mutex<HashMap<String, Timed<ProtonFile>>>,
     folders: Mutex<HashMap<String, Timed<Vec<ProtonFile>>>>,
+    passwords: Arc<ProviderPasswords>,
 }
 
 impl ProtonResolver {
+    #[cfg(test)]
     pub fn new() -> Self {
+        Self::with_passwords(Arc::new(ProviderPasswords::in_memory()))
+    }
+
+    pub fn with_passwords(passwords: Arc<ProviderPasswords>) -> Self {
         let app_version = format!(
             "external-drive-pawchive@{}-stable",
             env!("CARGO_PKG_VERSION")
@@ -148,6 +156,7 @@ impl ProtonResolver {
             clients: Mutex::new(HashMap::new()),
             files: Mutex::new(HashMap::new()),
             folders: Mutex::new(HashMap::new()),
+            passwords,
         }
     }
 
@@ -156,7 +165,7 @@ impl ProtonResolver {
     pub async fn resolve(&self, raw: &str) -> AppResult<ProtonFile> {
         let link = parse_link(raw)
             .ok_or_else(|| AppError::Validation("not a Proton Drive public link".into()))?;
-        let key = link.url_for(link.node_uid.as_ref());
+        let key = self.cache_key(&link, &link.url_for(link.node_uid.as_ref()));
         if let Some(file) = self.cached_file(&key) {
             return Ok(file);
         }
@@ -169,7 +178,7 @@ impl ProtonResolver {
             ));
         }
         let file = self.file_from_node(&link, &client, uid, node).await?;
-        let child_key = file.url();
+        let child_key = self.cache_key(&link, &file.url());
         self.cache_file(key.clone(), file.clone());
         if child_key != key {
             self.cache_file(child_key, file.clone());
@@ -180,7 +189,7 @@ impl ProtonResolver {
     /// Inspect a link. A file keeps its metadata; a folder is enumerated into
     /// its individual files so the post view can queue and download each one.
     pub async fn expand(&self, link: &ProtonLink) -> AppResult<ProtonExpansion> {
-        let key = link.url_for(link.node_uid.as_ref());
+        let key = self.cache_key(link, &link.url_for(link.node_uid.as_ref()));
         if let Some(files) = self.cached_folder(&key) {
             return Ok(ProtonExpansion::Folder(files));
         }
@@ -195,7 +204,7 @@ impl ProtonResolver {
             return Ok(ProtonExpansion::Folder(files));
         }
         let file = self.file_from_node(link, &client, uid, node).await?;
-        let child_key = file.url();
+        let child_key = self.cache_key(link, &file.url());
         self.cache_file(key.clone(), file.clone());
         if child_key != key {
             self.cache_file(child_key, file.clone());
@@ -224,9 +233,6 @@ impl ProtonResolver {
                 "Proton Drive cannot verify TLS on this Android build: {message}"
             ))
         })?;
-        if let Some(client) = self.cached_client(&link.share_url) {
-            return Ok(client);
-        }
 
         // Check the link before opening it so a custom-password share gets a
         // clear message instead of an opaque SRP handshake failure.
@@ -244,20 +250,50 @@ impl ProtonResolver {
                     .into(),
             ));
         }
-        if info.is_custom_password_protected {
-            return Err(AppError::Validation(
-                "this Proton Drive link needs a custom password; use an unprotected link or open it in a browser"
-                    .into(),
-            ));
+        let custom_password = if info.is_custom_password_protected {
+            let key = password_key(&link.share_url)
+                .ok_or_else(|| AppError::Validation("invalid Proton Drive public link".into()))?;
+            Some(
+                self.passwords
+                    .get(&key)
+                    .ok_or_else(|| AppError::PasswordRequired {
+                        provider: "Proton Drive",
+                        url: link.share_url.clone(),
+                        rejected: false,
+                    })?,
+            )
+        } else {
+            None
+        };
+        let cache_key = self.client_cache_key(link, custom_password.as_deref());
+        if let Some(client) = self.cached_client(&cache_key) {
+            return Ok(client);
         }
 
-        let client = ProtonDrivePublicLinkClient::open(self.config.clone(), &link.share_url, None)
-            .await
-            .map_err(map_error)?;
+        let client = match ProtonDrivePublicLinkClient::open(
+            self.config.clone(),
+            &link.share_url,
+            custom_password.as_deref(),
+        )
+        .await
+        {
+            Ok(client) => client,
+            Err(error) if custom_password.is_some() && is_password_error(&error) => {
+                if let Some(key) = password_key(&link.share_url) {
+                    self.passwords.remove(&key);
+                }
+                return Err(AppError::PasswordRequired {
+                    provider: "Proton Drive",
+                    url: link.share_url.clone(),
+                    rejected: true,
+                });
+            }
+            Err(error) => return Err(map_error(error)),
+        };
         if let Ok(mut cache) = self.clients.lock() {
             prune(&mut cache, CLIENT_TTL, 32);
             cache.insert(
-                link.share_url.clone(),
+                cache_key,
                 Timed {
                     value: client.clone(),
                     at: Instant::now(),
@@ -265,6 +301,38 @@ impl ProtonResolver {
             );
         }
         Ok(client)
+    }
+
+    /// Validate a share password without fetching file metadata.
+    pub async fn unlock(&self, raw: &str) -> AppResult<()> {
+        let link = parse_link(raw)
+            .ok_or_else(|| AppError::Validation("not a Proton Drive public link".into()))?;
+        let _ = self.client_for(&link).await?;
+        Ok(())
+    }
+
+    fn client_cache_key(&self, link: &ProtonLink, password: Option<&str>) -> String {
+        let mut hasher = Sha256::new();
+        if let Some(password) = password {
+            hasher.update(password.as_bytes());
+        }
+        format!("{}\u{0}{:x}", link.share_url, hasher.finalize())
+    }
+
+    fn password_tag(&self, link: &ProtonLink) -> String {
+        let Some(key) = password_key(&link.share_url) else {
+            return String::new();
+        };
+        let Some(password) = self.passwords.get(&key) else {
+            return String::new();
+        };
+        let mut hasher = Sha256::new();
+        hasher.update(password.as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
+
+    fn cache_key(&self, link: &ProtonLink, url: &str) -> String {
+        format!("{url}\u{0}{}", self.password_tag(link))
     }
 
     async fn open_node(
@@ -380,7 +448,7 @@ impl ProtonResolver {
                 }
                 let uid = node.uid.clone();
                 if let Ok(file) = self.file_from_node(link, client, uid, node).await {
-                    self.cache_file(file.url(), file.clone());
+                    self.cache_file(self.cache_key(link, &file.url()), file.clone());
                     files.push(file);
                 }
             }
@@ -441,7 +509,7 @@ impl ProtonResolver {
 
 impl Default for ProtonResolver {
     fn default() -> Self {
-        Self::new()
+        Self::with_passwords(Arc::new(ProviderPasswords::in_memory()))
     }
 }
 
@@ -493,6 +561,12 @@ pub fn parse_link(raw: &str) -> Option<ProtonLink> {
 /// True for any URL this module can resolve.
 pub fn is_media_url(raw: &str) -> bool {
     parse_link(raw).is_some()
+}
+
+/// Password-store key for a Proton share. The custom password is per share, so
+/// the token is the stable identity even if the URL password changes.
+pub fn password_key(raw: &str) -> Option<String> {
+    parse_link(raw).map(|link| format!("proton:{}", link.token))
 }
 
 /// True for every `drive.proton.me` URL, including malformed or
@@ -578,6 +652,10 @@ fn valid_proton_id(value: &str) -> bool {
         && value
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '='))
+}
+
+fn is_password_error(error: &ProtonError) -> bool {
+    matches!(error, ProtonError::Api(api) if matches!(api.http_status, 400 | 401 | 403 | 422))
 }
 
 pub(crate) fn map_error(error: ProtonError) -> AppError {

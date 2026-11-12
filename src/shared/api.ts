@@ -296,6 +296,12 @@ export const api = {
   getProgress: (filePath: string) =>
     call<PlaybackProgress | null>("get_progress", { filePath }),
   validateMedia: (url: string) => call<string>("validate_media", { url }),
+  setProviderPassword: (url: string, password: string, remember: boolean) =>
+    call<void>("set_provider_password", { url, password, remember }),
+  forgetProviderPassword: (url: string) =>
+    call<void>("forget_provider_password", { url }),
+  unlockProviderLink: (url: string) =>
+    call<void>("unlock_provider_link", { url }),
   resolveMedia: (url: string) =>
     call<ResolvedMedia>("resolve_media", { url }),
   getMediaSize: (url: string) =>

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../../../shared/api";
 import { queryKeys } from "../../../shared/query/keys";
+import { withProviderPassword } from "../../../shared/lib/providerPasswords";
 type DownloadRequest = Parameters<typeof api.startDownload>[0];
 
 /**
@@ -16,7 +17,9 @@ export function useDownloadActions() {
 
   const startDownload = useCallback(
     async (request: DownloadRequest) => {
-      const record = await api.startDownload(request);
+      const record = await withProviderPassword(request.url, () =>
+        api.startDownload(request),
+      );
       invalidateDownloads();
       return record;
     },
@@ -25,7 +28,9 @@ export function useDownloadActions() {
 
   const downloadPost = useCallback(
     async (service: string, creatorId: string, postId: string) => {
-      const count = await api.downloadPost(service, creatorId, postId);
+      const count = await withProviderPassword("", () =>
+        api.downloadPost(service, creatorId, postId),
+      );
       invalidateDownloads();
       return count;
     },
@@ -34,7 +39,9 @@ export function useDownloadActions() {
 
   const downloadPlaylist = useCallback(
     async (playlistId: number) => {
-      const count = await api.downloadPlaylist(playlistId);
+      const count = await withProviderPassword("", () =>
+        api.downloadPlaylist(playlistId),
+      );
       invalidateDownloads();
       return count;
     },

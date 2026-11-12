@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 import type { Attachment } from "../../../shared/types";
 import { api } from "../../../shared/api";
+import { withProviderPassword } from "../../../shared/lib/providerPasswords";
 import {
   isMegaFileUrl,
   needsMediaResolution,
@@ -40,7 +41,11 @@ export function useImageViewerSource({
         // the direct file behind a provider API. Resolve them to the loopback
         // server before fetching, just like the player does.
         const src = needsMediaResolution(image.url)
-          ? (await api.resolveMedia(image.url)).url
+          ? (
+              await withProviderPassword(image.url, () =>
+                api.resolveMedia(image.url),
+              )
+            ).url
           : image.url;
         const response = await fetch(src, {
           signal: controller.signal,

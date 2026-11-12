@@ -49,6 +49,12 @@ pub fn provider_for_url(raw: &str) -> MediaProvider {
     provider_for_host(url.host_str().unwrap_or_default())
 }
 
+/// Stable password-store key for a provider link, if that provider uses
+/// passwords at all.
+pub fn password_key(raw: &str) -> Option<String> {
+    proton::password_key(raw).or_else(|| mega::password_key(raw))
+}
+
 pub fn provider_for_host(host: &str) -> MediaProvider {
     let host = host.trim_end_matches('.').to_ascii_lowercase();
     match host.as_str() {

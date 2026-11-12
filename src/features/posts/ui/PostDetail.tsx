@@ -33,6 +33,7 @@ import { queryKeys } from "../../../shared/query/keys";
 import { PostAttachments } from "./PostAttachments";
 import { PostDiscussion } from "./PostDiscussion";
 import { neighborForPost } from "../model/postNavigation";
+import { withProviderPassword } from "../../../shared/lib/providerPasswords";
 import { useDownloadActions } from "../../downloads/model/useDownloadActions";
 import { queueItemFromAttachment } from "../../player/model/queue";
 import { Badge, Button, EmptyState, Spinner } from "../../../shared/ui";
@@ -138,9 +139,30 @@ function PostDetailContent({
     });
   };
 
+  const unlockAttachment = async (attachment: Attachment) => {
+    try {
+      await withProviderPassword(attachment.url, () =>
+        api.unlockProviderLink(attachment.url),
+      );
+      await post.refetch();
+      toast(
+        "success",
+        "Link unlocked",
+        "Attachments were refreshed with the unlocked metadata.",
+      );
+    } catch (error) {
+      reportError(error, "Could not unlock this link");
+    }
+  };
+
   const play = (attachment: Attachment) => {
     if (!detail) return;
-    const items = playable.map((entry) =>
+    if (attachment.locked) {
+      void unlockAttachment(attachment);
+      return;
+    }
+    const entries = playable.filter((entry) => !entry.locked);
+    const items = entries.map((entry) =>
       queueItemFromAttachment(entry, {
         title: detail.post.title || entry.name,
         creatorName,
@@ -150,12 +172,16 @@ function PostDetailContent({
         postId,
       }),
     );
-    const index = playable.findIndex((entry) => entry.path === attachment.path);
+    const index = entries.findIndex((entry) => entry.path === attachment.path);
     playItems(items, Math.max(index, 0));
   };
 
   const queueAttachment = (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.locked) {
+      void unlockAttachment(attachment);
+      return;
+    }
     enqueue([
       queueItemFromAttachment(attachment, {
         title: detail.post.title || attachment.name,
@@ -170,6 +196,10 @@ function PostDetailContent({
 
   const addToPlaylist = (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.locked) {
+      void unlockAttachment(attachment);
+      return;
+    }
     setPlaylistItem({
       service,
       creatorId,
@@ -186,6 +216,10 @@ function PostDetailContent({
 
   const downloadAttachment = async (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.locked) {
+      await unlockAttachment(attachment);
+      return;
+    }
     if (attachment.previewOnly) {
       toast(
         "info",
@@ -222,6 +256,10 @@ function PostDetailContent({
   };
 
   const openFile = async (attachment: Attachment) => {
+    if (attachment.locked) {
+      await unlockAttachment(attachment);
+      return;
+    }
     try {
       await api.openExternal(attachment.downloadUrl ?? attachment.url);
     } catch (error) {
@@ -467,6 +505,7 @@ function PostDetailContent({
               onAddToPlaylist={addToPlaylist}
               onDownload={(attachment) => void downloadAttachment(attachment)}
               onOpenFile={(attachment) => void openFile(attachment)}
+              onUnlock={(attachment) => void unlockAttachment(attachment)}
             />
 
             <PostDiscussion

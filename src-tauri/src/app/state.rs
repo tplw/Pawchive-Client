@@ -23,6 +23,7 @@ pub struct AppState {
     pub http: reqwest::Client,
     pub mega: crate::infra::providers::mega::MegaResolver,
     pub proton: Arc<crate::infra::providers::proton::ProtonResolver>,
+    pub passwords: Arc<crate::infra::provider_passwords::ProviderPasswords>,
     pub remote: Arc<crate::infra::providers::remote::RemoteResolver>,
     pub app_data_dir: PathBuf,
     pub default_download_dir: PathBuf,

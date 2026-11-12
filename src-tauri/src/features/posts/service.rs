@@ -117,26 +117,38 @@ impl PostService {
         // on demand.
         for attachment in attachments.iter_mut() {
             if crate::infra::providers::mega::is_media_url(&attachment.url) {
-                if let Ok(file) = self.state.mega.resolve(&attachment.url).await {
-                    attachment.name = file.name.clone();
-                    attachment.ext = crate::shared::security::file_extension(&file.name);
-                    attachment.kind = file.kind();
-                    // Images need a real image URL for the thumbnail grid.
-                    // Videos and audio resolve to a loopback URL when the
-                    // player opens them.
-                    if attachment.kind == MediaKind::Image {
-                        if let Some(link) =
-                            crate::infra::providers::mega::parse_file_link(&attachment.url)
-                        {
-                            let stream = crate::infra::providers::mega::MegaStream::new(
-                                self.state.mega.client_clone(),
-                                link,
-                                file.clone(),
-                            );
-                            attachment.thumbnail_url =
-                                Some(self.state.media_server.register_mega(stream));
+                match self.state.mega.resolve(&attachment.url).await {
+                    Ok(file) => {
+                        attachment.name = file.name.clone();
+                        attachment.ext = crate::shared::security::file_extension(&file.name);
+                        attachment.kind = file.kind();
+                        // Images need a real image URL for the thumbnail grid.
+                        // Videos and audio resolve to a loopback URL when the
+                        // player opens them.
+                        if attachment.kind == MediaKind::Image {
+                            let source = self
+                                .state
+                                .mega
+                                .decrypt_link(&attachment.url)
+                                .await
+                                .ok()
+                                .flatten()
+                                .unwrap_or_else(|| attachment.url.clone());
+                            if let Some(link) =
+                                crate::infra::providers::mega::parse_file_link(&source)
+                            {
+                                let stream = crate::infra::providers::mega::MegaStream::new(
+                                    self.state.mega.client_clone(),
+                                    link,
+                                    file.clone(),
+                                );
+                                attachment.thumbnail_url =
+                                    Some(self.state.media_server.register_mega(stream));
+                            }
                         }
                     }
+                    Err(AppError::PasswordRequired { .. }) => attachment.locked = true,
+                    Err(_) => {}
                 }
             }
         }
@@ -159,40 +171,33 @@ impl PostService {
             let gate = gate.clone();
             jobs.spawn(async move {
                 let _permit = gate.acquire_owned().await.ok();
-                if is_proton {
-                    (
-                        index,
-                        state
-                            .proton
-                            .resolve(&url)
-                            .await
-                            .ok()
-                            .map(Box::new)
-                            .map(ProviderMedia::Proton),
-                    )
+                let result = if is_proton {
+                    state
+                        .proton
+                        .resolve(&url)
+                        .await
+                        .map(Box::new)
+                        .map(ProviderMedia::Proton)
                 } else {
-                    (
-                        index,
-                        state
-                            .remote
-                            .resolve(&url)
-                            .await
-                            .ok()
-                            .map(Box::new)
-                            .map(ProviderMedia::Remote),
-                    )
-                }
+                    state
+                        .remote
+                        .resolve(&url)
+                        .await
+                        .map(Box::new)
+                        .map(ProviderMedia::Remote)
+                };
+                (index, result)
             });
         }
         while let Some(joined) = jobs.join_next().await {
-            let Ok((index, Some(media))) = joined else {
+            let Ok((index, result)) = joined else {
                 continue;
             };
             let Some(attachment) = attachments.get_mut(index) else {
                 continue;
             };
-            match media {
-                ProviderMedia::Remote(media) => {
+            match result {
+                Ok(ProviderMedia::Remote(media)) => {
                     attachment.name = media.name.clone();
                     attachment.ext = crate::shared::security::file_extension(&media.name);
                     attachment.kind = media.kind;
@@ -203,7 +208,7 @@ impl PostService {
                             Some(self.state.media_server.register_remote(source));
                     }
                 }
-                ProviderMedia::Proton(file) => {
+                Ok(ProviderMedia::Proton(file)) => {
                     attachment.name = file.name.clone();
                     attachment.ext = crate::shared::security::file_extension(&file.name);
                     attachment.kind = file.kind;
@@ -214,6 +219,8 @@ impl PostService {
                             Some(self.state.media_server.register_proton(stream));
                     }
                 }
+                Err(AppError::PasswordRequired { .. }) => attachment.locked = true,
+                Err(_) => {}
             }
         }
         let creator = self

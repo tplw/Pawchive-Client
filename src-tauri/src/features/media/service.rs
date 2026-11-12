@@ -38,7 +38,9 @@ impl MediaService {
     /// Turn a provider link into a loopback URL the webview can play.
     pub(crate) async fn resolve(&self, url: &str) -> AppResult<ResolvedMediaInfo> {
         if crate::infra::providers::mega::is_media_url(url) {
-            let link = crate::infra::providers::mega::parse_file_link(url)
+            let decrypted = self.state.mega.decrypt_link(url).await?;
+            let source = decrypted.as_deref().unwrap_or(url);
+            let link = crate::infra::providers::mega::parse_file_link(source)
                 .ok_or_else(|| AppError::Validation("not a MEGA file link".into()))?;
             let file = self.state.mega.resolve(url).await?;
             let stream = crate::infra::providers::mega::MegaStream::new(

@@ -40,6 +40,14 @@ export function playbackProgressKey(item: Pick<QueueItem, "url" | "filePath">): 
         // the child node query is what keeps their resume positions distinct.
         return `${url.hostname}${url.pathname}${url.search}`;
       }
+      if (
+        /^(?:www\.)?mega\.(?:nz|co\.nz|io)$/i.test(url.hostname) &&
+        url.hash.startsWith("#P!")
+      ) {
+        // Password-protected MEGA links have no path identity; the encrypted
+        // payload in the fragment is what distinguishes them.
+        return `${url.hostname}${url.pathname}${url.hash}`;
+      }
       return url.hostname.endsWith("pawchive.pw")
         ? path
         : `${url.hostname}/${path}`;

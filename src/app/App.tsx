@@ -5,6 +5,7 @@ import { TopBar } from "./shell/TopBar";
 import { Player } from "../features/player/ui/Player";
 import { Toaster } from "../shared/ui";
 import { UpdateDialog } from "../features/updates";
+import { ProviderPasswordDialog } from "../features/media/ui/ProviderPasswordDialog";
 import { useAppStore } from "./store";
 import { isMobile } from "../shared/lib/platform";
 import { ErrorBoundary } from "./shell/ErrorBoundary";
@@ -55,6 +56,7 @@ export default function App() {
         {isMobile ? <MobileTabBar /> : null}
       </div>
       <UpdateDialog />
+      <ProviderPasswordDialog />
       <Toaster />
     </div>
   );

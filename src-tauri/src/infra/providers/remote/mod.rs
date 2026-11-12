@@ -256,6 +256,7 @@ fn folder_file_attachment(
         provider,
         ext: crate::shared::security::file_extension(&name),
         preview_only: false,
+        locked: false,
     }
 }
 
@@ -295,7 +296,18 @@ pub async fn expand_folders(
             expanded.push(attachment);
             continue;
         }
-        if let Some(folder) = crate::infra::providers::mega::parse_folder_link(&attachment.url) {
+        let mega_url = match mega.decrypt_link(&attachment.url).await {
+            Ok(url) => url.unwrap_or_else(|| attachment.url.clone()),
+            Err(AppError::PasswordRequired { .. }) => {
+                attachment.name = "MEGA password-protected link".into();
+                attachment.kind = crate::shared::models::MediaKind::Other;
+                attachment.locked = true;
+                expanded.push(attachment);
+                continue;
+            }
+            Err(_) => attachment.url.clone(),
+        };
+        if let Some(folder) = crate::infra::providers::mega::parse_folder_link(&mega_url) {
             if let Ok(files) = mega.list_folder(&folder).await {
                 if !files.is_empty() {
                     for file in files {
@@ -351,6 +363,12 @@ pub async fn expand_folders(
                     attachment.preview_only = true;
                     expanded.push(attachment);
                     continue;
+                }
+                Err(AppError::PasswordRequired { .. }) => {
+                    attachment.name = "Proton Drive password-protected link".into();
+                    attachment.kind = crate::shared::models::MediaKind::Other;
+                    attachment.provider = MediaProvider::Proton;
+                    attachment.locked = true;
                 }
                 // Leave the original link visible so opening the post can show
                 // a useful error instead of silently dropping it.
@@ -798,6 +816,31 @@ fn percent_decode(raw: &str) -> String {
 mod tests {
     use super::gofile::{extract_website_secret, pick_gofile_file};
     use super::*;
+
+    #[tokio::test]
+    async fn marks_password_protected_mega_links_locked() {
+        let client = reqwest::Client::new();
+        let mega = crate::infra::providers::mega::MegaResolver::new(client.clone());
+        let proton = crate::infra::providers::proton::ProtonResolver::new();
+        let remote = RemoteResolver::new(client);
+        let url = "https://mega.nz/#P!AgFwfnUNgNEAAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHxl3piJ-PeFLGsobpGcNPS6_rloUMHED4ClY_g0gDN1ZfY90DKw9YKl41vVccTZHgttETN3dBBIR1eL7qS_qXhg";
+        let attachment = crate::shared::models::Attachment {
+            name: "mega-link".into(),
+            path: url.into(),
+            url: url.into(),
+            download_url: url.into(),
+            thumbnail_url: None,
+            kind: crate::shared::models::MediaKind::Video,
+            provider: MediaProvider::Mega,
+            ext: String::new(),
+            preview_only: false,
+            locked: false,
+        };
+        let expanded = expand_folders(&mega, &proton, &remote, vec![attachment]).await;
+        assert_eq!(expanded.len(), 1);
+        assert!(expanded[0].locked);
+        assert_eq!(expanded[0].provider, MediaProvider::Mega);
+    }
 
     #[test]
     fn extracts_drive_file_ids() {

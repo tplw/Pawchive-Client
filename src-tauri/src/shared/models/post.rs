@@ -207,6 +207,8 @@ impl Post {
                 safe_filename(&format!("mega-folder-{}", link.handle))
             } else if let Some(link) = crate::infra::providers::proton::parse_link(&raw) {
                 safe_filename(&format!("proton-{}", link.token))
+            } else if let Some(key) = crate::infra::providers::mega::password_key(&raw) {
+                safe_filename(&key.replacen(':', "-", 1))
             } else if let Some(id) = crate::infra::providers::remote::drive_file_id(&raw) {
                 safe_filename(&format!("drive-{id}"))
             } else if let Some(id) = crate::infra::providers::remote::drive_folder_id(&raw) {
@@ -356,6 +358,9 @@ pub struct Attachment {
     pub provider: crate::infra::providers::MediaProvider,
     pub ext: String,
     pub preview_only: bool,
+    /// The provider link needs a password before it can be resolved.
+    #[serde(default)]
+    pub locked: bool,
 }
 
 impl Attachment {
@@ -421,6 +426,7 @@ impl Attachment {
             preview_only: file.preview_only.unwrap_or(false)
                 && temp_url.is_none()
                 && temp_download_url.is_none(),
+            locked: false,
         })
     }
 }

@@ -254,5 +254,7 @@ pub fn parse_folder_file_link(raw: &str) -> Option<MegaFolderFileLink> {
 }
 
 pub fn is_media_url(raw: &str) -> bool {
-    is_file_url(raw) || parse_folder_file_link(raw).is_some()
+    is_file_url(raw)
+        || parse_folder_file_link(raw).is_some()
+        || super::password::is_protected_link(raw)
 }

@@ -273,6 +273,9 @@ pub async fn download_post(
         attachments,
     )
     .await;
+    if let Some(locked) = attachments.iter().find(|attachment| attachment.locked) {
+        return Err(map_locked_attachment(locked));
+    }
     let files: Vec<(Attachment, MediaKind)> = attachments
         .into_iter()
         .filter(|attachment| !attachment.preview_only)
@@ -302,6 +305,9 @@ pub async fn download_post(
             media_kind: kind.as_str().to_string(),
         };
         if let Err(error) = enqueue(state, app, request).await {
+            if matches!(error, AppError::PasswordRequired { .. }) {
+                return Err(error);
+            }
             tracing::warn!(%error, "could not queue post attachment");
         } else {
             count += 1;
@@ -316,6 +322,15 @@ pub async fn download_playlist(
     playlist_id: i64,
 ) -> AppResult<u64> {
     let items = state.db.list_playlist_items(playlist_id)?;
+    // Validate passwords before queueing anything, so a prompt cannot leave a
+    // partially queued playlist that duplicates items when the user retries.
+    for item in &items {
+        if crate::infra::providers::proton::is_proton_url(&item.media_url) {
+            state.proton.unlock(&item.media_url).await?;
+        } else if crate::infra::providers::mega::password_key(&item.media_url).is_some() {
+            state.mega.unlock(&item.media_url).await?;
+        }
+    }
     let mut count = 0u64;
     for item in items {
         let request = DownloadRequest {
@@ -336,12 +351,27 @@ pub async fn download_playlist(
             media_kind: item.media_kind,
         };
         if let Err(error) = enqueue(state, app, request).await {
+            if matches!(error, AppError::PasswordRequired { .. }) {
+                return Err(error);
+            }
             tracing::warn!(%error, "could not queue playlist item");
         } else {
             count += 1;
         }
     }
     Ok(count)
+}
+
+fn map_locked_attachment(attachment: &Attachment) -> AppError {
+    let provider = match attachment.provider {
+        crate::infra::providers::MediaProvider::Proton => "Proton Drive",
+        _ => "MEGA",
+    };
+    AppError::PasswordRequired {
+        provider,
+        url: attachment.url.clone(),
+        rejected: false,
+    }
 }
 
 #[cfg(test)]
@@ -399,6 +429,9 @@ mod tests {
             http: reqwest::Client::new(),
             mega: crate::infra::providers::mega::MegaResolver::new(reqwest::Client::new()),
             proton: std::sync::Arc::new(crate::infra::providers::proton::ProtonResolver::new()),
+            passwords: std::sync::Arc::new(
+                crate::infra::provider_passwords::ProviderPasswords::in_memory(),
+            ),
             remote: std::sync::Arc::new(crate::infra::providers::remote::RemoteResolver::new(
                 reqwest::Client::new(),
             )),

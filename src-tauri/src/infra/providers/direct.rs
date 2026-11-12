@@ -33,6 +33,16 @@ fn mega_folder_regex() -> &'static Regex {
     })
 }
 
+fn mega_protected_url_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?i)(?:https?://)?(?:www\.)?mega\.(?:nz|co\.nz|io)/(?:(?:file|folder)/[a-z0-9_-]+)?#P![a-z0-9_\-]+"#,
+        )
+        .expect("valid MEGA password-link regex")
+    })
+}
+
 fn proton_url_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -122,6 +132,18 @@ pub fn extract(text: &str) -> Vec<String> {
             out.push(url);
         }
     }
+    // MEGA password-protected links use `#P!` instead of a key fragment.
+    for found in mega_protected_url_regex().find_iter(text) {
+        let Some(url) = normalize(found.as_str()) else {
+            continue;
+        };
+        if !crate::infra::providers::mega::is_protected_link(&url) {
+            continue;
+        }
+        if seen.insert(url.clone()) {
+            out.push(url);
+        }
+    }
     // Proton Drive public links carry their password in the fragment and have
     // no media extension either.
     for found in proton_url_regex().find_iter(text) {
@@ -184,6 +206,17 @@ mod tests {
                 "https://files.example.org/old.m4a".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn extracts_password_protected_mega_links() {
+        let text = r#"
+            <a href="https://mega.nz/#P!AgFwfnUNgNEAAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHxl3piJ-PeFLGsobpGcNPS6_rloUMHED4ClY_g0gDN1ZfY90DKw9YKl41vVccTZHgttETN3dBBIR1eL7qS_qXhg">protected</a>
+        "#;
+        let links = extract(text);
+        assert_eq!(links.len(), 1);
+        assert!(links[0].starts_with("https://mega.nz/#P!"));
+        assert!(crate::infra::providers::mega::is_protected_link(&links[0]));
     }
 
     #[test]

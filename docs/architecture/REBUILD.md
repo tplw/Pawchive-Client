@@ -37,7 +37,8 @@ passes the existing tests and a manual smoke check.
 - Backend: modular monolith by feature. Tauri commands stay thin at the boundary; each feature owns its service/use cases. Shared infrastructure (SQLite, Pawchive API, providers, loopback HTTP) lives under `infra/`.
 - No new runtime dependencies during the rebuild. Proton Drive support later
   adds `proton-drive-rs` because its SRP/OpenPGP public-link implementation is
-  not practical to reimplement safely.
+  not practical to reimplement safely; MEGA password links add `hmac` and
+  `pbkdf2` for the local link-key derivation.
 - No behavior, route, command, event, storage-key or CSS-contract changes during migration.
 
 ### Frontend target tree

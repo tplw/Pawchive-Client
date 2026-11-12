@@ -70,6 +70,8 @@ export interface Attachment {
   provider: MediaProvider;
   ext: string;
   previewOnly: boolean;
+  /** Provider link needs a password before it can be resolved. */
+  locked?: boolean;
 }
 
 export interface ResolvedMedia {
@@ -336,4 +338,7 @@ export interface AppErrorShape {
   code: string;
   message: string;
   retryable: boolean;
+  provider?: string;
+  url?: string;
+  rejected?: boolean;
 }

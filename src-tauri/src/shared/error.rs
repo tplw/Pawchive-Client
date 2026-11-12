@@ -34,6 +34,12 @@ pub enum AppError {
     Unavailable(String),
     #[error("this creator is blocked")]
     Blocked,
+    #[error("a password is required for this {provider} link")]
+    PasswordRequired {
+        provider: &'static str,
+        url: String,
+        rejected: bool,
+    },
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -55,6 +61,7 @@ impl AppError {
             Self::Cancelled => "cancelled",
             Self::Unavailable(_) => "unavailable",
             Self::Blocked => "blocked",
+            Self::PasswordRequired { .. } => "password_required",
             Self::Internal(_) => "internal",
         }
     }
@@ -72,14 +79,31 @@ struct Wire<'a> {
     code: &'a str,
     message: String,
     retryable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rejected: Option<bool>,
 }
 
 impl Serialize for AppError {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let (provider, url, rejected) = match self {
+            Self::PasswordRequired {
+                provider,
+                url,
+                rejected,
+            } => (Some(*provider), Some(url.as_str()), Some(*rejected)),
+            _ => (None, None, None),
+        };
         Wire {
             code: self.code(),
             message: self.to_string(),
             retryable: self.retryable(),
+            provider,
+            url,
+            rejected,
         }
         .serialize(serializer)
     }
@@ -110,3 +134,23 @@ impl From<url::ParseError> for AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serializes_provider_password_errors() {
+        let value = serde_json::to_value(AppError::PasswordRequired {
+            provider: "MEGA",
+            url: "https://mega.nz/#P!abc".to_string(),
+            rejected: true,
+        })
+        .unwrap();
+        assert_eq!(value["code"], "password_required");
+        assert_eq!(value["provider"], "MEGA");
+        assert_eq!(value["url"], "https://mega.nz/#P!abc");
+        assert_eq!(value["rejected"], true);
+        assert_eq!(value["retryable"], false);
+    }
+}

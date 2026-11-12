@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   ListMusic,
   ListPlus,
+  Lock,
 } from "lucide-react";
 import type { Attachment, MediaKind } from "../../../shared/types";
 import { cn } from "../../../shared/lib/format";
@@ -33,6 +34,7 @@ export function PostAttachments({
   onAddToPlaylist,
   onDownload,
   onOpenFile,
+  onUnlock,
 }: {
   count: number;
   images: Attachment[];
@@ -45,6 +47,7 @@ export function PostAttachments({
   onAddToPlaylist: (attachment: Attachment) => void;
   onDownload: (attachment: Attachment) => void;
   onOpenFile: (attachment: Attachment) => void;
+  onUnlock: (attachment: Attachment) => void;
 }) {
   if (count === 0) return null;
   return (
@@ -129,7 +132,7 @@ export function PostAttachments({
       {playable.length > 0 ? (
         <div className="mt-3 space-y-2">
           {playable.map((attachment) => {
-            const Icon = KIND_ICON[attachment.kind];
+            const Icon = attachment.locked ? Lock : KIND_ICON[attachment.kind];
             return (
               <div
                 key={attachment.path}
@@ -148,33 +151,44 @@ export function PostAttachments({
                       {attachment.name}
                     </span>
                     <span className="mt-0.5 block text-[9px] uppercase tracking-wider text-muted">
-                      {attachment.kind}
+                      {attachment.locked ? "password protected" : attachment.kind}
                       {attachment.previewOnly ? " · preview only" : ""}
                     </span>
                     <AttachmentMeta attachment={attachment} />
                   </span>
                 </button>
                 <div className="flex items-center gap-0.5">
-                  <IconButton
-                    label="Add to queue"
-                    icon={ListMusic}
-                    size="sm"
-                    onClick={() => onQueue(attachment)}
-                  />
-                  <IconButton
-                    label="Add to playlist"
-                    icon={ListPlus}
-                    size="sm"
-                    onClick={() => onAddToPlaylist(attachment)}
-                  />
-                  {!attachment.previewOnly ? (
+                  {attachment.locked ? (
                     <IconButton
-                      label="Download"
-                      icon={Download}
+                      label="Unlock link"
+                      icon={Lock}
                       size="sm"
-                      onClick={() => onDownload(attachment)}
+                      onClick={() => onUnlock(attachment)}
                     />
-                  ) : null}
+                  ) : (
+                    <>
+                      <IconButton
+                        label="Add to queue"
+                        icon={ListMusic}
+                        size="sm"
+                        onClick={() => onQueue(attachment)}
+                      />
+                      <IconButton
+                        label="Add to playlist"
+                        icon={ListPlus}
+                        size="sm"
+                        onClick={() => onAddToPlaylist(attachment)}
+                      />
+                      {!attachment.previewOnly ? (
+                        <IconButton
+                          label="Download"
+                          icon={Download}
+                          size="sm"
+                          onClick={() => onDownload(attachment)}
+                        />
+                      ) : null}
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -195,20 +209,35 @@ export function PostAttachments({
                 className="flex min-w-0 flex-1 items-center gap-3 text-left"
               >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-muted">
-                  <FileText className="h-4 w-4" />
+                  {attachment.locked ? (
+                    <Lock className="h-4 w-4" />
+                  ) : (
+                    <FileText className="h-4 w-4" />
+                  )}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-bold text-ink">
                     {attachment.name}
                   </span>
                   <span className="mt-0.5 block text-[9px] uppercase tracking-wider text-muted">
-                    {attachment.kind}
+                    {attachment.locked ? "password protected" : attachment.kind}
                   </span>
                   <AttachmentMeta attachment={attachment} />
                 </span>
-                <ExternalLink className="h-3.5 w-3.5 text-muted" />
+                {attachment.locked ? (
+                  <Lock className="h-3.5 w-3.5 text-favorite" />
+                ) : (
+                  <ExternalLink className="h-3.5 w-3.5 text-muted" />
+                )}
               </button>
-              {!attachment.previewOnly ? (
+              {attachment.locked ? (
+                <IconButton
+                  label="Unlock link"
+                  icon={Lock}
+                  size="sm"
+                  onClick={() => onUnlock(attachment)}
+                />
+              ) : !attachment.previewOnly ? (
                 <IconButton
                   label="Download"
                   icon={Download}

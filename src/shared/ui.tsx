@@ -10,6 +10,7 @@ import {
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
+  forwardRef,
   useEffect,
   useRef,
 } from "react";
@@ -227,12 +228,13 @@ export function Field({
   );
 }
 
-export function TextInput({
-  className,
-  ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
+export const TextInput = forwardRef<
+  HTMLInputElement,
+  InputHTMLAttributes<HTMLInputElement>
+>(function TextInput({ className, ...props }, ref) {
   return (
     <input
+      ref={ref}
       {...props}
       className={cn(
         "h-10 w-full rounded-lg border border-line bg-base px-3 text-sm text-ink outline-none transition placeholder:text-dim focus:border-accent/70 focus:ring-2 focus:ring-accent/15",
@@ -240,7 +242,7 @@ export function TextInput({
       )}
     />
   );
-}
+});
 
 export function Toggle({
   checked,

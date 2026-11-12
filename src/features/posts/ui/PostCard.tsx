@@ -135,9 +135,24 @@ export function PostCard({
       });
       const playable = detail.attachments.filter(
         (attachment) =>
-          attachment.kind === "audio" || attachment.kind === "video",
+          !attachment.locked &&
+          (attachment.kind === "audio" || attachment.kind === "video"),
       );
       if (playable.length === 0) {
+        if (detail.attachments.some((attachment) => attachment.locked)) {
+          toast(
+            "info",
+            "Password required",
+            "Open the post to unlock this media.",
+          );
+          navigate({
+            name: "post",
+            service: post.service,
+            creatorId: post.user,
+            postId: post.id,
+          });
+          return;
+        }
         toast("info", "Nothing to play", "This post has no playable media.");
         return;
       }

@@ -32,6 +32,19 @@ describe("playback progress key", () => {
     ).toBe("C:/Users/Ada/Downloads/clip.mp4");
   });
 
+  it("keeps password-protected MEGA links separate", () => {
+    const first = playbackProgressKey({
+      url: "https://mega.nz/#P!first",
+      filePath: "https://mega.nz/#P!first",
+    });
+    const second = playbackProgressKey({
+      url: "https://mega.nz/#P!second",
+      filePath: "https://mega.nz/#P!second",
+    });
+    expect(first).not.toBe(second);
+    expect(first).toContain("#P!first");
+  });
+
   it("keeps Proton files from the same share separate", () => {
     const first = playbackProgressKey({
       url: "https://drive.proton.me/urls/token?pawchive_node=vol~one#pass",

@@ -100,9 +100,17 @@ pub fn run() {
                         "could not build media client: {e}"
                     ))
                 })?;
-            let mega = crate::infra::providers::mega::MegaResolver::new(http.clone());
-            let proton =
-                std::sync::Arc::new(crate::infra::providers::proton::ProtonResolver::new());
+            let passwords =
+                std::sync::Arc::new(crate::infra::provider_passwords::ProviderPasswords::load(
+                    data_dir.join("provider-passwords.json"),
+                ));
+            let mega = crate::infra::providers::mega::MegaResolver::with_passwords(
+                http.clone(),
+                passwords.clone(),
+            );
+            let proton = std::sync::Arc::new(
+                crate::infra::providers::proton::ProtonResolver::with_passwords(passwords.clone()),
+            );
             let remote = std::sync::Arc::new(crate::infra::providers::remote::RemoteResolver::new(
                 http.clone(),
             ));
@@ -137,6 +145,7 @@ pub fn run() {
                 http,
                 mega,
                 proton,
+                passwords,
                 remote,
                 app_data_dir: data_dir,
                 default_download_dir,
@@ -203,6 +212,9 @@ pub fn run() {
             commands::save_progress,
             commands::get_progress,
             commands::validate_media,
+            commands::set_provider_password,
+            commands::forget_provider_password,
+            commands::unlock_provider_link,
             commands::resolve_media,
             commands::get_media_size,
             commands::get_image_dimensions,

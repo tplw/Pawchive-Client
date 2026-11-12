@@ -48,8 +48,9 @@ the refactored codebase.
   creator cards after the profile has been viewed.
 - Proton Drive public-link playback, downloads and transcoding, including
   encrypted range streaming and folder-link expansion into individual files.
-  Links with a custom password report a clear error because the app has no
-  password prompt yet.
+- Password prompts for protected MEGA and Proton Drive links, including custom
+  passwords. The prompt can remember a password on this device; a rejected
+  saved password is cleared and the prompt asks for the new one.
 
 - Android target with the shared mobile shell, bottom tabs, safe-area layout,
   hardware back navigation and ARM64/ARMv7/x86/x86_64 builds.
@@ -64,6 +65,8 @@ the refactored codebase.
 
 - Added `proton-drive-rs` for Proton's SRP/OpenPGP public-link handshake and
   range reads. This raises the Rust minimum to 1.96.
+- Added `hmac` and `pbkdf2` for MEGA's local password-protected link
+  decryption.
 - The launch and loading screens now show only the Pawchive paw mark, with no
   text or spinner; Android also uses the paw for its launcher icon.
 - Linux `.deb` and `.rpm` packages now recommend the GStreamer plugin sets used
