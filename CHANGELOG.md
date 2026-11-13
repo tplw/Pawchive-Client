@@ -4,6 +4,15 @@ All notable changes to Pawchive Client are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- **Hide unavailable posts** now hides unimported Kemono previews whose only
+  media is an archive-relative file path that was never stored and returns
+  404. Previews with a direct provider link or a temporary signed URL stay
+  visible.
+
 ## 1.0.6 - 2026-11-13
 
 This release adds Proton Drive playback and downloads, password prompts for
