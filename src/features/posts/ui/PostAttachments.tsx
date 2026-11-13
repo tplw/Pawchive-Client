@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { Attachment, MediaKind } from "../../../shared/types";
 import { cn } from "../../../shared/lib/format";
-import { IconButton, SectionHeader } from "../../../shared/ui";
+import { Badge, IconButton, SectionHeader } from "../../../shared/ui";
 import { AttachmentMeta } from "./AttachmentMeta";
 
 const KIND_ICON: Record<MediaKind, typeof ImageIcon> = {
@@ -108,6 +108,11 @@ export function PostAttachments({
                     <ImageIcon className="h-7 w-7 text-accent/45" />
                   </span>
                 )}
+                {attachment.locked ? (
+                  <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded border border-favorite/40 bg-black/75 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-favorite">
+                    <Lock className="h-3 w-3" /> Locked
+                  </span>
+                ) : null}
                 <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6">
                   <span className="block truncate text-[10px] text-white/80">
                     {attachment.name}
@@ -169,8 +174,15 @@ export function PostAttachments({
                     <Icon className={cn("h-4 w-4", resolving && "animate-spin")} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-bold text-ink">
-                      {attachment.name}
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-xs font-bold text-ink">
+                        {attachment.name}
+                      </span>
+                      {attachment.locked ? (
+                        <Badge tone="warning" className="shrink-0 gap-1">
+                          <Lock className="h-3 w-3" /> Locked
+                        </Badge>
+                      ) : null}
                     </span>
                     <span className="mt-0.5 block text-[9px] uppercase tracking-wider text-muted">
                       {resolving
@@ -250,8 +262,15 @@ export function PostAttachments({
                     )}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-bold text-ink">
-                      {attachment.name}
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-xs font-bold text-ink">
+                        {attachment.name}
+                      </span>
+                      {attachment.locked ? (
+                        <Badge tone="warning" className="shrink-0 gap-1">
+                          <Lock className="h-3 w-3" /> Locked
+                        </Badge>
+                      ) : null}
                     </span>
                     <span className="mt-0.5 block text-[9px] uppercase tracking-wider text-muted">
                       {resolving

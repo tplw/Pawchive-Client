@@ -40,6 +40,7 @@ describe("locked post attachments", () => {
     const onUnlock = vi.fn();
     renderAttachments(onUnlock);
     expect(screen.getByText("password protected")).toBeInTheDocument();
+    expect(screen.getByText("Locked")).toBeInTheDocument();
     expect(screen.queryByLabelText("Download")).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Unlock link"));
     expect(onUnlock).toHaveBeenCalledWith(locked);
