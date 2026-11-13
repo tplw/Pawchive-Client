@@ -198,6 +198,37 @@ mod tests {
     }
 
     #[test]
+    fn hides_unimported_previews_without_a_playable_source() {
+        let preview: Post = serde_json::from_value(serde_json::json!({
+            "id": "125114528",
+            "origin": "kemono",
+            "has_full": false,
+            "file": {
+                "name": "4_25YT M4M Bully Listener x Nerd.mp3",
+                "path": "/14d/7d/4d7dd38f0007f3eb093b839a9d8ea1aa6cd594dd33b9c56872917fbe4b840497.mp3",
+                "server": "https://n2.pawchive.pw"
+            }
+        }))
+        .unwrap();
+        assert!(!preview.is_imported());
+        assert!(!preview.has_available_non_image_attachment());
+        assert!(preview.is_unavailable());
+
+        let playable: Post = serde_json::from_value(serde_json::json!({
+            "id": "125050372",
+            "origin": "kemono",
+            "has_full": false,
+            "file": {
+                "name": "clip.mp4",
+                "path": "https://cdn.example.com/clip.mp4"
+            }
+        }))
+        .unwrap();
+        assert!(playable.has_available_non_image_attachment());
+        assert!(!playable.is_unavailable());
+    }
+
+    #[test]
     fn includes_direct_media_links_in_posts() {
         let cfg = crate::shared::config::PawchiveConfig::default();
         let post = Post {

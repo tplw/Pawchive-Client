@@ -261,10 +261,18 @@ impl Post {
     /// targets. Deferred attachments and temporary provider URLs count as
     /// usable because the archive can still stream them from the post view.
     pub fn has_available_non_image_attachment(&self) -> bool {
+        let imported = self.is_imported();
         self.all_files_including_direct().iter().any(|file| {
             media_kind_for_file(file) != MediaKind::Image
                 && !file.preview_only.unwrap_or(false)
                 && file.has_real_source()
+                // Unimported Kemono previews expose archive-relative paths
+                // that the archive never stored, so they return 404. Only a
+                // direct provider link or a temporary signed URL is playable.
+                && (imported
+                    || file.path.trim().starts_with("https://")
+                    || file.temp_url().is_some()
+                    || file.temp_download_url().is_some())
         })
     }
 
