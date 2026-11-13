@@ -24,6 +24,15 @@
       "appPermissions": {},
       "versions": [
         {
+          "version": "1.0.6",
+          "buildVersion": "1.0.6",
+          "date": "2026-11-13T15:01:05Z",
+          "downloadURL": "https://github.com/tplw/Pawchive-Client/releases/download/v1.0.6/Pawchive_1.0.6_ios-unsigned.ipa",
+          "size": 6633326,
+          "minOSVersion": "15.0",
+          "localizedDescription": "Adds Proton Drive playback and folder downloads, password prompts for protected MEGA and Proton Drive links, faster post loading with attachment progress, lock badges on protected attachments, Media Session controls, browser-style navigation and player reliability fixes."
+        },
+        {
           "version": "1.0.5.1",
           "buildVersion": "1.0.5.1",
           "date": "2026-11-09T23:15:58Z",
