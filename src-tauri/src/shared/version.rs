@@ -5,4 +5,4 @@
 //! `1.0.3.1`), so the bundle version stays at the next three-part version and
 //! this constant is what the UI and update checker use.
 
-pub const APP_VERSION: &str = "1.0.5.1";
+pub const APP_VERSION: &str = "1.0.6";

@@ -4,35 +4,13 @@ All notable changes to Pawchive Client are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project follows [Semantic Versioning](https://semver.org/).
 
-## 1.0.5.1 - 2026-11-09
+## 1.0.6 - 2026-11-13
 
-Internal rebuild release. The app keeps its existing commands, events, routes,
-storage keys, UI and user-facing behavior; release artifacts are rebuilt from
-the refactored codebase.
-
-### Changed
-
-- Reorganized the frontend into `app/`, `shared/` and vertical feature slices
-  for posts, creators, search, media, player, downloads, playlists, settings,
-  account and updates.
-- Split the backend Tauri command surface from feature services and moved
-  infrastructure into SQLite, API, provider, local HTTP, download and transcode
-  modules.
-- Broke the largest backend modules into focused submodules for models,
-  security, MEGA, GoFile, media serving, downloads, SQLite and API endpoints.
-- Added characterization and regression tests around query keys, download
-  events, media conversions, pagination, search ranking, playback progress,
-  transcoding and image-viewer helpers.
-- Removed the temporary page/component compatibility shims and wired router
-  navigation explicitly during bootstrap.
-
-### Compatibility
-
-- Existing installations keep their settings, playlists, downloads, playback
-  progress, blocked creators, account session and update preferences.
-- Bundle metadata uses `1.0.6` internally while the release tag is `v1.0.5.1`.
-
-## Unreleased
+This release adds Proton Drive playback and downloads, password prompts for
+protected MEGA and Proton Drive links, faster post loading with per-attachment
+progress, and lock badges on protected attachments. It also brings Media
+Session controls, browser-style navigation, a post-card play button and player
+reliability fixes.
 
 ### Added
 
@@ -51,7 +29,6 @@ the refactored codebase.
 - Password prompts for protected MEGA and Proton Drive links, including custom
   passwords. The prompt can remember a password on this device; a rejected
   saved password is cleared and the prompt asks for the new one.
-
 - Android target with the shared mobile shell, bottom tabs, safe-area layout,
   hardware back navigation and ARM64/ARMv7/x86/x86_64 builds.
 - Android build helper (`scripts/android.sh`), npm scripts, documentation and
@@ -95,13 +72,40 @@ the refactored codebase.
   "media could not be played" text.
 - Retrying after a failed transcode attempt resets the transcode guard so the
   fallback can be tried again.
-
 - Android release builds no longer render a blank WebView by disabling R8
   minification until the keep rules are verified.
 - Rapid settings changes no longer roll back or flicker because of out-of-order
   persistence responses.
 - Windows finds ffmpeg from `PATH`, Program Files and common install folders,
   and downloaded files avoid reserved DOS device names and trailing dots.
+
+## 1.0.5.1 - 2026-11-09
+
+Internal rebuild release. The app keeps its existing commands, events, routes,
+storage keys, UI and user-facing behavior; release artifacts are rebuilt from
+the refactored codebase.
+
+### Changed
+
+- Reorganized the frontend into `app/`, `shared/` and vertical feature slices
+  for posts, creators, search, media, player, downloads, playlists, settings,
+  account and updates.
+- Split the backend Tauri command surface from feature services and moved
+  infrastructure into SQLite, API, provider, local HTTP, download and transcode
+  modules.
+- Broke the largest backend modules into focused submodules for models,
+  security, MEGA, GoFile, media serving, downloads, SQLite and API endpoints.
+- Added characterization and regression tests around query keys, download
+  events, media conversions, pagination, search ranking, playback progress,
+  transcoding and image-viewer helpers.
+- Removed the temporary page/component compatibility shims and wired router
+  navigation explicitly during bootstrap.
+
+### Compatibility
+
+- Existing installations keep their settings, playlists, downloads, playback
+  progress, blocked creators, account session and update preferences.
+- Bundle metadata uses `1.0.6` internally while the release tag is `v1.0.5.1`.
 
 ## 1.0.5 - 2026-11-08
 
