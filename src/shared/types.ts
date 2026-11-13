@@ -72,6 +72,8 @@ export interface Attachment {
   previewOnly: boolean;
   /** Provider link needs a password before it can be resolved. */
   locked?: boolean;
+  /** External provider metadata is still loading. */
+  resolving?: boolean;
 }
 
 export interface ResolvedMedia {

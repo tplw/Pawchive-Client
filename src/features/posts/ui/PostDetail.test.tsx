@@ -1,18 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../../shared/api";
 import { PostDetailPage } from "./PostDetail";
 import { clearPostFeeds, rememberPostFeed } from "../model/postNavigation";
-import type { PostDetail, PostSummary } from "../../../shared/types";
+import type { Attachment, PostDetail, PostSummary } from "../../../shared/types";
 
 vi.mock("../../../shared/api", () => ({
   api: {
     getPost: vi.fn(),
+    resolvePostAttachments: vi.fn(),
     getPostComments: vi.fn(),
     getPostRevisions: vi.fn(),
     getMediaSize: vi.fn(),
     getImageDimensions: vi.fn(),
+    resolveMedia: vi.fn(),
     openExternal: vi.fn(),
   },
 }));
@@ -31,6 +33,8 @@ describe("post detail", () => {
     vi.mocked(api.getPostRevisions).mockResolvedValue([]);
     vi.mocked(api.getMediaSize).mockResolvedValue(null);
     vi.mocked(api.getImageDimensions).mockResolvedValue(null);
+    vi.mocked(api.resolvePostAttachments).mockResolvedValue([]);
+    vi.mocked(api.resolveMedia).mockResolvedValue(null as never);
     vi.mocked(api.getPost).mockResolvedValue({
       post: {
         id: "99",
@@ -96,6 +100,63 @@ describe("post detail", () => {
     expect(
       screen.getByRole("button", { name: "Open importer" }),
     ).toBeInTheDocument();
+  });
+
+  it("renders fast attachments and resolves provider metadata in the background", async () => {
+    const url = "https://mega.nz/#P!protected";
+    const fastAttachment = {
+      name: "mega-link",
+      path: url,
+      url,
+      downloadUrl: url,
+      thumbnailUrl: null,
+      kind: "other" as const,
+      provider: "mega" as const,
+      ext: "",
+      previewOnly: false,
+      locked: false,
+      resolving: true,
+    };
+    vi.mocked(api.getPost).mockResolvedValue({
+      post: {
+        id: "99",
+        user: "7",
+        service: "fanbox",
+        title: "Provider post",
+        content: "<p>Fast content</p>",
+        embed: {},
+        shared_file: false,
+        added: 1700000000,
+        published: 1700000000,
+        edited: null,
+        file: null,
+        attachments: [],
+        next: null,
+        prev: null,
+      },
+      attachments: [fastAttachment],
+      creator: { id: "7", name: "Grace Hopper", service: "fanbox" },
+      next: null,
+      prev: null,
+    } as unknown as PostDetail);
+    let finish!: (attachments: Attachment[]) => void;
+    vi.mocked(api.resolvePostAttachments).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+
+    wrapper(<PostDetailPage service="fanbox" creatorId="7" postId="99" />);
+    expect(await screen.findByText("Fast content")).toBeInTheDocument();
+    expect(await screen.findByText("mega-link")).toBeInTheDocument();
+    expect(screen.getByText("loading provider info…")).toBeInTheDocument();
+    expect(api.resolvePostAttachments).toHaveBeenCalledWith([fastAttachment]);
+
+    await act(async () => {
+      finish([{ ...fastAttachment, name: "resolved.mp4", kind: "video", resolving: false }]);
+    });
+    expect(await screen.findByText("resolved.mp4")).toBeInTheDocument();
+    expect(screen.queryByText("loading provider info…")).not.toBeInTheDocument();
   });
 
   it("warns when files exceeded the archive size limit", async () => {

@@ -11,9 +11,9 @@ use crate::features::updates::service::{UpdateInfo, UpdateService};
 use crate::shared::config::PawchiveConfig;
 use crate::shared::error::{AppError, AppResult};
 use crate::shared::models::{
-    AccountState, Announcement, AppSettings, Comment, CreatorPage, CreatorProfile, CreatorSummary,
-    DownloadRecord, DownloadRequest, PlaybackProgress, Playlist, PlaylistItem, PostDetail,
-    PostPage, PostSummary, Revision, SearchPage,
+    AccountState, Announcement, AppSettings, Attachment, Comment, CreatorPage, CreatorProfile,
+    CreatorSummary, DownloadRecord, DownloadRequest, PlaybackProgress, Playlist, PlaylistItem,
+    PostDetail, PostPage, PostSummary, Revision, SearchPage,
 };
 use crate::shared::task::blocking;
 use tauri::{AppHandle, State};
@@ -230,6 +230,16 @@ pub async fn get_post(
 ) -> AppResult<PostDetail> {
     PostService::new(st(&state))
         .detail(&service, &creator_id, &post_id, request_id.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub async fn resolve_post_attachments(
+    state: State<'_, AppState>,
+    attachments: Vec<Attachment>,
+) -> AppResult<Vec<Attachment>> {
+    PostService::new(st(&state))
+        .resolve_attachments(attachments)
         .await
 }
 
@@ -729,6 +739,30 @@ mod tests {
         };
         let page = build_post_page(&state, vec![post], 0).unwrap();
         assert_eq!(page.items.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn attachment_resolution_clears_the_loading_marker() {
+        let state = test_state(AppSettings::default());
+        let attachment = Attachment {
+            name: "image.jpg".into(),
+            path: "/aa/bb/image.jpg".into(),
+            url: "https://file.pawchive.pw/data/aa/bb/image.jpg".into(),
+            download_url: "https://file.pawchive.pw/data/aa/bb/image.jpg".into(),
+            thumbnail_url: None,
+            kind: crate::shared::models::MediaKind::Image,
+            provider: crate::infra::providers::MediaProvider::Pawchive,
+            ext: "jpg".into(),
+            preview_only: false,
+            locked: false,
+            resolving: true,
+        };
+        let resolved = PostService::new(state)
+            .resolve_attachments(vec![attachment])
+            .await
+            .unwrap();
+        assert_eq!(resolved.len(), 1);
+        assert!(!resolved[0].resolving);
     }
 
     #[test]

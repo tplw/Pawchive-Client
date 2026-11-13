@@ -246,6 +246,37 @@ mod tests {
     }
 
     #[test]
+    fn marks_external_provider_attachments_as_resolving() {
+        let cfg = crate::shared::config::PawchiveConfig::default();
+        let cases = [
+            (
+                "https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30",
+                true,
+            ),
+            (
+                "https://mega.nz/folder/RBA1wbzZ#9JumpYIWHYvgZ0RyL6wIBQ",
+                true,
+            ),
+            ("https://drive.proton.me/urls/abc#password", true),
+            (
+                "https://drive.google.com/file/d/13Ln54rOyA7C98ACx-k6KASb4OVYSF9iv/view",
+                true,
+            ),
+            ("https://cdn.example.com/clip.mp4", false),
+            ("/aa/bb/clip.mp4", false),
+        ];
+        for (url, resolving) in cases {
+            let file = FileRef {
+                name: "file".into(),
+                path: url.into(),
+                ..Default::default()
+            };
+            let attachment = Attachment::new(&cfg, &file).unwrap();
+            assert_eq!(attachment.resolving, resolving, "{url}");
+        }
+    }
+
+    #[test]
     fn prefers_the_real_path_extension_for_media_kind() {
         let file = FileRef {
             name: "Tetoween ESP.mp4".into(),

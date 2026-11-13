@@ -67,6 +67,9 @@ the refactored codebase.
   range reads. This raises the Rust minimum to 1.96.
 - Added `hmac` and `pbkdf2` for MEGA's local password-protected link
   decryption.
+- Post pages now render immediately and resolve external cloud-drive
+  attachment metadata in a second pass, with a loading indicator on each
+  resolving attachment.
 - The launch and loading screens now show only the Pawchive paw mark, with no
   text or spinner; Android also uses the paw for its launcher icon.
 - Linux `.deb` and `.rpm` packages now recommend the GStreamer plugin sets used

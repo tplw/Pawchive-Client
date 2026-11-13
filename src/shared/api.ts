@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   Announcement,
   AccountState,
+  Attachment,
   AppSettings,
   Comment,
   DownloadRecord,
@@ -189,6 +190,8 @@ export const api = {
         requestId,
       }),
     ),
+  resolvePostAttachments: (attachments: Attachment[]) =>
+    call<Attachment[]>("resolve_post_attachments", { attachments }),
   getPostComments: (params: {
     service: string;
     creatorId: string;

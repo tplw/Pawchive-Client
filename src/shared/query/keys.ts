@@ -20,6 +20,12 @@ export const queryKeys = {
   post: (service: string, creatorId: string, postId: string) =>
     ["post", service, creatorId, postId] as const,
   postAll: () => ["post"] as const,
+  postAttachments: (
+    service: string,
+    creatorId: string,
+    postId: string,
+    signature: string,
+  ) => ["post-attachments", service, creatorId, postId, signature] as const,
   postSummary: (service: string, creatorId: string, postId: string) =>
     ["post-summary", service, creatorId, postId] as const,
   comments: (service: string, creatorId: string, postId: string) =>

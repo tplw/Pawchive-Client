@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   ListMusic,
   ListPlus,
+  LoaderCircle,
   Lock,
 } from "lucide-react";
 import type { Attachment, MediaKind } from "../../../shared/types";
@@ -63,21 +64,32 @@ export function PostAttachments({
 
       {images.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {images.map((attachment) => (
+          {images.map((attachment) => {
+            const resolving = attachment.resolving === true;
+            return (
             <div
               key={attachment.path}
+              aria-busy={resolving}
               className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-line/70 bg-elevated/60"
             >
               <button
                 type="button"
+                disabled={resolving}
                 onClick={() =>
                   onViewImage(
                     images.findIndex((entry) => entry.path === attachment.path),
                   )
                 }
-                className="block h-full w-full text-left"
+                className="block h-full w-full text-left disabled:cursor-wait"
               >
-                {attachment.thumbnailUrl ? (
+                {resolving ? (
+                  <span className="grid h-full w-full place-items-center gap-2 text-muted">
+                    <LoaderCircle className="h-7 w-7 animate-spin" />
+                    <span className="text-[9px] uppercase tracking-wider">
+                      Loading…
+                    </span>
+                  </span>
+                ) : attachment.thumbnailUrl ? (
                   <img
                     src={attachment.thumbnailUrl}
                     alt={attachment.name}
@@ -106,59 +118,75 @@ export function PostAttachments({
                   />
                 </span>
               </button>
-              <div className="touch-visible absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
-                <IconButton
-                  label={`Add ${attachment.name} to playlist`}
-                  icon={ListPlus}
-                  size="sm"
-                  className="bg-black/60 text-white hover:bg-accent hover:text-black"
-                  onClick={() => onAddToPlaylist(attachment)}
-                />
-                {!attachment.previewOnly ? (
+              {!resolving ? (
+                <div className="touch-visible absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
                   <IconButton
-                    label={`Download ${attachment.name}`}
-                    icon={Download}
+                    label={`Add ${attachment.name} to playlist`}
+                    icon={ListPlus}
                     size="sm"
                     className="bg-black/60 text-white hover:bg-accent hover:text-black"
-                    onClick={() => onDownload(attachment)}
+                    onClick={() => onAddToPlaylist(attachment)}
                   />
-                ) : null}
-              </div>
+                  {!attachment.previewOnly ? (
+                    <IconButton
+                      label={`Download ${attachment.name}`}
+                      icon={Download}
+                      size="sm"
+                      className="bg-black/60 text-white hover:bg-accent hover:text-black"
+                      onClick={() => onDownload(attachment)}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
             </div>
-          ))}
+            );
+          })}
         </div>
       ) : null}
 
       {playable.length > 0 ? (
         <div className="mt-3 space-y-2">
           {playable.map((attachment) => {
-            const Icon = attachment.locked ? Lock : KIND_ICON[attachment.kind];
+            const resolving = attachment.resolving === true;
+            const Icon = resolving
+              ? LoaderCircle
+              : attachment.locked
+                ? Lock
+                : KIND_ICON[attachment.kind];
             return (
               <div
                 key={attachment.path}
+                aria-busy={resolving}
                 className="group flex w-full items-center gap-3 rounded-lg border border-line/70 bg-base/20 px-3 py-2.5 transition hover:border-accent/30 hover:bg-base/40"
               >
                 <button
                   type="button"
+                  disabled={resolving}
                   onClick={() => onPlay(attachment)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-wait"
                 >
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
-                    <Icon className="h-4 w-4" />
+                    <Icon className={cn("h-4 w-4", resolving && "animate-spin")} />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-bold text-ink">
                       {attachment.name}
                     </span>
                     <span className="mt-0.5 block text-[9px] uppercase tracking-wider text-muted">
-                      {attachment.locked ? "password protected" : attachment.kind}
+                      {resolving
+                        ? "loading provider info…"
+                        : attachment.locked
+                          ? "password protected"
+                          : attachment.kind}
                       {attachment.previewOnly ? " · preview only" : ""}
                     </span>
                     <AttachmentMeta attachment={attachment} />
                   </span>
                 </button>
                 <div className="flex items-center gap-0.5">
-                  {attachment.locked ? (
+                  {resolving ? (
+                    <span className="px-2 text-[9px] text-muted">Loading…</span>
+                  ) : attachment.locked ? (
                     <IconButton
                       label="Unlock link"
                       icon={Lock}
@@ -198,55 +226,68 @@ export function PostAttachments({
 
       {documents.length > 0 ? (
         <div className="mt-3 space-y-2">
-          {documents.map((attachment) => (
-            <div
-              key={attachment.path}
-              className="flex w-full items-center gap-3 rounded-lg border border-line/70 bg-base/20 px-3 py-2.5 transition hover:border-accent/30 hover:bg-base/40"
-            >
-              <button
-                type="button"
-                onClick={() => onOpenFile(attachment)}
-                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          {documents.map((attachment) => {
+            const resolving = attachment.resolving === true;
+            return (
+              <div
+                key={attachment.path}
+                aria-busy={resolving}
+                className="flex w-full items-center gap-3 rounded-lg border border-line/70 bg-base/20 px-3 py-2.5 transition hover:border-accent/30 hover:bg-base/40"
               >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-muted">
-                  {attachment.locked ? (
-                    <Lock className="h-4 w-4" />
+                <button
+                  type="button"
+                  disabled={resolving}
+                  onClick={() => onOpenFile(attachment)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-wait"
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-muted">
+                    {resolving ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : attachment.locked ? (
+                      <Lock className="h-4 w-4" />
+                    ) : (
+                      <FileText className="h-4 w-4" />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold text-ink">
+                      {attachment.name}
+                    </span>
+                    <span className="mt-0.5 block text-[9px] uppercase tracking-wider text-muted">
+                      {resolving
+                        ? "loading provider info…"
+                        : attachment.locked
+                          ? "password protected"
+                          : attachment.kind}
+                    </span>
+                    <AttachmentMeta attachment={attachment} />
+                  </span>
+                  {resolving ? (
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted" />
+                  ) : attachment.locked ? (
+                    <Lock className="h-3.5 w-3.5 text-favorite" />
                   ) : (
-                    <FileText className="h-4 w-4" />
+                    <ExternalLink className="h-3.5 w-3.5 text-muted" />
                   )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-bold text-ink">
-                    {attachment.name}
-                  </span>
-                  <span className="mt-0.5 block text-[9px] uppercase tracking-wider text-muted">
-                    {attachment.locked ? "password protected" : attachment.kind}
-                  </span>
-                  <AttachmentMeta attachment={attachment} />
-                </span>
-                {attachment.locked ? (
-                  <Lock className="h-3.5 w-3.5 text-favorite" />
-                ) : (
-                  <ExternalLink className="h-3.5 w-3.5 text-muted" />
-                )}
-              </button>
-              {attachment.locked ? (
-                <IconButton
-                  label="Unlock link"
-                  icon={Lock}
-                  size="sm"
-                  onClick={() => onUnlock(attachment)}
-                />
-              ) : !attachment.previewOnly ? (
-                <IconButton
-                  label="Download"
-                  icon={Download}
-                  size="sm"
-                  onClick={() => onDownload(attachment)}
-                />
-              ) : null}
-            </div>
-          ))}
+                </button>
+                {resolving ? null : attachment.locked ? (
+                  <IconButton
+                    label="Unlock link"
+                    icon={Lock}
+                    size="sm"
+                    onClick={() => onUnlock(attachment)}
+                  />
+                ) : !attachment.previewOnly ? (
+                  <IconButton
+                    label="Download"
+                    icon={Download}
+                    size="sm"
+                    onClick={() => onDownload(attachment)}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </section>

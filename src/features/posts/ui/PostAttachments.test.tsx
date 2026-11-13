@@ -44,4 +44,30 @@ describe("locked post attachments", () => {
     fireEvent.click(screen.getByLabelText("Unlock link"));
     expect(onUnlock).toHaveBeenCalledWith(locked);
   });
+
+  it("shows a loading state while provider metadata is resolving", () => {
+    const onUnlock = vi.fn();
+    render(
+      <PostAttachments
+        count={1}
+        images={[]}
+        playable={[]}
+        documents={[{ ...locked, locked: false, resolving: true }]}
+        disabled={false}
+        onViewImage={() => undefined}
+        onPlay={() => undefined}
+        onQueue={() => undefined}
+        onAddToPlaylist={() => undefined}
+        onDownload={() => undefined}
+        onOpenFile={() => undefined}
+        onUnlock={onUnlock}
+      />,
+    );
+    expect(screen.getByText("loading provider info…")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Download")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Unlock link")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("loading provider info…").closest("[aria-busy]"),
+    ).toHaveAttribute("aria-busy", "true");
+  });
 });

@@ -165,6 +165,62 @@ describe("content cards", () => {
     usePlayerStore.setState({ queue: [], currentId: null, playing: false });
   });
 
+  it("resolves provider attachments before starting card playback", async () => {
+    const fast = {
+      post: {
+        id: "99",
+        user: "7",
+        service: "fanbox",
+        title: "Provider post",
+        content: "",
+        embed: {},
+        attachments: [],
+        file: null,
+        added: 1700000000,
+        published: 1700000000,
+      },
+      attachments: [
+        {
+          name: "mega-link",
+          path: "https://mega.nz/#P!protected",
+          url: "https://mega.nz/#P!protected",
+          thumbnailUrl: null,
+          kind: "other",
+          provider: "mega",
+          ext: "",
+          previewOnly: false,
+          resolving: true,
+        },
+      ],
+      creator: { id: "7", name: "Grace Hopper", service: "fanbox" },
+      next: null,
+      prev: null,
+    } as unknown as PostDetail;
+    vi.spyOn(api, "getPost").mockResolvedValue(fast);
+    const resolve = vi.spyOn(api, "resolvePostAttachments").mockResolvedValue([
+      {
+        ...fast.attachments[0],
+        name: "resolved.mp4",
+        kind: "video",
+        resolving: false,
+      },
+    ]);
+    usePlayerStore.setState({ queue: [], currentId: null, playing: false });
+
+    wrapper(
+      <PostCard post={{ ...post, mediaKinds: ["video"], attachmentCount: 1 }} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Play Sample post" }));
+
+    await waitFor(() => expect(usePlayerStore.getState().queue).toHaveLength(1));
+    expect(resolve).toHaveBeenCalledWith(fast.attachments);
+    expect(usePlayerStore.getState().queue[0]).toMatchObject({
+      fileName: "resolved.mp4",
+      mediaKind: "video",
+    });
+    usePlayerStore.setState({ queue: [], currentId: null, playing: false });
+  });
+
   it("marks posts that exceed the archive size limit", () => {
     wrapper(<PostCard post={{ ...post, hasFull: false, exceedsLimit: true }} />);
     expect(

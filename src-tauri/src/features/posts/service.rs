@@ -99,10 +99,38 @@ impl PostService {
             .into_iter()
             .filter_map(|file| Attachment::new(&self.state.cfg, &file))
             .collect();
+        let creator = self
+            .state
+            .db
+            .get_creator(&post.service, &post.user)?
+            .or_else(|| {
+                Some(CreatorSummary {
+                    id: post.user.clone(),
+                    name: post.user.clone(),
+                    service: post.service.clone(),
+                    ..Default::default()
+                })
+            });
+        Ok(PostDetail {
+            post,
+            attachments,
+            creator,
+            next,
+            prev,
+        })
+    }
+
+    /// Resolve external provider metadata for attachments returned by the
+    /// fast post-detail path. Folder links are expanded here so the initial
+    /// post render never waits on cloud-drive APIs.
+    pub(crate) async fn resolve_attachments(
+        &self,
+        mut attachments: Vec<Attachment>,
+    ) -> AppResult<Vec<Attachment>> {
         // Public Drive, MEGA and Proton folder links are expanded into their
         // individual files so they can be played, queued and downloaded like
         // direct links.
-        let mut attachments = crate::infra::providers::remote::expand_folders(
+        attachments = crate::infra::providers::remote::expand_folders(
             &self.state.mega,
             &self.state.proton,
             &self.state.remote,
@@ -116,6 +144,9 @@ impl PostService {
         // non-fatal: the link is still visible and the player reports the error
         // on demand.
         for attachment in attachments.iter_mut() {
+            if attachment.locked {
+                continue;
+            }
             if crate::infra::providers::mega::is_media_url(&attachment.url) {
                 match self.state.mega.resolve(&attachment.url).await {
                     Ok(file) => {
@@ -159,7 +190,7 @@ impl PostService {
         let gate = Arc::new(tokio::sync::Semaphore::new(4));
         let mut jobs = tokio::task::JoinSet::new();
         for (index, attachment) in attachments.iter().enumerate() {
-            if crate::infra::providers::mega::is_media_url(&attachment.url) {
+            if attachment.locked || crate::infra::providers::mega::is_media_url(&attachment.url) {
                 continue;
             }
             let is_proton = crate::infra::providers::proton::is_proton_url(&attachment.url);
@@ -223,25 +254,10 @@ impl PostService {
                 Err(_) => {}
             }
         }
-        let creator = self
-            .state
-            .db
-            .get_creator(&post.service, &post.user)?
-            .or_else(|| {
-                Some(CreatorSummary {
-                    id: post.user.clone(),
-                    name: post.user.clone(),
-                    service: post.service.clone(),
-                    ..Default::default()
-                })
-            });
-        Ok(PostDetail {
-            post,
-            attachments,
-            creator,
-            next,
-            prev,
-        })
+        for attachment in attachments.iter_mut() {
+            attachment.resolving = false;
+        }
+        Ok(attachments)
     }
 
     pub(crate) async fn comments(

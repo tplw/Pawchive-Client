@@ -257,6 +257,7 @@ fn folder_file_attachment(
         ext: crate::shared::security::file_extension(&name),
         preview_only: false,
         locked: false,
+        resolving: false,
     }
 }
 
@@ -835,6 +836,7 @@ mod tests {
             ext: String::new(),
             preview_only: false,
             locked: false,
+            resolving: false,
         };
         let expanded = expand_folders(&mega, &proton, &remote, vec![attachment]).await;
         assert_eq!(expanded.len(), 1);

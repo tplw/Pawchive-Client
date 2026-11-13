@@ -61,7 +61,7 @@ export function AttachmentMeta({
   } | null>(null);
 
   useEffect(() => {
-    if (attachment.locked) return;
+    if (attachment.locked || attachment.resolving) return;
     let cancelled = false;
     void mediaSize(attachment.downloadUrl ?? attachment.url).then((value) => {
       if (!cancelled) setSize(value);
@@ -69,11 +69,17 @@ export function AttachmentMeta({
     return () => {
       cancelled = true;
     };
-  }, [attachment.downloadUrl, attachment.locked, attachment.url]);
+  }, [
+    attachment.downloadUrl,
+    attachment.locked,
+    attachment.resolving,
+    attachment.url,
+  ]);
 
   useEffect(() => {
     if (
       attachment.locked ||
+      attachment.resolving ||
       (attachment.kind !== "video" && attachment.kind !== "image")
     ) {
       return;
@@ -111,6 +117,7 @@ export function AttachmentMeta({
   }, [
     attachment.kind,
     attachment.locked,
+    attachment.resolving,
     attachment.thumbnailUrl,
     attachment.url,
   ]);

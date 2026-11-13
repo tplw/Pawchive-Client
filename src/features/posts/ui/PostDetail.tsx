@@ -88,7 +88,41 @@ function PostDetailContent({
       api.getPost({ service, creatorId, postId, signal }),
     staleTime: 120_000,
   });
-  const detail = post.data;
+  const fastAttachments = post.data?.attachments;
+  const attachmentSignature = useMemo(
+    () =>
+      fastAttachments
+        ?.map((attachment) => `${attachment.url}:${attachment.resolving ? 1 : 0}`)
+        .join("|") ?? "",
+    [fastAttachments],
+  );
+  const needsAttachmentResolution = Boolean(
+    fastAttachments?.some((attachment) => attachment.resolving),
+  );
+  const attachmentQuery = useQuery({
+    queryKey: queryKeys.postAttachments(
+      service,
+      creatorId,
+      postId,
+      attachmentSignature,
+    ),
+    queryFn: () => api.resolvePostAttachments(fastAttachments ?? []),
+    enabled: needsAttachmentResolution,
+    staleTime: 120_000,
+    refetchOnWindowFocus: false,
+  });
+  const attachments = useMemo(() => {
+    const source = attachmentQuery.data ?? fastAttachments ?? [];
+    return attachmentQuery.isError
+      ? source.map((attachment) =>
+          attachment.resolving ? { ...attachment, resolving: false } : attachment,
+        )
+      : source;
+  }, [attachmentQuery.data, attachmentQuery.isError, fastAttachments]);
+  const detail = useMemo(
+    () => (post.data ? { ...post.data, attachments } : undefined),
+    [post.data, attachments],
+  );
   const images = useMemo(
     () => detail?.attachments.filter((attachment) => attachment.kind === "image") ?? [],
     [detail],
@@ -144,7 +178,8 @@ function PostDetailContent({
       await withProviderPassword(attachment.url, () =>
         api.unlockProviderLink(attachment.url),
       );
-      await post.refetch();
+      const refreshed = await attachmentQuery.refetch();
+      if (refreshed.isError) throw refreshed.error;
       toast(
         "success",
         "Link unlocked",
@@ -157,6 +192,10 @@ function PostDetailContent({
 
   const play = (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.resolving) {
+      toast("info", "Still loading", "Waiting for the provider attachment info.");
+      return;
+    }
     if (attachment.locked) {
       void unlockAttachment(attachment);
       return;
@@ -178,6 +217,10 @@ function PostDetailContent({
 
   const queueAttachment = (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.resolving) {
+      toast("info", "Still loading", "Waiting for the provider attachment info.");
+      return;
+    }
     if (attachment.locked) {
       void unlockAttachment(attachment);
       return;
@@ -196,6 +239,10 @@ function PostDetailContent({
 
   const addToPlaylist = (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.resolving) {
+      toast("info", "Still loading", "Waiting for the provider attachment info.");
+      return;
+    }
     if (attachment.locked) {
       void unlockAttachment(attachment);
       return;
@@ -216,6 +263,10 @@ function PostDetailContent({
 
   const downloadAttachment = async (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.resolving) {
+      toast("info", "Still loading", "Waiting for the provider attachment info.");
+      return;
+    }
     if (attachment.locked) {
       await unlockAttachment(attachment);
       return;
@@ -256,6 +307,10 @@ function PostDetailContent({
   };
 
   const openFile = async (attachment: Attachment) => {
+    if (attachment.resolving) {
+      toast("info", "Still loading", "Waiting for the provider attachment info.");
+      return;
+    }
     if (attachment.locked) {
       await unlockAttachment(attachment);
       return;

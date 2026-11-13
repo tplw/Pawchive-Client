@@ -340,7 +340,7 @@ pub struct Revision {
 /* UI DTOs                                                                   */
 /* ------------------------------------------------------------------------- */
 
-#[derive(Debug, Clone, Serialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Attachment {
     pub name: String,
@@ -361,6 +361,9 @@ pub struct Attachment {
     /// The provider link needs a password before it can be resolved.
     #[serde(default)]
     pub locked: bool,
+    /// External provider metadata is still being resolved in the background.
+    #[serde(default)]
+    pub resolving: bool,
 }
 
 impl Attachment {
@@ -414,6 +417,11 @@ impl Attachment {
         };
         let ext = file_extension(&name);
         let provider = crate::infra::providers::provider_for_url(&url);
+        let resolving = matches!(
+            provider,
+            crate::infra::providers::MediaProvider::Mega
+                | crate::infra::providers::MediaProvider::Proton
+        ) || crate::infra::providers::remote::needs_resolution(&url);
         Some(Self {
             url,
             download_url,
@@ -427,6 +435,7 @@ impl Attachment {
                 && temp_url.is_none()
                 && temp_download_url.is_none(),
             locked: false,
+            resolving,
         })
     }
 }

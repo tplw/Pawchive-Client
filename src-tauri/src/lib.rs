@@ -181,6 +181,7 @@ pub fn run() {
             commands::get_popular_posts,
             commands::get_post_summary,
             commands::get_post,
+            commands::resolve_post_attachments,
             commands::get_post_comments,
             commands::get_post_revisions,
             commands::search_all,

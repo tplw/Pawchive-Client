@@ -123,7 +123,7 @@ export function PostCard({
     if (startingPlayback) return;
     setStartingPlayback(true);
     try {
-      const detail = await queryClient.fetchQuery({
+      const fast = await queryClient.fetchQuery({
         queryKey: queryKeys.post(post.service, post.user, post.id),
         queryFn: () =>
           api.getPost({
@@ -133,6 +133,12 @@ export function PostCard({
           }),
         staleTime: 120_000,
       });
+      const attachments = fast.attachments.some(
+        (attachment) => attachment.resolving,
+      )
+        ? await api.resolvePostAttachments(fast.attachments)
+        : fast.attachments;
+      const detail = { ...fast, attachments };
       const playable = detail.attachments.filter(
         (attachment) =>
           !attachment.locked &&
