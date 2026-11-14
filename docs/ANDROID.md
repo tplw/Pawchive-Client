@@ -152,8 +152,13 @@ npm run android:bundle
 
 ## Signing
 
-Release APKs produced by Tauri are unsigned. For local testing, sign with the
-Android debug keystore (created automatically by the Android tools):
+Release APKs produced locally by Tauri are unsigned. The tag release workflow
+generates an ephemeral debug keystore and signs and verifies the APKs before
+uploading them, so the published assets install for sideloading. Production
+distribution still requires a production keystore and secrets.
+
+For local testing, sign with the Android debug keystore (created automatically
+by the Android tools):
 
 ```bash
 export JAVA_HOME="$(brew --prefix openjdk@17)/libexec/openjdk.jdk/Contents/Home"

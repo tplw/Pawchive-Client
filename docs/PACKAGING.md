@@ -108,8 +108,10 @@ frontend and invokes `tauri-apps/tauri-action`.
 Android builds are checked by
 [`.github/workflows/android.yml`](../.github/workflows/android.yml), which
 builds debug and release ARM64 APKs on every relevant push and pull request.
-Publishing a signed Android build requires a production keystore supplied
-through repository secrets.
+The tag release workflow debug-signs and verifies the APKs with an ephemeral
+CI keystore before upload, so the published assets install for sideloading.
+Publishing a production-signed Android build still requires a production
+keystore supplied through repository secrets.
 
 Required repository permissions: `contents: write`.
 

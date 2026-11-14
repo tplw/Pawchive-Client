@@ -30,6 +30,8 @@ project follows [Semantic Versioning](https://semver.org/).
   badges immediately.
 - Synced the generated iOS project version with 1.0.6 so regenerating the
   Xcode project cannot downgrade the bundle version.
+- Android release APKs are now debug-signed and verified in CI before upload,
+  so they install instead of failing with a missing certificate.
 
 ## 1.0.6 - 2026-11-13
 

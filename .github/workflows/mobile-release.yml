@@ -76,6 +76,30 @@ jobs:
           cp src-tauri/gen/android/app/build/outputs/apk/arm/release/*.apk \
             "release-assets/Pawchive_${VERSION}_android-armv7.apk"
 
+      - name: Sign release APKs
+        run: |
+          KEYSTORE="$RUNNER_TEMP/pawchive-debug.keystore"
+          keytool -genkeypair \
+            -keystore "$KEYSTORE" \
+            -storepass android \
+            -keypass android \
+            -alias pawchive-debug \
+            -dname "CN=Pawchive Debug,O=Pawchive,C=US" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          for apk in release-assets/*.apk; do
+            "$BUILD_TOOLS/zipalign" -f 4 "$apk" "$apk.aligned"
+            mv "$apk.aligned" "$apk"
+            "$BUILD_TOOLS/apksigner" sign \
+              --ks "$KEYSTORE" \
+              --ks-pass pass:android \
+              --key-pass pass:android \
+              "$apk"
+            "$BUILD_TOOLS/apksigner" verify --verbose "$apk"
+          done
+
       - name: Upload to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
