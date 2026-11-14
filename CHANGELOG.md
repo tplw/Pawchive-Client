@@ -28,6 +28,8 @@ project follows [Semantic Versioning](https://semver.org/).
   back to Queued on every progress event.
 - Deleting or clearing completed downloads now refreshes playlist Offline
   badges immediately.
+- Synced the generated iOS project version with 1.0.6 so regenerating the
+  Xcode project cannot downgrade the bundle version.
 
 ## 1.0.6 - 2026-11-13
 
