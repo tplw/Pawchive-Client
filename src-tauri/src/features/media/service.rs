@@ -40,14 +40,23 @@ impl MediaService {
         if crate::infra::providers::mega::is_media_url(url) {
             let decrypted = self.state.mega.decrypt_link(url).await?;
             let source = decrypted.as_deref().unwrap_or(url);
-            let link = crate::infra::providers::mega::parse_file_link(source)
-                .ok_or_else(|| AppError::Validation("not a MEGA file link".into()))?;
             let file = self.state.mega.resolve(url).await?;
-            let stream = crate::infra::providers::mega::MegaStream::new(
-                self.state.mega.client_clone(),
-                link,
-                file.clone(),
-            );
+            let stream = if crate::infra::providers::mega::parse_folder_file_link(source).is_some()
+            {
+                crate::infra::providers::mega::MegaStream::new_folder(
+                    self.state.mega.clone(),
+                    source.to_string(),
+                    file.clone(),
+                )?
+            } else {
+                let link = crate::infra::providers::mega::parse_file_link(source)
+                    .ok_or_else(|| AppError::Validation("not a MEGA file link".into()))?;
+                crate::infra::providers::mega::MegaStream::new(
+                    self.state.mega.client_clone(),
+                    link,
+                    file.clone(),
+                )
+            };
             let local_url = self.state.media_server.register_mega(stream);
             return Ok(ResolvedMediaInfo {
                 url: local_url,

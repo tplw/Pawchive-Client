@@ -264,8 +264,9 @@ Provider links are resolved in Rust and served through the loopback media
 server. Do not give a provider page URL directly to `<video>`.
 
 - MEGA: encrypted file and folder links, password links (`#P!`), AES-CTR range
-  streaming, folder child nodes. CDN links expire, so range streams refresh the
-  file metadata before failing.
+  streaming, folder child nodes. Folder children use `MegaStream::new_folder`
+  and the folder-aware resolver; do not pass them to `parse_file_link`. CDN
+  links expire, so range streams refresh the file metadata before failing.
 - Proton Drive: public-link SDK, custom passwords stored per share token,
   child nodes addressed with `?pawchive_node=<volume>~<link>`, range streams.
 - Google Drive, Dropbox and GoFile: resolve to a loopback URL with normal HTTP
@@ -439,7 +440,8 @@ move a tag after publishing. Publish a patch release instead.
   total timeout to streaming media. Use a per-read idle timeout.
 - The persistent `<video>` element emits events for the previous item after a
   queue switch. Confirm the loaded item before applying duration, time,
-  progress or buffering updates.
+  progress or buffering updates. Pause the element before resolving a new
+  item; a failed source must not leave the previous audio playing.
 - The iOS app container can move. Do not trust saved absolute paths.
 - `src-tauri/tauri.conf.json` must keep a three-part `version`. Only
   `APP_VERSION` and the iOS plists carry a four-part release version.
@@ -453,9 +455,6 @@ move a tag after publishing. Publish a patch release instead.
 - Global content filters run in Rust before per-creator client filters. A
   per-creator toggle can remove more posts but cannot restore a post the
   backend already removed.
-- MEGA folder-child playback currently fails in `MediaService::resolve`
-  because it parses folder URLs as file links. Downloads work. Fix this before
-  claiming full MEGA folder playback.
 - Provider metadata body reads do not all have timeouts. Do not hold a shared
   provider mutex across a body read.
 

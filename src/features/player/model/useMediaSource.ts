@@ -103,6 +103,9 @@ export function useMediaSource({
           })
           .catch((validationError) => {
             if (cancelled) return;
+            // The new source never loaded. Stop the outgoing media so it
+            // cannot keep playing behind the error overlay.
+            videoRef.current?.pause();
             setLoading(false);
             setError(errorMessage(validationError));
           });
@@ -115,6 +118,7 @@ export function useMediaSource({
         })
         .catch((validationError) => {
           if (cancelled) return;
+          videoRef.current?.pause();
           setLoading(false);
           setError(errorMessage(validationError));
         });
@@ -166,6 +170,7 @@ export function useMediaSource({
     setLoading,
     setSource,
     setVideoAspect,
+    videoRef,
     reloadToken,
   ]);
 

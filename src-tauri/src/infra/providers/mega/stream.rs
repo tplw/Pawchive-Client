@@ -1,5 +1,5 @@
 use super::crypto::{ctr_cipher, AesCtr};
-use super::links::{MegaFile, MegaLink};
+use super::links::{parse_folder_file_link, MegaFile, MegaLink};
 use super::resolver::{fetch_file, MegaResolver};
 use crate::shared::error::{AppError, AppResult};
 use aes::cipher::StreamCipher;
@@ -16,11 +16,36 @@ pub struct MegaStream {
     pub file: MegaFile,
     pub link: MegaLink,
     pub client: reqwest::Client,
+    folder_url: Option<String>,
+    resolver: Option<MegaResolver>,
 }
 
 impl MegaStream {
     pub fn new(client: reqwest::Client, link: MegaLink, file: MegaFile) -> Self {
-        Self { client, link, file }
+        Self {
+            client,
+            link,
+            file,
+            folder_url: None,
+            resolver: None,
+        }
+    }
+
+    /// A stream for a file inside a public folder. The resolver is kept so an
+    /// expired CDN URL can be refreshed through the folder API.
+    pub fn new_folder(resolver: MegaResolver, raw_url: String, file: MegaFile) -> AppResult<Self> {
+        let link = parse_folder_file_link(&raw_url)
+            .ok_or_else(|| AppError::Validation("not a MEGA folder file link".into()))?;
+        Ok(Self {
+            client: resolver.client_clone(),
+            link: MegaLink {
+                handle: link.file_handle,
+                key: String::new(),
+            },
+            file,
+            folder_url: Some(raw_url),
+            resolver: Some(resolver),
+        })
     }
 
     pub async fn open(&self, start: u64, end: u64) -> AppResult<MegaReader> {
@@ -29,7 +54,11 @@ impl MegaStream {
             Err(first_error) => {
                 // CDN links expire. Refresh once through the API before
                 // failing the playback range request.
-                let file = fetch_file(&self.client, &self.link).await?;
+                let file = if let (Some(resolver), Some(url)) = (&self.resolver, &self.folder_url) {
+                    resolver.refresh_folder_file(url).await?
+                } else {
+                    fetch_file(&self.client, &self.link).await?
+                };
                 MegaReader::open(&self.client, &file, start, end)
                     .await
                     .map_err(|_| first_error)

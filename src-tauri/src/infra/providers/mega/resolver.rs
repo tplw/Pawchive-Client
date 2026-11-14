@@ -2,7 +2,8 @@ use super::crypto::{
     decode_base64_url, decrypt_attributes, decrypt_key_blocks, derive_keys, folder_key_from_bytes,
 };
 use super::links::{
-    parse_file_link, parse_folder_file_link, MegaFile, MegaFolderFile, MegaFolderLink, MegaLink,
+    parse_file_link, parse_folder_file_link, MegaFile, MegaFolderFile, MegaFolderFileLink,
+    MegaFolderLink, MegaLink,
 };
 use super::password::{decrypt_protected_link, is_protected_link, password_key, PasswordLinkError};
 use crate::infra::provider_passwords::ProviderPasswords;
@@ -355,6 +356,22 @@ impl MegaResolver {
         if let Some(file) = self.cached(&key) {
             return Ok(file);
         }
+        let file = self.fetch_folder_file_uncached(&link).await?;
+        self.store(key, file.clone());
+        Ok(file)
+    }
+
+    /// Fetch a folder child without reading the 30-minute file cache. Range
+    /// streams use this when a cached CDN URL expires.
+    pub async fn refresh_folder_file(&self, raw: &str) -> AppResult<MegaFile> {
+        let decrypted = self.decrypt_link(raw).await?;
+        let raw = decrypted.as_deref().unwrap_or(raw);
+        let link = parse_folder_file_link(raw)
+            .ok_or_else(|| AppError::Validation("not a MEGA file link".into()))?;
+        self.fetch_folder_file_uncached(&link).await
+    }
+
+    async fn fetch_folder_file_uncached(&self, link: &MegaFolderFileLink) -> AppResult<MegaFile> {
         let folder = MegaFolderLink {
             handle: link.folder_handle.clone(),
             key: link.folder_key.clone(),
@@ -366,15 +383,13 @@ impl MegaResolver {
             .ok_or(AppError::NotFound)?;
         let file_key = decode_base64_url(&child.key)
             .ok_or_else(|| AppError::Validation("MEGA file key is invalid".into()))?;
-        let file = fetch_folder_file(
+        fetch_folder_file(
             &self.client,
             &link.folder_handle,
             &link.file_handle,
             &file_key,
         )
-        .await?;
-        self.store(key, file.clone());
-        Ok(file)
+        .await
     }
 
     /// List the files inside a public MEGA folder, recursively walking any

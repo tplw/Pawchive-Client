@@ -27,6 +27,11 @@ project follows [Semantic Versioning](https://semver.org/).
 - Creator profile tabs are remembered per creator, so returning from the
   Similar Creators tab restores that tab.
 - The queue trash button now clears the queue and closes the queue panel.
+- MEGA folder-file links now resolve and stream through the folder-aware MEGA
+  resolver, so folder children play instead of failing with `not a MEGA file
+  link`. Expired child links refresh through the folder API.
+- Switching to a media source that fails now pauses the previous item instead
+  of leaving it playing behind the error overlay.
 - Provider password prompts now appear above the image viewer instead of
   behind it.
 - Active downloads keep the Downloading status instead of briefly flipping

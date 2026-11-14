@@ -4,7 +4,10 @@ mod password;
 mod resolver;
 mod stream;
 
-pub use links::{is_file_url, is_folder_url, is_media_url, parse_file_link, parse_folder_link};
+pub use links::{
+    is_file_url, is_folder_url, is_media_url, parse_file_link, parse_folder_file_link,
+    parse_folder_link,
+};
 #[cfg(test)]
 pub(crate) use links::{MegaFile, MegaLink};
 pub use password::{is_protected_link, password_key};

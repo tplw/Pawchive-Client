@@ -165,14 +165,27 @@ impl PostService {
                                 .ok()
                                 .flatten()
                                 .unwrap_or_else(|| attachment.url.clone());
-                            if let Some(link) =
-                                crate::infra::providers::mega::parse_file_link(&source)
-                            {
-                                let stream = crate::infra::providers::mega::MegaStream::new(
-                                    self.state.mega.client_clone(),
-                                    link,
-                                    file.clone(),
-                                );
+                            let stream =
+                                if crate::infra::providers::mega::parse_folder_file_link(&source)
+                                    .is_some()
+                                {
+                                    Some(crate::infra::providers::mega::MegaStream::new_folder(
+                                        self.state.mega.clone(),
+                                        source.clone(),
+                                        file.clone(),
+                                    )?)
+                                } else {
+                                    crate::infra::providers::mega::parse_file_link(&source).map(
+                                        |link| {
+                                            crate::infra::providers::mega::MegaStream::new(
+                                                self.state.mega.client_clone(),
+                                                link,
+                                                file.clone(),
+                                            )
+                                        },
+                                    )
+                                };
+                            if let Some(stream) = stream {
                                 attachment.thumbnail_url =
                                     Some(self.state.media_server.register_mega(stream));
                             }
