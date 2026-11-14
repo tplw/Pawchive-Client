@@ -12,6 +12,8 @@ project follows [Semantic Versioning](https://semver.org/).
   media is an archive-relative file path that was never stored and returns
   404. Previews with a direct provider link or a temporary signed URL stay
   visible.
+- Playing a single attachment or download now keeps the existing player queue
+  instead of replacing it with just that media.
 
 ## 1.0.6 - 2026-11-13
 

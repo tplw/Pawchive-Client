@@ -40,7 +40,7 @@ export const DownloadRow = memo(function DownloadRow({
   const queryClient = useQueryClient();
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
-  const playItems = usePlayerStore((state) => state.playItems);
+  const enqueue = usePlayerStore((state) => state.enqueue);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -106,7 +106,9 @@ export const DownloadRow = memo(function DownloadRow({
 
   const play = async () => {
     try {
-      playItems([queueItemFromDownload(record)]);
+      // Keep everything already queued; a single download should play now
+      // without wiping a playlist or queue built from other posts.
+      enqueue([queueItemFromDownload(record)], true);
     } catch (error) {
       reportError(error, "Could not play download");
     }

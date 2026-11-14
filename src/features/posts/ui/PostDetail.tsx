@@ -190,7 +190,17 @@ function PostDetailContent({
     }
   };
 
-  const play = (attachment: Attachment) => {
+  const queueItemFor = (attachment: Attachment) =>
+    queueItemFromAttachment(attachment, {
+      title: detail?.post.title || attachment.name,
+      creatorName,
+      artwork: images[0]?.thumbnailUrl ?? null,
+      service,
+      creatorId,
+      postId,
+    });
+
+  const playPost = (attachment: Attachment) => {
     if (!detail) return;
     if (attachment.resolving) {
       toast("info", "Still loading", "Waiting for the provider attachment info.");
@@ -201,18 +211,23 @@ function PostDetailContent({
       return;
     }
     const entries = playable.filter((entry) => !entry.locked);
-    const items = entries.map((entry) =>
-      queueItemFromAttachment(entry, {
-        title: detail.post.title || entry.name,
-        creatorName,
-        artwork: images[0]?.thumbnailUrl ?? null,
-        service,
-        creatorId,
-        postId,
-      }),
-    );
     const index = entries.findIndex((entry) => entry.path === attachment.path);
-    playItems(items, Math.max(index, 0));
+    playItems(entries.map(queueItemFor), Math.max(index, 0));
+  };
+
+  const playAttachment = (attachment: Attachment) => {
+    if (!detail) return;
+    if (attachment.resolving) {
+      toast("info", "Still loading", "Waiting for the provider attachment info.");
+      return;
+    }
+    if (attachment.locked) {
+      void unlockAttachment(attachment);
+      return;
+    }
+    // Playing one attachment must not replace the queue the user built from
+    // other posts or playlists.
+    enqueue([queueItemFor(attachment)], true);
   };
 
   const queueAttachment = (attachment: Attachment) => {
@@ -225,16 +240,7 @@ function PostDetailContent({
       void unlockAttachment(attachment);
       return;
     }
-    enqueue([
-      queueItemFromAttachment(attachment, {
-        title: detail.post.title || attachment.name,
-        creatorName,
-        artwork: images[0]?.thumbnailUrl ?? null,
-        service,
-        creatorId,
-        postId,
-      }),
-    ]);
+    enqueue([queueItemFor(attachment)]);
   };
 
   const addToPlaylist = (attachment: Attachment) => {
@@ -497,7 +503,7 @@ function PostDetailContent({
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             {playable.length > 0 ? (
-              <Button variant="primary" onClick={() => play(playable[0])}>
+              <Button variant="primary" onClick={() => playPost(playable[0])}>
                 <Play className="h-4 w-4" fill="currentColor" /> Play media
               </Button>
             ) : null}
@@ -555,7 +561,7 @@ function PostDetailContent({
               documents={documents}
               disabled={isNotImportedPost}
               onViewImage={setViewerIndex}
-              onPlay={play}
+              onPlay={playAttachment}
               onQueue={queueAttachment}
               onAddToPlaylist={addToPlaylist}
               onDownload={(attachment) => void downloadAttachment(attachment)}

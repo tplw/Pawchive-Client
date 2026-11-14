@@ -1,10 +1,22 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../../shared/api";
+import { usePlayerStore } from "../../player/model/store";
 import { PostDetailPage } from "./PostDetail";
 import { clearPostFeeds, rememberPostFeed } from "../model/postNavigation";
-import type { Attachment, PostDetail, PostSummary } from "../../../shared/types";
+import type {
+  Attachment,
+  PostDetail,
+  PostSummary,
+  QueueItem,
+} from "../../../shared/types";
 
 vi.mock("../../../shared/api", () => ({
   api: {
@@ -29,6 +41,14 @@ function wrapper(ui: React.ReactNode) {
 describe("post detail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    usePlayerStore.setState({
+      queue: [],
+      currentId: null,
+      playing: false,
+      currentTime: 0,
+      duration: 0,
+      buffered: 0,
+    });
     vi.mocked(api.getPostComments).mockResolvedValue([]);
     vi.mocked(api.getPostRevisions).mockResolvedValue([]);
     vi.mocked(api.getMediaSize).mockResolvedValue(null);
@@ -198,6 +218,75 @@ describe("post detail", () => {
         "Some files exceed the archive size limit and weren't saved",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the existing queue when a single attachment is played", async () => {
+    const existing: QueueItem = {
+      id: "existing",
+      url: "https://file.pawchive.pw/data/old/old.mp3",
+      filePath: "/old/old.mp3",
+      fileName: "old.mp3",
+      mediaKind: "audio",
+      title: "Old track",
+      creatorName: "Ada",
+      artwork: null,
+      service: "patreon",
+      creatorId: "1",
+      postId: "2",
+    };
+    usePlayerStore.setState({
+      queue: [existing],
+      currentId: existing.id,
+      playing: false,
+      currentTime: 12,
+      duration: 100,
+      buffered: 0,
+    });
+    vi.mocked(api.getPost).mockResolvedValue({
+      post: {
+        id: "99",
+        user: "7",
+        service: "fanbox",
+        title: "Queue post",
+        content: "<p>Play this clip</p>",
+        embed: {},
+        shared_file: false,
+        added: 1700000000,
+        published: 1700000000,
+        edited: null,
+        file: null,
+        attachments: [],
+        next: null,
+        prev: null,
+      },
+      attachments: [
+        {
+          name: "clip.mp3",
+          path: "/aa/bb/clip.mp3",
+          url: "https://file.pawchive.pw/data/aa/bb/clip.mp3",
+          downloadUrl: "https://file.pawchive.pw/data/aa/bb/clip.mp3",
+          thumbnailUrl: null,
+          kind: "audio",
+          provider: "pawchive",
+          ext: "mp3",
+          previewOnly: false,
+        },
+      ],
+      creator: { id: "7", name: "Grace Hopper", service: "fanbox" },
+      next: null,
+      prev: null,
+    } as PostDetail);
+
+    wrapper(<PostDetailPage service="fanbox" creatorId="7" postId="99" />);
+    const name = await screen.findByText("clip.mp3");
+    fireEvent.click(name.closest("button")!);
+
+    await waitFor(() =>
+      expect(usePlayerStore.getState().currentId).not.toBe(existing.id),
+    );
+    expect(
+      usePlayerStore.getState().queue.map((entry) => entry.fileName),
+    ).toEqual(["old.mp3", "clip.mp3"]);
   });
 
   it("skips posts hidden by the creator filter when navigating", async () => {
