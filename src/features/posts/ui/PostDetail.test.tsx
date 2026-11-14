@@ -289,6 +289,76 @@ describe("post detail", () => {
     ).toEqual(["old.mp3", "clip.mp3"]);
   });
 
+  it("keeps the existing queue when Play media is used", async () => {
+    const existing: QueueItem = {
+      id: "existing",
+      url: "https://file.pawchive.pw/data/old/old.mp3",
+      filePath: "/old/old.mp3",
+      fileName: "old.mp3",
+      mediaKind: "audio",
+      title: "Old track",
+      creatorName: "Ada",
+      artwork: null,
+      service: "patreon",
+      creatorId: "1",
+      postId: "2",
+    };
+    usePlayerStore.setState({
+      queue: [existing],
+      currentId: existing.id,
+      playing: false,
+      currentTime: 12,
+      duration: 100,
+      buffered: 0,
+    });
+    vi.mocked(api.getPost).mockResolvedValue({
+      post: {
+        id: "99",
+        user: "7",
+        service: "fanbox",
+        title: "Queue post",
+        content: "<p>Play this clip</p>",
+        embed: {},
+        shared_file: false,
+        added: 1700000000,
+        published: 1700000000,
+        edited: null,
+        file: null,
+        attachments: [],
+        next: null,
+        prev: null,
+      },
+      attachments: [
+        {
+          name: "clip.mp3",
+          path: "/aa/bb/clip.mp3",
+          url: "https://file.pawchive.pw/data/aa/bb/clip.mp3",
+          downloadUrl: "https://file.pawchive.pw/data/aa/bb/clip.mp3",
+          thumbnailUrl: null,
+          kind: "audio",
+          provider: "pawchive",
+          ext: "mp3",
+          previewOnly: false,
+        },
+      ],
+      creator: { id: "7", name: "Grace Hopper", service: "fanbox" },
+      next: null,
+      prev: null,
+    } as PostDetail);
+
+    wrapper(<PostDetailPage service="fanbox" creatorId="7" postId="99" />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Play media" }),
+    );
+
+    await waitFor(() =>
+      expect(usePlayerStore.getState().queue).toHaveLength(2),
+    );
+    expect(
+      usePlayerStore.getState().queue.map((entry) => entry.fileName),
+    ).toEqual(["old.mp3", "clip.mp3"]);
+  });
+
   it("skips posts hidden by the creator filter when navigating", async () => {
     clearPostFeeds();
     const summary = (id: string): PostSummary =>

@@ -85,9 +85,13 @@ export function QueueList({ className }: { className?: string }) {
   );
 }
 
-export function QueuePanel() {
+export function QueuePanel({ onClose }: { onClose?: () => void }) {
   const queue = usePlayerStore((state) => state.queue);
   const clear = usePlayerStore((state) => state.clear);
+  const clearAndClose = () => {
+    clear();
+    onClose?.();
+  };
 
   return (
     <aside className="absolute inset-x-0 bottom-0 z-30 mx-auto flex max-h-[62%] w-full max-w-2xl flex-col rounded-t-2xl border-t border-line/70 bg-[#111315]/98 shadow-2xl backdrop-blur-xl">
@@ -104,7 +108,7 @@ export function QueuePanel() {
             icon={Trash2}
             size="sm"
             className="text-white/60 hover:bg-white/10 hover:text-white"
-            onClick={clear}
+            onClick={clearAndClose}
           />
         </div>
       </div>
@@ -116,6 +120,10 @@ export function QueuePanel() {
 export function CompactQueuePanel({ onClose }: { onClose: () => void }) {
   const queue = usePlayerStore((state) => state.queue);
   const clear = usePlayerStore((state) => state.clear);
+  const clearAndClose = () => {
+    clear();
+    onClose();
+  };
 
   return (
     <aside className="absolute bottom-[calc(100%+0.5rem)] right-2 z-50 flex max-h-[min(62vh,32rem)] w-[min(22rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-xl border border-line/70 bg-[#111315]/98 shadow-2xl backdrop-blur-xl animate-slide-up">
@@ -131,7 +139,7 @@ export function CompactQueuePanel({ onClose }: { onClose: () => void }) {
             icon={Trash2}
             size="sm"
             className="text-white/60 hover:bg-white/10 hover:text-white"
-            onClick={clear}
+            onClick={clearAndClose}
           />
           <IconButton
             label="Close queue"

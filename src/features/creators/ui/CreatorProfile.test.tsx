@@ -71,6 +71,7 @@ describe("creator profile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
+    window.sessionStorage.clear();
     useAppStore.setState({
       route: { name: "creator" },
       previousRoute: null,
@@ -188,6 +189,20 @@ describe("creator profile", () => {
         expect.objectContaining({ service: "patreon", creatorId: "42", query: "second" }),
       ),
     );
+  });
+
+  it("keeps the selected tab when leaving and returning", async () => {
+    const first = wrapper(
+      <CreatorProfilePage service="patreon" creatorId="42" />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Similar Creators" }),
+    );
+    expect(await screen.findByText("Grace")).toBeInTheDocument();
+    first.unmount();
+
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    expect(await screen.findByText("Grace")).toBeInTheDocument();
   });
 
   it("loads similar creators from the recommended page", async () => {

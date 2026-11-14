@@ -46,7 +46,7 @@ export function PostCard({
   const [imageLoaded, setImageLoaded] = useState(false);
   const cardSize = useAppStore((state) => state.settings.postCardSize);
   const { ref: cardRef, inView } = useInView<HTMLElement>();  const queryClient = useQueryClient();
-  const playItems = usePlayerStore((state) => state.playItems);
+  const enqueue = usePlayerStore((state) => state.enqueue);
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
   const [startingPlayback, setStartingPlayback] = useState(false);
@@ -167,7 +167,7 @@ export function PostCard({
       );
       const creatorName =
         detail.creator?.name ?? post.creatorName ?? post.user;
-      playItems(
+      enqueue(
         playable.map((attachment) =>
           queueItemFromAttachment(attachment, {
             title: detail.post.title || attachment.name,
@@ -178,7 +178,7 @@ export function PostCard({
             postId: post.id,
           }),
         ),
-        0,
+        true,
       );
     } catch (error) {
       reportError(error, "Could not play post");

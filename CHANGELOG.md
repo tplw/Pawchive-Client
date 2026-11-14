@@ -22,6 +22,11 @@ project follows [Semantic Versioning](https://semver.org/).
   debounce finishes, and a save response no longer overwrites newer typing.
 - MEGA media no longer stops after 60 seconds; the idle timeout now applies to
   each read instead of the whole response body.
+- The **Play media** button and the post-card quick play control now keep the
+  existing player queue instead of replacing it.
+- Creator profile tabs are remembered per creator, so returning from the
+  Similar Creators tab restores that tab.
+- The queue trash button now clears the queue and closes the queue panel.
 - Provider password prompts now appear above the image viewer instead of
   behind it.
 - Active downloads keep the Downloading status instead of briefly flipping

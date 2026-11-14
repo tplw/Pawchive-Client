@@ -214,6 +214,8 @@ Frontend rules:
   - `localStorage["pawchive-player"]`: queue and current id only.
   - `localStorage["pawchive-creator-filter:<service>:<creatorId>"]`:
     per-creator filters.
+  - `sessionStorage["pawchive-creator-tab:<service>:<creatorId>"]`: selected
+    creator profile tab.
   - `sessionStorage["pawchive-scroll-positions"]`: scroll offsets.
 - DOM contracts: `#main-scroll`, `[data-modal-open="true"]`,
   `data-card-size`, `data-tauri-drag-region`.

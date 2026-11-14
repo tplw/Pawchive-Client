@@ -74,7 +74,6 @@ function PostDetailContent({
   const reportError = useAppStore((state) => state.reportError);
   const config = useAppStore((state) => state.config);
   const previousRoute = useAppStore((state) => state.previousRoute);
-  const playItems = usePlayerStore((state) => state.playItems);
   const enqueue = usePlayerStore((state) => state.enqueue);
   const { startDownload, downloadPost: startPostDownload } =
     useDownloadActions();
@@ -211,8 +210,7 @@ function PostDetailContent({
       return;
     }
     const entries = playable.filter((entry) => !entry.locked);
-    const index = entries.findIndex((entry) => entry.path === attachment.path);
-    playItems(entries.map(queueItemFor), Math.max(index, 0));
+    enqueue(entries.map(queueItemFor), true);
   };
 
   const playAttachment = (attachment: Attachment) => {

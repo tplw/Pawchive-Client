@@ -46,6 +46,7 @@ import { CreatorAbout } from "./CreatorAbout";
 import { CreatorAnnouncements } from "./CreatorAnnouncements";
 import { CreatorFilterModal } from "./CreatorFilterModal";
 import { useCreatorFilterState } from "../model/useCreatorFilterState";
+import { useCreatorTab, type CreatorTab } from "../model/useCreatorTab";
 import { SiteIcon } from "../../../shared/SiteIcon";
 import {
   Badge,
@@ -54,8 +55,6 @@ import {
   IconButton,
   SectionHeader,
 } from "../../../shared/ui";
-
-type Tab = "posts" | "about" | "announcements" | "similar";
 
 export function CreatorProfilePage({
   service,
@@ -78,7 +77,7 @@ function CreatorProfileContent({
   service: string;
   creatorId: string;
 }) {
-  const [tab, setTab] = useState<Tab>("posts");
+  const [tab, setTab] = useCreatorTab(service, creatorId);
   const [filterOpen, setFilterOpen] = useState(false);
   const [postSearch, setPostSearch] = useState("");
   const debouncedPostSearch = useDebouncedValue(postSearch.trim(), 300);
@@ -354,7 +353,7 @@ function CreatorProfileContent({
                 ["about", "About & links"],
                 ["announcements", "Announcements"],
                 ["similar", "Similar Creators"],
-              ] as Array<[Tab, string]>
+              ] as Array<[CreatorTab, string]>
             ).map(([value, label]) => (
               <button
                 key={value}

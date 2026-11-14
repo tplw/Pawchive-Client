@@ -70,6 +70,8 @@ remounts, the fixed search route key and scroll restoration.
 - `localStorage["pawchive-player"]` — persisted queue and current id only.
 - `localStorage["pawchive-creator-filter:<service>:<creatorId>"]` — per-creator
   filter overrides.
+- `sessionStorage["pawchive-creator-tab:<service>:<creatorId>"]` — selected
+  creator profile tab.
 - `sessionStorage["pawchive-scroll-positions"]` — per-route scroll offsets.
 
 Changing any shape requires an explicit migration.

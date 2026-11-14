@@ -587,7 +587,9 @@ export function Player() {
 
       {expanded && controlsVisible ? expandedControls : null}
 
-      {expanded && showQueue ? <QueuePanel /> : null}
+      {expanded && showQueue ? (
+        <QueuePanel onClose={() => setShowQueue(false)} />
+      ) : null}
       {!expanded && showQueue ? (
         <CompactQueuePanel onClose={() => setShowQueue(false)} />
       ) : null}

@@ -2,7 +2,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { CreatorSummary, PostDetail, PostSummary } from "../../../shared/types";
+import type {
+  CreatorSummary,
+  PostDetail,
+  PostSummary,
+  QueueItem,
+} from "../../../shared/types";
 import { api } from "../../../shared/api";
 import { usePlayerStore } from "../../player/model/store";
 import { DEFAULT_SETTINGS } from "../../../shared/lib/constants";
@@ -162,6 +167,71 @@ describe("content cards", () => {
       title: "Sample post",
       creatorName: "Grace Hopper",
     });
+    usePlayerStore.setState({ queue: [], currentId: null, playing: false });
+  });
+
+  it("keeps the existing queue when the card play button is used", async () => {
+    const existing: QueueItem = {
+      id: "existing",
+      url: "https://file.pawchive.pw/data/old/old.mp3",
+      filePath: "/old/old.mp3",
+      fileName: "old.mp3",
+      mediaKind: "audio",
+      title: "Old track",
+      creatorName: "Ada",
+      artwork: null,
+      service: "patreon",
+      creatorId: "1",
+      postId: "2",
+    };
+    const detail = {
+      post: {
+        id: "99",
+        user: "7",
+        service: "fanbox",
+        title: "Sample post",
+        content: "",
+        embed: {},
+        attachments: [],
+        file: null,
+        added: 1700000000,
+        published: 1700000000,
+      },
+      attachments: [
+        {
+          name: "clip.mp3",
+          path: "/aa/bb/clip.mp3",
+          url: "https://file.pawchive.pw/data/aa/bb/clip.mp3",
+          thumbnailUrl: null,
+          kind: "audio",
+          provider: "pawchive",
+          ext: "mp3",
+          previewOnly: false,
+        },
+      ],
+      creator: { id: "7", name: "Grace Hopper", service: "fanbox" },
+      next: null,
+      prev: null,
+    } as unknown as PostDetail;
+    vi.spyOn(api, "getPost").mockResolvedValue(detail);
+    usePlayerStore.setState({
+      queue: [existing],
+      currentId: existing.id,
+      playing: false,
+      currentTime: 12,
+      duration: 100,
+      buffered: 0,
+    });
+
+    wrapper(
+      <PostCard post={{ ...post, mediaKinds: ["audio"], attachmentCount: 1 }} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Play Sample post" }));
+
+    await waitFor(() => expect(usePlayerStore.getState().queue).toHaveLength(2));
+    expect(
+      usePlayerStore.getState().queue.map((entry) => entry.fileName),
+    ).toEqual(["old.mp3", "clip.mp3"]);
     usePlayerStore.setState({ queue: [], currentId: null, playing: false });
   });
 

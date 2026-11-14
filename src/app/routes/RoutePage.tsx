@@ -18,6 +18,7 @@ export function RoutePage({ route }: { route: Route }) {
       if (route.service && route.creatorId) {
         return (
           <CreatorProfilePage
+            key={`${route.service}:${route.creatorId}`}
             service={route.service}
             creatorId={route.creatorId}
           />
