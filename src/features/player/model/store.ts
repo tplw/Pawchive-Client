@@ -107,16 +107,18 @@ export const usePlayerStore = create<PlayerStore>()(
     const byId = new Map(existing.map((item) => [item.id, item]));
     for (const item of playable) byId.set(item.id, item);
     const queue = [...byId.values()];
-    const target = playNow || !get().currentId ? playable[0] : null;
+    const currentId = get().currentId;
+    const target = playNow || !currentId ? playable[0] : null;
+    const sameItem = target?.id === currentId;
     set({
       queue,
       ...(target
         ? {
             currentId: target.id,
             playing: true,
-            currentTime: 0,
-            duration: 0,
-            buffered: 0,
+            ...(sameItem
+              ? {}
+              : { currentTime: 0, duration: 0, buffered: 0 }),
           }
         : {}),
     });

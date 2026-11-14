@@ -14,6 +14,7 @@ project follows [Semantic Versioning](https://semver.org/).
   visible.
 - Playing a single attachment or download now keeps the existing player queue
   instead of replacing it with just that media.
+- Replaying the already-playing media no longer restarts it from the beginning.
 
 ## 1.0.6 - 2026-11-13
 
