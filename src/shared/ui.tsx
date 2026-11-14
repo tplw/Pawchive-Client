@@ -415,7 +415,7 @@ export function Modal({
   if (!open) return null;
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-5 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/65 p-5 backdrop-blur-sm animate-fade-in"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

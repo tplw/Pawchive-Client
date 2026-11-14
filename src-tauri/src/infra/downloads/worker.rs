@@ -1,7 +1,7 @@
 use super::paths::remove_if_inside;
 use crate::app::state::AppState;
 use crate::shared::error::{AppError, AppResult};
-use crate::shared::models::DownloadRecord;
+use crate::shared::models::{now_ts, DownloadRecord};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
@@ -87,6 +87,10 @@ async fn download_file(
     record: &mut DownloadRecord,
     token: &CancellationToken,
 ) -> AppResult<()> {
+    // Progress events carry the whole record, so keep the in-memory status in
+    // sync with the DB row before the first event is emitted.
+    record.status = "downloading".into();
+    record.updated_at = now_ts();
     if crate::infra::providers::mega::is_media_url(&record.url) {
         return download_mega_file(state, app, record, token).await;
     }

@@ -190,8 +190,11 @@ function CreatorProfileContent({
     });
   };
   const detectedAsmr = useMemo(
-    () => detectAsmrCreator(name, details?.description, postItems),
-    [name, details?.description, postItems],
+    () =>
+      postQuery
+        ? false
+        : detectAsmrCreator(name, details?.description, postItems),
+    [postQuery, name, details?.description, postItems],
   );
   useEffect(() => {
     if (detectedAsmr) markAutoAsmr();

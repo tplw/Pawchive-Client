@@ -79,7 +79,9 @@ impl MegaReader {
                 format!("bytes={aligned_start}-{end}"),
             )
             .header(reqwest::header::ACCEPT, "*/*")
-            .timeout(READ_TIMEOUT)
+            // Do not set a builder-level timeout here: reqwest applies it to
+            // the entire response body, which would abort large downloads
+            // after 60 seconds. next_chunk() enforces an idle timeout instead.
             .send()
             .await
             .map_err(|error| {

@@ -63,7 +63,6 @@ export function useCreatorFilterState({
       hideNoMedia: getGlobalHideNoMediaDefault(),
       hideUnavailable: false,
       keywords: [],
-      asmr: false,
     });
     setKeywordText("");
   };

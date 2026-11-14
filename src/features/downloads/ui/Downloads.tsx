@@ -56,6 +56,7 @@ export function DownloadsPage() {
     onSuccess: (count) => {
       toast("success", "Downloads cleared", `${count} completed item${count === 1 ? "" : "s"}.`);
       void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlistItems() });
     },
     onError: (error) => reportError(error, "Could not clear downloads"),
   });

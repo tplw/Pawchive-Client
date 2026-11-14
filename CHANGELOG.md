@@ -15,6 +15,19 @@ project follows [Semantic Versioning](https://semver.org/).
 - Playing a single attachment or download now keeps the existing player queue
   instead of replacing it with just that media.
 - Replaying the already-playing media no longer restarts it from the beginning.
+- Searching a creator's posts no longer marks the creator as ASMR from the
+  filtered results, and clearing creator filters returns ASMR to
+  auto-detection instead of saving a permanent rejection.
+- Hidden keyword and volume edits are saved when leaving Settings before the
+  debounce finishes, and a save response no longer overwrites newer typing.
+- MEGA media no longer stops after 60 seconds; the idle timeout now applies to
+  each read instead of the whole response body.
+- Provider password prompts now appear above the image viewer instead of
+  behind it.
+- Active downloads keep the Downloading status instead of briefly flipping
+  back to Queued on every progress event.
+- Deleting or clearing completed downloads now refreshes playlist Offline
+  badges immediately.
 
 ## 1.0.6 - 2026-11-13
 

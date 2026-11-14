@@ -34,6 +34,14 @@ const ACCENT_PRESETS = [
   "#ff8a78",
 ];
 
+function parseKeywords(value: string): string[] {
+  return value
+    .split(/[,\n]/)
+    .map((keyword) => keyword.trim())
+    .filter(Boolean)
+    .slice(0, 100);
+}
+
 export function SettingsPage() {
   const settings = useAppStore((state) => state.settings);
   const config = useAppStore((state) => state.config);
@@ -67,6 +75,7 @@ export function SettingsPage() {
   // rolls the store back and the debounce effect immediately retries forever.
   const lastVolumeSave = useRef<number | null>(null);
   const lastKeywordSave = useRef<string | null>(null);
+  const keywordDirty = useRef(false);
   const transcodeAvailable = useQuery({
     queryKey: queryKeys.canTranscode(),
     queryFn: () => api.canTranscode(),
@@ -79,9 +88,13 @@ export function SettingsPage() {
   }, [settings.volume, settings.playbackSpeed]);
 
   useEffect(() => {
-    setKeywordText((settings.hiddenKeywords ?? []).join(", "));
     setHideAi(settings.hideAiPosts);
-  }, [settings.hiddenKeywords, settings.hideAiPosts]);
+  }, [settings.hideAiPosts]);
+
+  useEffect(() => {
+    if (keywordDirty.current) return;
+    setKeywordText((settings.hiddenKeywords ?? []).join(", "));
+  }, [settings.hiddenKeywords]);
 
   const invalidateFilters = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.postsAll() });
@@ -89,6 +102,41 @@ export function SettingsPage() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.creatorPostsAll() });
     void queryClient.invalidateQueries({ queryKey: queryKeys.creatorSimilarAll() });
   }, [queryClient]);
+
+  const latest = useRef({
+    volume,
+    keywordText,
+    settings,
+    saveSettings,
+    invalidateFilters,
+  });
+  latest.current = {
+    volume,
+    keywordText,
+    settings,
+    saveSettings,
+    invalidateFilters,
+  };
+
+  // Leaving Settings must not discard a debounced edit.
+  useEffect(
+    () => () => {
+      const current = latest.current;
+      if (Math.abs(current.volume - current.settings.volume) >= 0.001) {
+        void current.saveSettings({ volume: current.volume });
+      }
+      const keywords = parseKeywords(current.keywordText);
+      if (
+        JSON.stringify(keywords) !==
+        JSON.stringify(current.settings.hiddenKeywords ?? [])
+      ) {
+        void current
+          .saveSettings({ hiddenKeywords: keywords })
+          .then(current.invalidateFilters);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -110,19 +158,24 @@ export function SettingsPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const keywords = keywordText
-        .split(/[,\n]/)
-        .map((keyword) => keyword.trim())
-        .filter(Boolean)
-        .slice(0, 100);
+      const keywords = parseKeywords(keywordText);
       const serialized = JSON.stringify(keywords);
       if (serialized === JSON.stringify(settings.hiddenKeywords ?? [])) {
         lastKeywordSave.current = null;
+        keywordDirty.current = false;
         return;
       }
       if (lastKeywordSave.current === serialized) return;
       lastKeywordSave.current = serialized;
-      void saveSettings({ hiddenKeywords: keywords }).then(invalidateFilters);
+      void saveSettings({ hiddenKeywords: keywords }).then(() => {
+        if (
+          JSON.stringify(useAppStore.getState().settings.hiddenKeywords ?? []) ===
+          serialized
+        ) {
+          keywordDirty.current = false;
+        }
+        invalidateFilters();
+      });
     }, 500);
     return () => window.clearTimeout(timer);
   }, [keywordText, settings.hiddenKeywords, saveSettings, invalidateFilters]);
@@ -364,7 +417,10 @@ export function SettingsPage() {
               </span>
               <textarea
                 value={keywordText}
-                onChange={(event) => setKeywordText(event.target.value)}
+                onChange={(event) => {
+                  keywordDirty.current = true;
+                  setKeywordText(event.target.value);
+                }}
                 rows={2}
                 placeholder="spoiler, commission, teaser"
                 className="w-full resize-y rounded-lg border border-line bg-base px-2.5 py-2 text-xs text-ink outline-none transition placeholder:text-dim focus:border-accent/70 focus:ring-2 focus:ring-accent/15"

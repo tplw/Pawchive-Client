@@ -91,6 +91,9 @@ export const DownloadRow = memo(function DownloadRow({
     mutationFn: () => api.deleteDownload(record.id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.playlistItems(),
+      });
     },
     onError: (error) => reportError(error, "Could not delete download"),
   });

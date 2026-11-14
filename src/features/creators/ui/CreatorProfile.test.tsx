@@ -1,9 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../../shared/api";
 import { DEFAULT_SETTINGS } from "../../../shared/lib/constants";
-import { loadCreatorFilter } from "../../../shared/lib/creatorFilters";
+import {
+  loadCreatorFilter,
+  saveCreatorFilter,
+} from "../../../shared/lib/creatorFilters";
 import { useAppStore } from "../../../app/store";
 import type { CreatorSummary, PostSummary } from "../../../shared/types";
 import { CreatorProfilePage } from "./CreatorProfile";
@@ -61,6 +70,7 @@ function wrapper(ui: React.ReactNode) {
 describe("creator profile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
     useAppStore.setState({
       route: { name: "creator" },
       previousRoute: null,
@@ -101,6 +111,67 @@ describe("creator profile", () => {
     await waitFor(() =>
       expect(loadCreatorFilter("patreon", "42").asmr).toBe(true),
     );
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
+  });
+
+  it("does not mark a creator as ASMR from filtered search results", async () => {
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
+    vi.mocked(api.getCreatorPosts).mockImplementation(async (params) => ({
+      items: [
+        params.query
+          ? {
+              ...post,
+              title: "ASMR search result",
+              attachmentCount: 1,
+              mediaKinds: ["audio"],
+            }
+          : post,
+      ],
+      offset: 0,
+      hasMore: false,
+    }));
+
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    expect(await screen.findByText("First post")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Search this creator's posts"), {
+      target: { value: "asmr" },
+    });
+    await waitFor(() =>
+      expect(api.getCreatorPosts).toHaveBeenLastCalledWith(
+        expect.objectContaining({ query: "asmr" }),
+      ),
+    );
+    expect(await screen.findByText("ASMR search result")).toBeInTheDocument();
+
+    expect(loadCreatorFilter("patreon", "42").asmr).toBeUndefined();
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
+  });
+
+  it("returns ASMR to auto-detect when creator filters are cleared", async () => {
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
+    saveCreatorFilter("patreon", "42", {
+      audioOnly: true,
+      hideNoMedia: false,
+      hideUnavailable: false,
+      keywords: ["sketch"],
+      asmr: true,
+    });
+
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Filter posts" }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Clear filters",
+      }),
+    );
+
+    const cleared = loadCreatorFilter("patreon", "42");
+    expect(cleared.asmr).toBeUndefined();
+    expect(cleared.audioOnly).toBe(false);
+    expect(cleared.keywords).toEqual([]);
     window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
   });
 
