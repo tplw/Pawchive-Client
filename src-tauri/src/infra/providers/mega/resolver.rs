@@ -25,7 +25,9 @@ static NEXT_SEQUENCE: AtomicI64 = AtomicI64::new(1);
 fn mega_api_error(code: i64) -> AppError {
     match code {
         -9 => AppError::NotFound,
-        -3 => AppError::Unavailable("MEGA is busy; try again shortly".into()),
+        // A busy server is transient, so it must not mark an attachment as
+        // permanently unavailable in the post UI.
+        -3 => AppError::Network("MEGA is busy; try again shortly".into()),
         -11 | -16 | -18 => AppError::Unavailable(format!("MEGA rejected this file (error {code})")),
         _ => AppError::Unavailable(format!("MEGA could not provide this file (error {code})")),
     }
