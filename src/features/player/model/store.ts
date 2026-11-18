@@ -33,6 +33,7 @@ interface PlayerStore {
   setDuration: (duration: number) => void;
   setBuffered: (buffered: number) => void;
   setPlaying: (playing: boolean) => void;
+  clearQueueKeepCurrent: () => void;
   clear: () => void;
 }
 
@@ -254,6 +255,17 @@ export const usePlayerStore = create<PlayerStore>()(
         buffered: currentId ? state.buffered : 0,
       };
     }),
+
+      clearQueueKeepCurrent: () => {
+        const { queue, currentId } = get();
+        const current = queue.find((item) => item.id === currentId) ?? null;
+        set({
+          queue: current ? [current] : [],
+          currentId: current?.id ?? null,
+          playing: current ? get().playing : false,
+          ...(current ? {} : { currentTime: 0, duration: 0, buffered: 0 }),
+        });
+      },
 
       clear: () =>
         set({

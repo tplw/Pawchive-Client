@@ -34,24 +34,28 @@ function seedQueue() {
 describe("queue panels", () => {
   beforeEach(seedQueue);
 
-  it("clears the queue and closes the expanded panel", () => {
-    const onClose = vi.fn();
-    render(<QueuePanel onClose={onClose} />);
+  it("clears other items and keeps the current media in the expanded panel", () => {
+    render(<QueuePanel />);
 
     fireEvent.click(screen.getByLabelText("Clear queue"));
 
-    expect(usePlayerStore.getState().queue).toEqual([]);
-    expect(usePlayerStore.getState().currentId).toBeNull();
-    expect(onClose).toHaveBeenCalledOnce();
+    const state = usePlayerStore.getState();
+    expect(state.queue).toEqual([item("a")]);
+    expect(state.currentId).toBe("a");
+    expect(state.playing).toBe(true);
+    expect(state.currentTime).toBe(12);
   });
 
-  it("clears the queue and closes the compact panel", () => {
+  it("keeps the current media in the compact panel", () => {
     const onClose = vi.fn();
     render(<CompactQueuePanel onClose={onClose} />);
 
     fireEvent.click(screen.getByLabelText("Clear queue"));
 
-    expect(usePlayerStore.getState().queue).toEqual([]);
-    expect(onClose).toHaveBeenCalledOnce();
+    const state = usePlayerStore.getState();
+    expect(state.queue).toEqual([item("a")]);
+    expect(state.currentId).toBe("a");
+    expect(state.playing).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

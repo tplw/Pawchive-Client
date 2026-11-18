@@ -1,4 +1,6 @@
-use crate::shared::models::{strip_html, AppSettings, Post, PostSummary};
+use crate::shared::models::{
+    media_kind_for_file, strip_html, AppSettings, MediaFilter, MediaKind, Post, PostSummary,
+};
 
 /// Whether a creator is in the user's blocked list.
 pub fn is_creator_blocked(service: &str, creator_id: &str, settings: &AppSettings) -> bool {
@@ -36,8 +38,18 @@ pub fn is_hidden(post: &Post, creator_name: Option<&str>, settings: &AppSettings
     if settings.hide_ai_posts && looks_ai_generated(&lower) {
         return true;
     }
-    if settings.hide_no_media && !has_media(post) {
-        return true;
+    match settings.effective_media_filter() {
+        MediaFilter::All => {}
+        MediaFilter::FilesAndPictures => {
+            if !has_file_or_picture(post) {
+                return true;
+            }
+        }
+        MediaFilter::FilesOnly => {
+            if !has_file_only(post) {
+                return true;
+            }
+        }
     }
     if settings.hide_unavailable_posts && post.is_unavailable() {
         return true;
@@ -48,26 +60,19 @@ pub fn is_hidden(post: &Post, creator_name: Option<&str>, settings: &AppSettings
         .any(|keyword| !keyword.trim().is_empty() && lower.contains(&keyword.to_lowercase()))
 }
 
-fn has_media(post: &Post) -> bool {
+fn has_file_or_picture(post: &Post) -> bool {
     // Deferred markers without a path or signed URL are not real media; the
     // archive uses them for files that exceeded the size limit and were not
     // saved. Direct media and provider links are included in this list.
     post.all_files_including_direct()
         .iter()
         .any(|file| file.has_real_source())
-        || value_has_content(&post.embed)
-        || value_has_content(&post.poll)
 }
 
-fn value_has_content(value: &serde_json::Value) -> bool {
-    match value {
-        serde_json::Value::Null => false,
-        serde_json::Value::Bool(value) => *value,
-        serde_json::Value::Number(_) => true,
-        serde_json::Value::String(value) => !value.trim().is_empty(),
-        serde_json::Value::Array(values) => !values.is_empty(),
-        serde_json::Value::Object(map) => !map.is_empty(),
-    }
+fn has_file_only(post: &Post) -> bool {
+    post.all_files_including_direct()
+        .iter()
+        .any(|file| file.has_real_source() && media_kind_for_file(file) != MediaKind::Image)
 }
 
 /// The same content filters, applied to lightweight post summaries such as the
@@ -86,12 +91,24 @@ pub fn summary_is_hidden(post: &PostSummary, settings: &AppSettings) -> bool {
     if settings.hide_ai_posts && looks_ai_generated(&haystack) {
         return true;
     }
-    if settings.hide_no_media {
-        let has_media = post.attachment_count > 0
-            || !post.media_kinds.is_empty()
-            || post.thumbnail_url.is_some();
-        if !has_media {
-            return true;
+    match settings.effective_media_filter() {
+        MediaFilter::All => {}
+        MediaFilter::FilesAndPictures => {
+            let has_file_or_picture = post.attachment_count > 0
+                || !post.media_kinds.is_empty()
+                || post.thumbnail_url.is_some();
+            if !has_file_or_picture {
+                return true;
+            }
+        }
+        MediaFilter::FilesOnly => {
+            if !post
+                .media_kinds
+                .iter()
+                .any(|kind| *kind != MediaKind::Image)
+            {
+                return true;
+            }
         }
     }
     if settings.hide_unavailable_posts && post.unavailable {
@@ -364,6 +381,46 @@ mod tests {
         let mut missing = summary("Not archived");
         missing.unavailable = true;
         assert!(summary_is_hidden(&missing, &unavailable));
+    }
+
+    #[test]
+    fn applies_files_and_pictures_and_files_only_modes() {
+        let files_and_pictures = AppSettings {
+            media_filter: MediaFilter::FilesAndPictures,
+            ..Default::default()
+        };
+        let files_only = AppSettings {
+            media_filter: MediaFilter::FilesOnly,
+            ..Default::default()
+        };
+        let mut image_only = post("An image post", "");
+        image_only.attachments = vec![FileRef {
+            name: "image.png".into(),
+            path: "/aa/bb/image.png".into(),
+            ..Default::default()
+        }];
+        let mut video = post("A video post", "");
+        video.attachments = vec![FileRef {
+            name: "clip.mp4".into(),
+            path: "/aa/bb/clip.mp4".into(),
+            ..Default::default()
+        }];
+
+        assert!(!is_hidden(&image_only, None, &files_and_pictures));
+        assert!(is_hidden(&image_only, None, &files_only));
+        assert!(!is_hidden(&video, None, &files_only));
+        assert!(is_hidden(&post("Text only", ""), None, &files_and_pictures));
+
+        let mut image_summary = summary("An image post");
+        image_summary.attachment_count = 1;
+        image_summary.media_kinds = vec![MediaKind::Image];
+        assert!(!summary_is_hidden(&image_summary, &files_and_pictures));
+        assert!(summary_is_hidden(&image_summary, &files_only));
+
+        let mut video_summary = summary("A video post");
+        video_summary.attachment_count = 1;
+        video_summary.media_kinds = vec![MediaKind::Video];
+        assert!(!summary_is_hidden(&video_summary, &files_only));
     }
 
     #[test]

@@ -1,8 +1,8 @@
-import type { PostSummary } from "../types";
+import type { AppSettings, MediaFilter, PostSummary } from "../types";
 
 export interface CreatorFilter {
   audioOnly: boolean;
-  hideNoMedia: boolean;
+  mediaFilter: MediaFilter;
   hideUnavailable: boolean;
   keywords: string[];
   /** undefined = auto-detect, true = manually tagged, false = manually rejected. */
@@ -11,7 +11,7 @@ export interface CreatorFilter {
 
 const EMPTY_FILTER: CreatorFilter = {
   audioOnly: false,
-  hideNoMedia: false,
+  mediaFilter: "all",
   hideUnavailable: false,
   keywords: [],
 };
@@ -19,28 +19,35 @@ const EMPTY_FILTER: CreatorFilter = {
 const FILTER_PREFIX = "pawchive-creator-filter:";
 
 /**
- * The main Settings toggle acts as the default for creators that have not
- * customized their filter. It is kept in memory and refreshed whenever the
- * persisted app settings load or change.
+ * The main Settings media filter acts as the default for creators that have
+ * not customized their filter. It is kept in memory and refreshed whenever
+ * the persisted app settings load or change.
  */
-let globalHideNoMediaDefault = false;
+let globalMediaFilterDefault: MediaFilter = "all";
 
-export function setGlobalHideNoMediaDefault(value: boolean): void {
-  globalHideNoMediaDefault = value;
+export function setGlobalMediaFilterDefault(value: MediaFilter): void {
+  globalMediaFilterDefault = value;
 }
 
-export function getGlobalHideNoMediaDefault(): boolean {
-  return globalHideNoMediaDefault;
+export function getGlobalMediaFilterDefault(): MediaFilter {
+  return globalMediaFilterDefault;
+}
+
+export function effectiveMediaFilter(
+  settings: Pick<AppSettings, "mediaFilter" | "hideNoMedia">,
+): MediaFilter {
+  if (settings.mediaFilter !== "all") return settings.mediaFilter;
+  return settings.hideNoMedia ? "filesAndPictures" : "all";
 }
 
 /**
- * Apply the main "Hide posts without media" toggle to every saved creator
- * filter. This intentionally overwrites existing per-creator overrides so the
- * setting is consistent across all creators, then leaves the new value as the
- * default for creators without a saved filter.
+ * Apply the main media filter to every saved creator filter. This
+ * intentionally overwrites existing per-creator overrides so the setting is
+ * consistent across all creators, then leaves the new value as the default for
+ * creators without a saved filter.
  */
-export function applyHideNoMediaToCreators(value: boolean): void {
-  globalHideNoMediaDefault = value;
+export function applyMediaFilterToCreators(value: MediaFilter): void {
+  globalMediaFilterDefault = value;
   try {
     const keys: string[] = [];
     for (let index = 0; index < window.localStorage.length; index += 1) {
@@ -51,10 +58,12 @@ export function applyHideNoMediaToCreators(value: boolean): void {
       const raw = window.localStorage.getItem(key);
       if (!raw) continue;
       try {
-        const parsed = JSON.parse(raw) as Partial<CreatorFilter>;
+        const parsed = JSON.parse(raw) as Partial<CreatorFilter> & {
+          hideNoMedia?: unknown;
+        };
         const next: CreatorFilter = {
           audioOnly: Boolean(parsed.audioOnly),
-          hideNoMedia: value,
+          mediaFilter: value,
           hideUnavailable: Boolean(parsed.hideUnavailable),
           keywords: Array.isArray(parsed.keywords)
             ? parsed.keywords.filter(
@@ -80,7 +89,7 @@ export function applyHideNoMediaToCreators(value: boolean): void {
 function filterHasStoredRules(filter: CreatorFilter): boolean {
   return (
     filter.audioOnly ||
-    filter.hideNoMedia !== globalHideNoMediaDefault ||
+    filter.mediaFilter !== globalMediaFilterDefault ||
     filter.hideUnavailable ||
     filter.keywords.length > 0 ||
     typeof filter.asmr === "boolean"
@@ -98,15 +107,22 @@ export function loadCreatorFilter(
   try {
     const raw = window.localStorage.getItem(storageKey(service, creatorId));
     if (!raw) {
-      return { ...EMPTY_FILTER, hideNoMedia: globalHideNoMediaDefault };
+      return { ...EMPTY_FILTER, mediaFilter: globalMediaFilterDefault };
     }
-    const parsed = JSON.parse(raw) as Partial<CreatorFilter>;
+    const parsed = JSON.parse(raw) as Partial<CreatorFilter> & {
+      hideNoMedia?: unknown;
+    };
+    const mediaFilter: MediaFilter =
+      parsed.mediaFilter === "filesAndPictures" ||
+      parsed.mediaFilter === "filesOnly" ||
+      parsed.mediaFilter === "all"
+        ? parsed.mediaFilter
+        : parsed.hideNoMedia === true
+          ? "filesAndPictures"
+          : globalMediaFilterDefault;
     return {
       audioOnly: Boolean(parsed.audioOnly),
-      hideNoMedia:
-        typeof parsed.hideNoMedia === "boolean"
-          ? parsed.hideNoMedia
-          : globalHideNoMediaDefault,
+      mediaFilter,
       hideUnavailable: Boolean(parsed.hideUnavailable),
       keywords: Array.isArray(parsed.keywords)
         ? parsed.keywords.filter((keyword): keyword is string => typeof keyword === "string")
@@ -114,7 +130,7 @@ export function loadCreatorFilter(
       ...(typeof parsed.asmr === "boolean" ? { asmr: parsed.asmr } : {}),
     };
   } catch {
-    return { ...EMPTY_FILTER, hideNoMedia: globalHideNoMediaDefault };
+    return { ...EMPTY_FILTER, mediaFilter: globalMediaFilterDefault };
   }
 }
 
@@ -140,7 +156,7 @@ export function saveCreatorFilter(
 export function creatorFilterActive(filter: CreatorFilter): boolean {
   return (
     filter.audioOnly ||
-    filter.hideNoMedia ||
+    filter.mediaFilter !== "all" ||
     filter.hideUnavailable ||
     filter.keywords.length > 0 ||
     filter.asmr === true
@@ -177,9 +193,16 @@ export function postMatchesCreatorFilter(
     return false;
   }
   if (
-    filter.hideNoMedia &&
+    filter.mediaFilter === "filesAndPictures" &&
     post.attachmentCount === 0 &&
-    post.mediaKinds.length === 0
+    post.mediaKinds.length === 0 &&
+    !post.thumbnailUrl
+  ) {
+    return false;
+  }
+  if (
+    filter.mediaFilter === "filesOnly" &&
+    !post.mediaKinds.some((kind) => kind !== "image")
   ) {
     return false;
   }

@@ -67,6 +67,33 @@ describe("settings", () => {
         expect.objectContaining({ hideSourceTags: true }),
       ),
     );
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Hide post play buttons" }),
+    );
+    await waitFor(() =>
+      expect(api.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ hidePostPlayButton: true }),
+      ),
+    );
+  });
+
+  it("saves the post media filter", async () => {
+    wrapper(<SettingsPage />);
+
+    fireEvent.change(
+      await screen.findByDisplayValue("All posts"),
+      { target: { value: "filesOnly" } },
+    );
+
+    await waitFor(() =>
+      expect(api.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mediaFilter: "filesOnly",
+          hideNoMedia: false,
+        }),
+      ),
+    );
   });
 
   it("saves hidden keywords when Settings closes before the debounce", async () => {

@@ -23,7 +23,12 @@ import { api } from "../../../shared/api";
 import { useAppStore } from "../../../app/store";
 import { AccountPanel } from "../../account/ui/AccountPanel";
 import { Button, Toggle } from "../../../shared/ui";
-import type { BlockedCreator, PostCardSize } from "../../../shared/types";
+import { effectiveMediaFilter } from "../../../shared/lib/creatorFilters";
+import type {
+  BlockedCreator,
+  MediaFilter,
+  PostCardSize,
+} from "../../../shared/types";
 
 const ACCENT_PRESETS = [
   "#d6aea8",
@@ -378,7 +383,16 @@ export function SettingsPage() {
                 void saveSettings({ hideSourceTags: checked })
               }
               label="Hide source tags"
-              description="Hide the service badge on post cards, creator cards and post details."
+              description="Hide service and ASMR badges on cards, profiles and post details."
+            />
+            <Toggle
+              compact
+              checked={settings.hidePostPlayButton}
+              onChange={(checked) =>
+                void saveSettings({ hidePostPlayButton: checked })
+              }
+              label="Hide post play buttons"
+              description="Hide the quick play control on post previews."
             />
             <Toggle
               compact
@@ -400,15 +414,28 @@ export function SettingsPage() {
               }}
               label="Hide AI-generated posts"
             />
-            <Toggle
-              compact
-              checked={settings.hideNoMedia}
-              onChange={(checked) => {
-                void saveSettings({ hideNoMedia: checked }).then(invalidateFilters);
-              }}
-              label="Hide posts without media"
-              description="Hide posts with no media attachments or direct media links. Also applies to every creator's filter."
-            />
+            <label className="flex items-center justify-between gap-3 py-1.5 text-xs font-medium text-ink">
+              Post media
+              <select
+                value={effectiveMediaFilter(settings)}
+                onChange={(event) => {
+                  void saveSettings({
+                    mediaFilter: event.target.value as MediaFilter,
+                    hideNoMedia: false,
+                  }).then(invalidateFilters);
+                }}
+                className="h-8 w-40 rounded-lg border border-line bg-base px-2 text-xs text-ink outline-none focus:border-accent/70"
+              >
+                <option value="all">All posts</option>
+                <option value="filesAndPictures">Files and pictures</option>
+                <option value="filesOnly">Files only</option>
+              </select>
+            </label>
+            <p className="text-[10px] leading-relaxed text-muted">
+              Files and pictures hides text-only posts. Files only hides
+              text-only and image-only posts. This is the default for every
+              creator filter.
+            </p>
             <Toggle
               compact
               checked={settings.hideUnavailablePosts}

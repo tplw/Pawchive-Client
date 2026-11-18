@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, FALLBACK_CONFIG } from "../shared/lib/constants";
 import {
   loadCreatorFilter,
   saveCreatorFilter,
-  setGlobalHideNoMediaDefault,
+  setGlobalMediaFilterDefault,
 } from "../shared/lib/creatorFilters";
 import { switchTab } from "../shared/lib/router";
 import { api } from "../shared/api";
@@ -29,7 +29,7 @@ describe("app store", () => {
     wireNavigation();
     vi.clearAllMocks();
     window.localStorage.clear();
-    setGlobalHideNoMediaDefault(false);
+    setGlobalMediaFilterDefault("all");
     useAppStore.setState({
       settings: DEFAULT_SETTINGS,
       route: { name: "home" },
@@ -140,17 +140,17 @@ describe("app store", () => {
     expect(useAppStore.getState().settings.volume).toBe(0.4);
   });
 
-  it("applies the global hideNoMedia toggle to every creator filter", async () => {
+  it("applies the global media filter to every creator filter", async () => {
     saveCreatorFilter("patreon", "1", {
       audioOnly: false,
-      hideNoMedia: false,
+      mediaFilter: "all",
       hideUnavailable: false,
       keywords: ["sketch"],
     });
     vi.mocked(api.saveSettings).mockImplementation(async (settings) => settings);
-    await useAppStore.getState().saveSettings({ hideNoMedia: true });
+    await useAppStore.getState().saveSettings({ mediaFilter: "filesAndPictures" });
     expect(loadCreatorFilter("patreon", "1")).toMatchObject({
-      hideNoMedia: true,
+      mediaFilter: "filesAndPictures",
       keywords: ["sketch"],
     });
   });

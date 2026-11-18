@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { PostSummary } from "../types";
 import {
-  applyHideNoMediaToCreators,
+  applyMediaFilterToCreators,
   creatorFilterActive,
   detectAsmrCreator,
   loadCreatorFilter,
   parseFilterKeywords,
   postMatchesCreatorFilter,
   saveCreatorFilter,
-  setGlobalHideNoMediaDefault,
+  setGlobalMediaFilterDefault,
 } from "./creatorFilters";
 
 function post(overrides: Partial<PostSummary> = {}): PostSummary {
@@ -37,7 +37,7 @@ describe("creator filters", () => {
   it("matches audio-only and keyword rules", () => {
     const filter = {
       audioOnly: true,
-      hideNoMedia: false,
+      mediaFilter: "all" as const,
       hideUnavailable: false,
       keywords: ["sketch"],
     };
@@ -55,7 +55,7 @@ describe("creator filters", () => {
     expect(
       creatorFilterActive({
         audioOnly: false,
-        hideNoMedia: false,
+        mediaFilter: "all" as const,
         hideUnavailable: false,
         keywords: [],
       }),
@@ -63,7 +63,7 @@ describe("creator filters", () => {
     expect(
       postMatchesCreatorFilter(post({ attachmentCount: 0, mediaKinds: [] }), {
         audioOnly: false,
-        hideNoMedia: true,
+        mediaFilter: "filesAndPictures" as const,
         hideUnavailable: false,
         keywords: [],
       }),
@@ -77,7 +77,7 @@ describe("creator filters", () => {
         }),
         {
           audioOnly: false,
-          hideNoMedia: true,
+          mediaFilter: "filesAndPictures" as const,
           hideUnavailable: false,
           keywords: [],
         },
@@ -98,7 +98,7 @@ describe("creator filters", () => {
   it("hides unavailable posts when the creator filter asks for it", () => {
     const filter = {
       audioOnly: false,
-      hideNoMedia: false,
+      mediaFilter: "all" as const,
       hideUnavailable: true,
       keywords: [],
     };
@@ -118,55 +118,79 @@ describe("creator filters", () => {
   });
 });
 
-describe("global hide-no-media setting", () => {
+describe("global media filter setting", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    setGlobalHideNoMediaDefault(false);
+    setGlobalMediaFilterDefault("all");
   });
 
   it("defaults creators without a saved filter to the global value", () => {
-    setGlobalHideNoMediaDefault(true);
-    expect(loadCreatorFilter("patreon", "1").hideNoMedia).toBe(true);
+    setGlobalMediaFilterDefault("filesAndPictures");
+    expect(loadCreatorFilter("patreon", "1").mediaFilter).toBe(
+      "filesAndPictures",
+    );
   });
 
-  it("applies the global toggle to every saved creator filter", () => {
+  it("applies the global filter to every saved creator filter", () => {
     saveCreatorFilter("patreon", "1", {
       audioOnly: false,
-      hideNoMedia: false,
+      mediaFilter: "all" as const,
       hideUnavailable: false,
       keywords: ["sketch"],
     });
     saveCreatorFilter("patreon", "2", {
       audioOnly: true,
-      hideNoMedia: false,
+      mediaFilter: "all" as const,
       hideUnavailable: false,
       keywords: [],
     });
 
-    applyHideNoMediaToCreators(true);
+    applyMediaFilterToCreators("filesOnly");
 
     expect(loadCreatorFilter("patreon", "1")).toMatchObject({
-      hideNoMedia: true,
+      mediaFilter: "filesOnly" as const,
       keywords: ["sketch"],
     });
     expect(loadCreatorFilter("patreon", "2")).toMatchObject({
-      hideNoMedia: true,
+      mediaFilter: "filesOnly" as const,
       audioOnly: true,
     });
-    expect(loadCreatorFilter("patreon", "3").hideNoMedia).toBe(true);
+    expect(loadCreatorFilter("patreon", "3").mediaFilter).toBe("filesOnly");
   });
 
-  it("persists an explicit per-creator override after the global toggle", () => {
-    applyHideNoMediaToCreators(true);
+  it("persists an explicit per-creator override after the global filter", () => {
+    applyMediaFilterToCreators("filesOnly");
     saveCreatorFilter("patreon", "1", {
       audioOnly: false,
-      hideNoMedia: false,
+      mediaFilter: "all" as const,
       hideUnavailable: false,
       keywords: [],
     });
-    expect(loadCreatorFilter("patreon", "1").hideNoMedia).toBe(false);
+    expect(loadCreatorFilter("patreon", "1").mediaFilter).toBe("all");
 
-    applyHideNoMediaToCreators(false);
-    expect(loadCreatorFilter("patreon", "1").hideNoMedia).toBe(false);
+    applyMediaFilterToCreators("all");
+    expect(loadCreatorFilter("patreon", "1").mediaFilter).toBe("all");
+  });
+
+  it("matches files-and-pictures and files-only modes", () => {
+    const filesAndPictures = {
+      audioOnly: false,
+      mediaFilter: "filesAndPictures" as const,
+      hideUnavailable: false,
+      keywords: [],
+    };
+    const filesOnly = { ...filesAndPictures, mediaFilter: "filesOnly" as const };
+    expect(
+      postMatchesCreatorFilter(post({ attachmentCount: 0, mediaKinds: [] }), filesAndPictures),
+    ).toBe(false);
+    expect(
+      postMatchesCreatorFilter(post({ attachmentCount: 1, mediaKinds: ["image"] }), filesAndPictures),
+    ).toBe(true);
+    expect(
+      postMatchesCreatorFilter(post({ attachmentCount: 1, mediaKinds: ["image"] }), filesOnly),
+    ).toBe(false);
+    expect(
+      postMatchesCreatorFilter(post({ attachmentCount: 1, mediaKinds: ["video"] }), filesOnly),
+    ).toBe(true);
   });
 });

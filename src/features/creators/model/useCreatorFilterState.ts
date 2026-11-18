@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  getGlobalHideNoMediaDefault,
+  getGlobalMediaFilterDefault,
   loadCreatorFilter,
   parseFilterKeywords,
   saveCreatorFilter,
   type CreatorFilter,
 } from "../../../shared/lib/creatorFilters";
+import type { MediaFilter } from "../../../shared/types";
 
 /** Per-creator filter state, persisted to localStorage on every change. */
 export function useCreatorFilterState({
   service,
   creatorId,
-  hideNoMediaDefault,
+  mediaFilterDefault,
 }: {
   service: string;
   creatorId: string;
-  hideNoMediaDefault: boolean;
+  mediaFilterDefault: MediaFilter;
 }) {
   const [filter, setFilter] = useState<CreatorFilter>(() =>
     loadCreatorFilter(service, creatorId),
@@ -23,7 +24,7 @@ export function useCreatorFilterState({
   const [keywordText, setKeywordText] = useState(() =>
     loadCreatorFilter(service, creatorId).keywords.join(", "),
   );
-  const lastHideNoMediaDefault = useRef(hideNoMediaDefault);
+  const lastMediaFilterDefault = useRef(mediaFilterDefault);
 
   useEffect(() => {
     const next = loadCreatorFilter(service, creatorId);
@@ -34,14 +35,14 @@ export function useCreatorFilterState({
   // Keep an already-open creator profile in sync when the main Settings
   // toggle changes. The updated value is also persisted for this creator.
   useEffect(() => {
-    if (lastHideNoMediaDefault.current === hideNoMediaDefault) return;
-    lastHideNoMediaDefault.current = hideNoMediaDefault;
+    if (lastMediaFilterDefault.current === mediaFilterDefault) return;
+    lastMediaFilterDefault.current = mediaFilterDefault;
     setFilter((current) => {
-      const next = { ...current, hideNoMedia: hideNoMediaDefault };
+      const next = { ...current, mediaFilter: mediaFilterDefault };
       saveCreatorFilter(service, creatorId, next);
       return next;
     });
-  }, [hideNoMediaDefault, service, creatorId]);
+  }, [mediaFilterDefault, service, creatorId]);
 
   const updateFilter = (next: CreatorFilter) => {
     setFilter(next);
@@ -60,7 +61,7 @@ export function useCreatorFilterState({
   const clearFilter = () => {
     updateFilter({
       audioOnly: false,
-      hideNoMedia: getGlobalHideNoMediaDefault(),
+      mediaFilter: getGlobalMediaFilterDefault(),
       hideUnavailable: false,
       keywords: [],
     });

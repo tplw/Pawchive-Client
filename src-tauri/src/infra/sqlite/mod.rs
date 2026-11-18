@@ -239,7 +239,7 @@ fn escape_like(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::shared::models::PlaybackProgress;
+    use crate::shared::models::{MediaFilter, PlaybackProgress};
 
     fn sample_creator(id: &str, name: &str, updated: i64, favorited: i64) -> CreatorSummary {
         CreatorSummary {
@@ -263,6 +263,8 @@ mod tests {
         assert_eq!(settings.volume, 1.0);
         assert!(!settings.hide_file_tags);
         assert!(!settings.hide_source_tags);
+        assert!(!settings.hide_post_play_button);
+        assert_eq!(settings.media_filter, MediaFilter::All);
 
         let changed = AppSettings {
             sidebar_visible: false,
@@ -271,6 +273,8 @@ mod tests {
             download_dir: String::new(),
             hide_file_tags: true,
             hide_source_tags: true,
+            hide_post_play_button: true,
+            media_filter: MediaFilter::FilesOnly,
             ..Default::default()
         };
         db.save_settings(&changed).unwrap();
@@ -280,6 +284,8 @@ mod tests {
         assert_eq!(loaded.playback_speed, 1.25);
         assert!(loaded.hide_file_tags);
         assert!(loaded.hide_source_tags);
+        assert!(loaded.hide_post_play_button);
+        assert_eq!(loaded.media_filter, MediaFilter::FilesOnly);
     }
 
     #[test]

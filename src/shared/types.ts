@@ -183,6 +183,8 @@ export interface BlockedCreator {
   name: string;
 }
 
+export type MediaFilter = "all" | "filesAndPictures" | "filesOnly";
+
 export interface AppSettings {
   sidebarVisible: boolean;
   volume: number;
@@ -195,6 +197,8 @@ export interface AppSettings {
   resumePlayback: boolean;
   reduceMotion: boolean;
   accentColor: string;
+  mediaFilter: MediaFilter;
+  /** Legacy boolean kept for old settings files. */
   hideNoMedia: boolean;
   hideUnavailablePosts: boolean;
   autoDetectAsmr: boolean;
@@ -207,6 +211,7 @@ export interface AppSettings {
   showCreatorUpdated: boolean;
   hideFileTags: boolean;
   hideSourceTags: boolean;
+  hidePostPlayButton: boolean;
   autoCheckUpdates: boolean;
   /** Release version the user dismissed; newer versions show the prompt again. */
   dismissedUpdateVersion: string;

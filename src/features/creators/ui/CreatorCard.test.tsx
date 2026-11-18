@@ -72,7 +72,7 @@ describe("content cards", () => {
   it("shows the ASMR tag from a saved creator filter", () => {
     saveCreatorFilter("patreon", "42", {
       audioOnly: true,
-      hideNoMedia: false,
+      mediaFilter: "all",
       hideUnavailable: false,
       keywords: [],
       asmr: true,
@@ -298,6 +298,7 @@ describe("content cards", () => {
         postCardSize: "small",
         hideFileTags: true,
         hideSourceTags: true,
+        hidePostPlayButton: true,
       },
     });
     wrapper(
@@ -316,6 +317,30 @@ describe("content cards", () => {
     expect(screen.queryByText("Patreon")).not.toBeInTheDocument();
     expect(screen.queryByTitle("audio")).not.toBeInTheDocument();
     expect(screen.queryByTitle("video")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Play Sample post" }),
+    ).not.toBeInTheDocument();
+    useAppStore.setState({ settings: DEFAULT_SETTINGS });
+  });
+
+  it("hides the ASMR tag when source tags are hidden", () => {
+    saveCreatorFilter("patreon", "42", {
+      audioOnly: false,
+      mediaFilter: "all",
+      hideUnavailable: false,
+      keywords: [],
+      asmr: true,
+    });
+    useAppStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        postCardSize: "small",
+        hideSourceTags: true,
+      },
+    });
+    wrapper(<CreatorCard creator={creator} />);
+    expect(screen.queryByText("ASMR")).not.toBeInTheDocument();
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
     useAppStore.setState({ settings: DEFAULT_SETTINGS });
   });
 

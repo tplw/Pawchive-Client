@@ -24,6 +24,7 @@ import { queryKeys } from "../../../shared/query/keys";
 import {
   creatorFilterActive,
   detectAsmrCreator,
+  effectiveMediaFilter,
   postMatchesCreatorFilter,
 } from "../../../shared/lib/creatorFilters";
 import { cn, formatRelative, shortNumber } from "../../../shared/lib/format";
@@ -85,8 +86,8 @@ function CreatorProfileContent({
   const postCardSize = useAppStore((state) => state.settings.postCardSize);
   const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
   const autoDetectAsmr = useAppStore((state) => state.settings.autoDetectAsmr);
-  const hideNoMediaDefault = useAppStore(
-    (state) => state.settings.hideNoMedia,
+  const mediaFilterDefault = useAppStore((state) =>
+    effectiveMediaFilter(state.settings),
   );
   const {
     filter,
@@ -95,7 +96,7 @@ function CreatorProfileContent({
     markAutoAsmr,
     clearFilter,
     changeKeywords,
-  } = useCreatorFilterState({ service, creatorId, hideNoMediaDefault });
+  } = useCreatorFilterState({ service, creatorId, mediaFilterDefault });
   const hideUnavailablePosts = useAppStore(
     (state) => state.settings.hideUnavailablePosts,
   );
@@ -296,7 +297,7 @@ function CreatorProfileContent({
                   {hideSourceTags ? null : (
                     <ServiceBadge service={service} />
                   )}
-                  {isAsmr ? (
+                  {!hideSourceTags && isAsmr ? (
                     <Badge tone="accent">ASMR</Badge>
                   ) : null}
                   {everImported === false ? <NotImportedBadge creator /> : null}

@@ -8,11 +8,17 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Settings options to hide file tags (media type and file count badges) and
-  source tags (service badges) across cards and post details.
+- Settings options to hide file tags (media type and file count badges),
+  source tags (service and ASMR badges), and post preview play buttons.
+- A post media filter with `All posts`, `Files and pictures` and `Files only`
+  options. The old hide-posts-without-media setting is treated as
+  `Files and pictures` for existing installs.
 
 ### Fixed
 
+- The queue trash button now removes other items but keeps the currently
+  playing media and leaves the player and queue panel open.
+- `Hide source tags` now hides ASMR creator badges as well as service badges.
 - Previous/Next post navigation now keeps the original creator, discover,
   search or playlist return target instead of changing the label to
   `Back to post`.

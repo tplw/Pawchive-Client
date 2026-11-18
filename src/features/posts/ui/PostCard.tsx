@@ -47,6 +47,9 @@ export function PostCard({
   const cardSize = useAppStore((state) => state.settings.postCardSize);
   const hideFileTags = useAppStore((state) => state.settings.hideFileTags);
   const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
+  const hidePostPlayButton = useAppStore(
+    (state) => state.settings.hidePostPlayButton,
+  );
   const { ref: cardRef, inView } = useInView<HTMLElement>();  const queryClient = useQueryClient();
   const enqueue = usePlayerStore((state) => state.enqueue);
   const toast = useAppStore((state) => state.toast);
@@ -193,7 +196,7 @@ export function PostCard({
     (kind) => kind === "audio" || kind === "video",
   );
 
-  const playControl = canPlay ? (
+  const playControl = canPlay && !hidePostPlayButton ? (
     <button
       type="button"
       aria-label={`Play ${post.title || "post"}`}

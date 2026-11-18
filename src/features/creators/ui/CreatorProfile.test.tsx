@@ -153,7 +153,7 @@ describe("creator profile", () => {
     window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
     saveCreatorFilter("patreon", "42", {
       audioOnly: true,
-      hideNoMedia: false,
+      mediaFilter: "all",
       hideUnavailable: false,
       keywords: ["sketch"],
       asmr: true,

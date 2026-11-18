@@ -1,4 +1,5 @@
 import type { CreatorFilter } from "../../../shared/lib/creatorFilters";
+import type { MediaFilter } from "../../../shared/types";
 import { Button, Field, Modal, Toggle } from "../../../shared/ui";
 
 export function CreatorFilterModal({
@@ -78,14 +79,25 @@ export function CreatorFilterModal({
               : "Only show posts that include an audio attachment."
           }
         />
-        <Toggle
-          checked={filter.hideNoMedia}
-          onChange={(checked) =>
-            onUpdateFilter({ ...filter, hideNoMedia: checked })
-          }
-          label="Hide posts without media"
-          description="Hide posts that have no media attachments. Follows the main Settings toggle until you override it here."
-        />
+        <Field
+          label="Post media"
+          hint="Follows the main Settings option until you override it here."
+        >
+          <select
+            value={filter.mediaFilter}
+            onChange={(event) =>
+              onUpdateFilter({
+                ...filter,
+                mediaFilter: event.target.value as MediaFilter,
+              })
+            }
+            className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+          >
+            <option value="all">All posts</option>
+            <option value="filesAndPictures">Files and pictures</option>
+            <option value="filesOnly">Files only</option>
+          </select>
+        </Field>
         <Toggle
           checked={filter.hideUnavailable}
           onChange={(checked) =>

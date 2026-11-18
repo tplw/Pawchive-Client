@@ -1,6 +1,15 @@
 use super::creator::BlockedCreator;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum MediaFilter {
+    #[default]
+    All,
+    FilesAndPictures,
+    FilesOnly,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
@@ -15,6 +24,9 @@ pub struct AppSettings {
     pub resume_playback: bool,
     pub reduce_motion: bool,
     pub accent_color: String,
+    pub media_filter: MediaFilter,
+    /// Legacy boolean from before the three-state media filter. Kept so old
+    /// settings files still hide text-only posts.
     pub hide_no_media: bool,
     /// Hide posts the archive has not imported or that lost files to the
     /// archive size limit without a usable non-image attachment.
@@ -29,6 +41,7 @@ pub struct AppSettings {
     pub show_creator_updated: bool,
     pub hide_file_tags: bool,
     pub hide_source_tags: bool,
+    pub hide_post_play_button: bool,
     pub auto_check_updates: bool,
     /// Latest release the user dismissed, so the update prompt only appears
     /// once per version.
@@ -57,6 +70,7 @@ impl Default for AppSettings {
             resume_playback: true,
             reduce_motion: false,
             accent_color: "#d6aea8".into(),
+            media_filter: MediaFilter::All,
             hide_no_media: false,
             hide_unavailable_posts: false,
             auto_detect_asmr: true,
@@ -69,6 +83,7 @@ impl Default for AppSettings {
             show_creator_updated: false,
             hide_file_tags: false,
             hide_source_tags: false,
+            hide_post_play_button: false,
             auto_check_updates: true,
             dismissed_update_version: String::new(),
             blocked_creators: Vec::new(),
@@ -77,6 +92,14 @@ impl Default for AppSettings {
 }
 
 impl AppSettings {
+    pub fn effective_media_filter(&self) -> MediaFilter {
+        if self.media_filter == MediaFilter::All && self.hide_no_media {
+            MediaFilter::FilesAndPictures
+        } else {
+            self.media_filter
+        }
+    }
+
     pub fn validate(&self) -> Result<(), crate::shared::error::AppError> {
         use crate::shared::error::AppError;
         if !self.volume.is_finite() || !(0.0..=1.0).contains(&self.volume) {

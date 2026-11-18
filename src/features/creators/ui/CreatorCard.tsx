@@ -90,7 +90,7 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
             </h3>
             <div className="mt-1 flex min-w-0 items-center gap-2">
               {hideSourceTags ? null : <ServiceBadge service={creator.service} />}
-              {isAsmr ? (
+              {!hideSourceTags && isAsmr ? (
                 <Badge tone="accent" className="shrink-0 px-1 py-0 text-[8px]">
                   ASMR
                 </Badge>
@@ -196,7 +196,7 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
         </h3>
         <div className="mt-1 flex min-w-0 items-center gap-2">
           {hideSourceTags ? null : <ServiceBadge service={creator.service} />}
-          {isAsmr ? (
+          {!hideSourceTags && isAsmr ? (
             <Badge tone="accent" className="shrink-0 px-1 py-0 text-[8px]">
               ASMR
             </Badge>

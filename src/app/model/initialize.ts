@@ -1,7 +1,10 @@
 import { api } from "../../shared/api";
 import { queryClient } from "../../shared/lib/queryClient";
 import { queryKeys } from "../../shared/query/keys";
-import { setGlobalHideNoMediaDefault } from "../../shared/lib/creatorFilters";
+import {
+  effectiveMediaFilter,
+  setGlobalMediaFilterDefault,
+} from "../../shared/lib/creatorFilters";
 import type { AppStore, AppStoreApi } from "./types";
 
 export function createInitializeAction({
@@ -15,7 +18,7 @@ export function createInitializeAction({
           api.getSettings(),
           api.getConfig(),
         ]);
-        setGlobalHideNoMediaDefault(settings.hideNoMedia);
+        setGlobalMediaFilterDefault(effectiveMediaFilter(settings));
         set({ settings, config, ready: true });
         void get().ensureCreatorIndex();
         if (settings.autoCheckUpdates) {
