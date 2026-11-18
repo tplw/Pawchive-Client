@@ -18,6 +18,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 - The queue trash button now removes other items but keeps the currently
   playing media and leaves the player and queue panel open.
+- Cloud-drive playback failures now explain when a file was removed, expired
+  or is no longer available instead of showing a raw provider or API error.
 - `Hide source tags` now hides ASMR creator badges as well as service badges.
 - Previous/Next post navigation now keeps the original creator, discover,
   search or playlist return target instead of changing the label to

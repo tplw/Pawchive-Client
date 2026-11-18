@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { QueueItem } from "../../../shared/types";
-import { errorMessage } from "../../../shared/lib/constants";
 import { api } from "../../../shared/api";
 import { useAppStore } from "../../../app/store";
-import { isMegaFileUrl, needsMediaResolution } from "./queue";
+import { playbackErrorMessage } from "../../../shared/lib/playbackErrors";
+import { isMegaFileUrl, needsMediaResolution, providerForUrl } from "./queue";
 import { withProviderPassword } from "../../../shared/lib/providerPasswords";
 
 export function isHlsUrl(url: string): boolean {
@@ -107,7 +107,9 @@ export function useMediaSource({
             // cannot keep playing behind the error overlay.
             videoRef.current?.pause();
             setLoading(false);
-            setError(errorMessage(validationError));
+            setError(
+              playbackErrorMessage(validationError, providerForUrl(item.url)),
+            );
           });
         return;
       }
@@ -120,7 +122,9 @@ export function useMediaSource({
           if (cancelled) return;
           videoRef.current?.pause();
           setLoading(false);
-          setError(errorMessage(validationError));
+          setError(
+            playbackErrorMessage(validationError, providerForUrl(item.url)),
+          );
         });
     };
 
@@ -296,8 +300,11 @@ export function useMediaSource({
           if (proxyFallbackRef.current !== item.id) return;
           setSource(media.url);
         })
-        .catch(() => {
-          if (proxyFallbackRef.current === item.id) fail(message);
+        .catch((proxyError) => {
+          if (proxyFallbackRef.current !== item.id) return;
+          fail(
+            playbackErrorMessage(proxyError, providerForUrl(item.url)),
+          );
         });
       return;
     }
