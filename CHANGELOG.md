@@ -6,8 +6,16 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Settings options to hide file tags (media type and file count badges) and
+  source tags (service badges) across cards and post details.
+
 ### Fixed
 
+- Previous/Next post navigation now keeps the original creator, discover,
+  search or playlist return target instead of changing the label to
+  `Back to post`.
 - **Hide unavailable posts** now hides unimported Kemono previews whose only
   media is an archive-relative file path that was never stored and returns
   404. Previews with a direct provider link or a temporary signed URL stay

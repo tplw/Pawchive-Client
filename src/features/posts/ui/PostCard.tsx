@@ -45,6 +45,8 @@ export function PostCard({
   const [imageFailed, setImageFailed] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const cardSize = useAppStore((state) => state.settings.postCardSize);
+  const hideFileTags = useAppStore((state) => state.settings.hideFileTags);
+  const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
   const { ref: cardRef, inView } = useInView<HTMLElement>();  const queryClient = useQueryClient();
   const enqueue = usePlayerStore((state) => state.enqueue);
   const toast = useAppStore((state) => state.toast);
@@ -212,7 +214,7 @@ export function PostCard({
     </button>
   ) : null;
 
-  const mediaBadges = (
+  const mediaBadges = hideFileTags ? null : (
     <div className="flex items-center gap-1.5">
       {kinds.length > 0 ? (
         kinds.slice(0, 3).map((kind) => {
@@ -257,7 +259,7 @@ export function PostCard({
       >
         <div className="absolute inset-0 overflow-hidden">{thumbnail}</div>
         <div className="absolute inset-x-2 top-2 flex items-start justify-between gap-2">
-          <ServiceBadge service={post.service} />
+          {hideSourceTags ? null : <ServiceBadge service={post.service} />}
           <div className="flex items-center gap-1">
             {mediaBadges}
             {playControl}
@@ -313,7 +315,7 @@ export function PostCard({
         )}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <ServiceBadge service={post.service} />
+          {hideSourceTags ? null : <ServiceBadge service={post.service} />}
           <span className="text-[10px] text-muted">
             {formatDate(post.published ?? post.added)}
           </span>

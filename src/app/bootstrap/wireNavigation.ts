@@ -8,6 +8,7 @@ import { useAppStore } from "../store";
 export function wireNavigation() {
   setNavigationHandler({
     navigate: (route) => useAppStore.getState().navigate(route),
+    replace: (route) => useAppStore.getState().replaceRoute(route),
     switchTab: (tab) => useAppStore.getState().switchTab(tab),
     back: (fallback) => useAppStore.getState().back(fallback),
     forward: () => useAppStore.getState().forward(),

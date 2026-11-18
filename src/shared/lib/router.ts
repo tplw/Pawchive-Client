@@ -87,6 +87,7 @@ export function routeToHash(route: Route): string {
 
 interface NavigationHandler {
   navigate: (route: Route) => void;
+  replace: (route: Route) => void;
   switchTab: (tab: TabName) => void;
   back: (fallback?: Route) => void;
   forward: () => void;
@@ -140,7 +141,7 @@ export function switchTab(tab: TabName): void {
 export function replaceRoute(route: Route): void {
   notifyLeavingPage();
   if (navigationHandler) {
-    navigationHandler.navigate(route);
+    navigationHandler.replace(route);
     return;
   }
   writeRouteHash(route);

@@ -205,6 +205,8 @@ export interface AppSettings {
   transcodeMedia: boolean;
   loadAheadPages: number;
   showCreatorUpdated: boolean;
+  hideFileTags: boolean;
+  hideSourceTags: boolean;
   autoCheckUpdates: boolean;
   /** Release version the user dismissed; newer versions show the prompt again. */
   dismissedUpdateVersion: string;

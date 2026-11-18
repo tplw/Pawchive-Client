@@ -83,6 +83,7 @@ function CreatorProfileContent({
   const debouncedPostSearch = useDebouncedValue(postSearch.trim(), 300);
   const postQuery = debouncedPostSearch.length >= 3 ? debouncedPostSearch : "";
   const postCardSize = useAppStore((state) => state.settings.postCardSize);
+  const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
   const autoDetectAsmr = useAppStore((state) => state.settings.autoDetectAsmr);
   const hideNoMediaDefault = useAppStore(
     (state) => state.settings.hideNoMedia,
@@ -292,7 +293,9 @@ function CreatorProfileContent({
                   {name}
                 </h1>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <ServiceBadge service={service} />
+                  {hideSourceTags ? null : (
+                    <ServiceBadge service={service} />
+                  )}
                   {isAsmr ? (
                     <Badge tone="accent">ASMR</Badge>
                   ) : null}

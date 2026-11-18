@@ -45,6 +45,7 @@ export interface AppStore {
   ensureCreatorIndex: (force?: boolean) => Promise<void>;
   saveSettings: (patch: Partial<AppSettings>) => Promise<void>;
   navigate: (route: Route) => void;
+  replaceRoute: (route: Route) => void;
   switchTab: (tab: TabName) => void;
   back: (fallback?: Route) => void;
   forward: () => void;

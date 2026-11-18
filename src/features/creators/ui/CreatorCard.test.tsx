@@ -291,6 +291,34 @@ describe("content cards", () => {
     usePlayerStore.setState({ queue: [], currentId: null, playing: false });
   });
 
+  it("hides file and source tags when configured", () => {
+    useAppStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        postCardSize: "small",
+        hideFileTags: true,
+        hideSourceTags: true,
+      },
+    });
+    wrapper(
+      <>
+        <PostCard
+          post={{
+            ...post,
+            mediaKinds: ["audio", "video"],
+            attachmentCount: 2,
+          }}
+        />
+        <CreatorCard creator={creator} />
+      </>,
+    );
+
+    expect(screen.queryByText("Patreon")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("audio")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("video")).not.toBeInTheDocument();
+    useAppStore.setState({ settings: DEFAULT_SETTINGS });
+  });
+
   it("marks posts that exceed the archive size limit", () => {
     wrapper(<PostCard post={{ ...post, hasFull: false, exceedsLimit: true }} />);
     expect(

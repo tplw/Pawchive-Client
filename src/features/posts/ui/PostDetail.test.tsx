@@ -8,6 +8,9 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../../shared/api";
+import { DEFAULT_SETTINGS } from "../../../shared/lib/constants";
+import { useAppStore } from "../../../app/store";
+import { wireNavigation } from "../../../app/bootstrap/wireNavigation";
 import { usePlayerStore } from "../../player/model/store";
 import { PostDetailPage } from "./PostDetail";
 import { clearPostFeeds, rememberPostFeed } from "../model/postNavigation";
@@ -105,6 +108,18 @@ describe("post detail", () => {
     expect(screen.getAllByText("Grace Hopper").length).toBeGreaterThan(0);
     expect(screen.getByText("image.jpg")).toBeInTheDocument();
     expect(screen.getByText("archive")).toBeInTheDocument();
+  });
+
+  it("hides the source tag when configured", async () => {
+    useAppStore.setState({
+      settings: { ...DEFAULT_SETTINGS, hideSourceTags: true },
+    });
+    wrapper(<PostDetailPage service="fanbox" creatorId="7" postId="99" />);
+    expect(await screen.findByText("Detailed post")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Pixiv Fanbox", { selector: "span" }),
+    ).not.toBeInTheDocument();
+    useAppStore.setState({ settings: DEFAULT_SETTINGS });
   });
 
   it("explains how to import a post the archive does not have", async () => {
@@ -357,6 +372,67 @@ describe("post detail", () => {
     expect(
       usePlayerStore.getState().queue.map((entry) => entry.fileName),
     ).toEqual(["old.mp3", "clip.mp3"]);
+  });
+
+  it("keeps the creator context when moving to the next post", async () => {
+    const creatorRoute = {
+      name: "creator" as const,
+      service: "fanbox",
+      creatorId: "7",
+    };
+    const postRoute = {
+      name: "post" as const,
+      service: "fanbox",
+      creatorId: "7",
+      postId: "99",
+    };
+    wireNavigation();
+    const tabs = structuredClone(useAppStore.getState().tabs);
+    tabs.discover = {
+      stack: [{ name: "discover" }, creatorRoute, postRoute],
+      index: 2,
+    };
+    useAppStore.setState({
+      activeTab: "discover",
+      route: postRoute,
+      previousRoute: creatorRoute,
+      tabs,
+    });
+    vi.mocked(api.getPost).mockResolvedValue({
+      post: {
+        id: "99",
+        user: "7",
+        service: "fanbox",
+        title: "Post 99",
+        content: "<p>First</p>",
+        embed: {},
+        shared_file: false,
+        added: 1700000000,
+        published: 1700000000,
+        edited: null,
+        file: null,
+        attachments: [],
+        next: null,
+        prev: null,
+      },
+      attachments: [],
+      creator: { id: "7", name: "Grace Hopper", service: "fanbox" },
+      next: "100",
+      prev: null,
+    } as PostDetail);
+
+    wrapper(<PostDetailPage service="fanbox" creatorId="7" postId="99" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Next post" }));
+
+    await waitFor(() =>
+      expect(useAppStore.getState().route).toMatchObject({ postId: "100" }),
+    );
+    expect(useAppStore.getState().previousRoute).toEqual(creatorRoute);
+    useAppStore.setState({
+      route: { name: "discover" },
+      previousRoute: null,
+      activeTab: "discover",
+    });
   });
 
   it("skips posts hidden by the creator filter when navigating", async () => {

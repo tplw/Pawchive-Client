@@ -16,7 +16,7 @@ import {
   formatDateTime,
   formatRelative,
 } from "../../../shared/lib/format";
-import { goBack, navigate } from "../../../shared/lib/router";
+import { goBack, navigate, replaceRoute } from "../../../shared/lib/router";
 import { useAppStore } from "../../../app/store";
 import { usePlayerStore } from "../../player/model/store";
 import {
@@ -73,6 +73,7 @@ function PostDetailContent({
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
   const config = useAppStore((state) => state.config);
+  const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
   const previousRoute = useAppStore((state) => state.previousRoute);
   const enqueue = usePlayerStore((state) => state.enqueue);
   const { startDownload, downloadPost: startPostDownload } =
@@ -164,7 +165,9 @@ function PostDetailContent({
 
   const openPost = (nextPostId: string) => {
     setNavigating(true);
-    navigate({
+    // Previous/Next should replace the current post so the original back
+    // context and label survive post-to-post browsing.
+    replaceRoute({
       name: "post",
       service,
       creatorId,
@@ -464,7 +467,7 @@ function PostDetailContent({
 
       <article className="rounded-2xl border border-line/70 bg-surface/45 p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <ServiceBadge service={service} />
+          {hideSourceTags ? null : <ServiceBadge service={service} />}
           <span className="inline-flex items-center gap-1 text-[10px] text-muted">
             <CalendarDays className="h-3 w-3" />{" "}
             {formatDateTime(detail.post.published ?? detail.post.added)}

@@ -49,6 +49,26 @@ describe("settings", () => {
     vi.mocked(api.saveSettings).mockImplementation(async (settings) => settings);
   });
 
+  it("saves the tag visibility toggles", async () => {
+    wrapper(<SettingsPage />);
+
+    fireEvent.click(
+      await screen.findByRole("switch", { name: "Hide file tags" }),
+    );
+    await waitFor(() =>
+      expect(api.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ hideFileTags: true }),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("switch", { name: "Hide source tags" }));
+    await waitFor(() =>
+      expect(api.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ hideSourceTags: true }),
+      ),
+    );
+  });
+
   it("saves hidden keywords when Settings closes before the debounce", async () => {
     const { unmount } = wrapper(<SettingsPage />);
     const textarea = await screen.findByPlaceholderText(

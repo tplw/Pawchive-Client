@@ -20,6 +20,7 @@ import {
 export function CreatorCard({ creator }: { creator: CreatorSummary }) {
   const queryClient = useQueryClient();
   const cardSize = useAppStore((state) => state.settings.postCardSize);
+  const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
   const showCreatorUpdated = useAppStore(
     (state) => state.settings.showCreatorUpdated,
   );
@@ -88,7 +89,7 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
               {creator.name || creator.id}
             </h3>
             <div className="mt-1 flex min-w-0 items-center gap-2">
-              <ServiceBadge service={creator.service} />
+              {hideSourceTags ? null : <ServiceBadge service={creator.service} />}
               {isAsmr ? (
                 <Badge tone="accent" className="shrink-0 px-1 py-0 text-[8px]">
                   ASMR
@@ -194,7 +195,7 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
           {creator.name || creator.id}
         </h3>
         <div className="mt-1 flex min-w-0 items-center gap-2">
-          <ServiceBadge service={creator.service} />
+          {hideSourceTags ? null : <ServiceBadge service={creator.service} />}
           {isAsmr ? (
             <Badge tone="accent" className="shrink-0 px-1 py-0 text-[8px]">
               ASMR

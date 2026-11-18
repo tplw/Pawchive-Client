@@ -261,12 +261,16 @@ mod tests {
         let settings = db.load_settings().unwrap();
         assert!(settings.sidebar_visible);
         assert_eq!(settings.volume, 1.0);
+        assert!(!settings.hide_file_tags);
+        assert!(!settings.hide_source_tags);
 
         let changed = AppSettings {
             sidebar_visible: false,
             volume: 0.4,
             playback_speed: 1.25,
             download_dir: String::new(),
+            hide_file_tags: true,
+            hide_source_tags: true,
             ..Default::default()
         };
         db.save_settings(&changed).unwrap();
@@ -274,6 +278,8 @@ mod tests {
         assert!(!loaded.sidebar_visible);
         assert_eq!(loaded.volume, 0.4);
         assert_eq!(loaded.playback_speed, 1.25);
+        assert!(loaded.hide_file_tags);
+        assert!(loaded.hide_source_tags);
     }
 
     #[test]

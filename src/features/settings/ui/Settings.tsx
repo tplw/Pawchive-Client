@@ -364,6 +364,24 @@ export function SettingsPage() {
             />
             <Toggle
               compact
+              checked={settings.hideFileTags}
+              onChange={(checked) =>
+                void saveSettings({ hideFileTags: checked })
+              }
+              label="Hide file tags"
+              description="Hide the media type and file count badges on post cards."
+            />
+            <Toggle
+              compact
+              checked={settings.hideSourceTags}
+              onChange={(checked) =>
+                void saveSettings({ hideSourceTags: checked })
+              }
+              label="Hide source tags"
+              description="Hide the service badge on post cards, creator cards and post details."
+            />
+            <Toggle
+              compact
               checked={settings.reduceMotion}
               onChange={(checked) => void saveSettings({ reduceMotion: checked })}
               label="Reduce motion"

@@ -76,7 +76,12 @@ export function createNavigationActions({
   set,
 }: AppStoreApi): Pick<
   AppStore,
-  "navigate" | "switchTab" | "back" | "forward" | "syncRouteFromLocation"
+  | "navigate"
+  | "replaceRoute"
+  | "switchTab"
+  | "back"
+  | "forward"
+  | "syncRouteFromLocation"
 > {
   return {
     navigate: (route) => {
@@ -117,6 +122,28 @@ export function createNavigationActions({
       set({
         tabs,
         activeTab: targetTab,
+        route,
+        previousRoute: active.stack[active.index - 1] ?? null,
+      });
+    },
+
+    replaceRoute: (route) => {
+      const state = get();
+      const targetTab = tabForRoute(route, state.activeTab);
+      if (targetTab !== state.activeTab) {
+        get().navigate(route);
+        return;
+      }
+      const active = state.tabs[targetTab];
+      const stack = active.stack.slice();
+      stack[active.index] = route;
+      const tabs = {
+        ...state.tabs,
+        [targetTab]: { ...active, stack },
+      };
+      writeRouteHash(route);
+      set({
+        tabs,
         route,
         previousRoute: active.stack[active.index - 1] ?? null,
       });

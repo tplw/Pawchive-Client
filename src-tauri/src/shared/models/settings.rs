@@ -27,6 +27,8 @@ pub struct AppSettings {
     pub transcode_media: bool,
     pub load_ahead_pages: u64,
     pub show_creator_updated: bool,
+    pub hide_file_tags: bool,
+    pub hide_source_tags: bool,
     pub auto_check_updates: bool,
     /// Latest release the user dismissed, so the update prompt only appears
     /// once per version.
@@ -65,6 +67,8 @@ impl Default for AppSettings {
             transcode_media: false,
             load_ahead_pages: 1,
             show_creator_updated: false,
+            hide_file_tags: false,
+            hide_source_tags: false,
             auto_check_updates: true,
             dismissed_update_version: String::new(),
             blocked_creators: Vec::new(),

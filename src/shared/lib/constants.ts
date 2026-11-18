@@ -38,6 +38,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   transcodeMedia: false,
   loadAheadPages: 1,
   showCreatorUpdated: false,
+  hideFileTags: false,
+  hideSourceTags: false,
   autoCheckUpdates: true,
   dismissedUpdateVersion: "",
   blockedCreators: [],
