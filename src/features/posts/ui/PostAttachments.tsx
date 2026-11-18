@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   Download,
   ExternalLink,
   FileText,
@@ -66,15 +67,20 @@ export function PostAttachments({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {images.map((attachment) => {
             const resolving = attachment.resolving === true;
+            const unavailable = attachment.unavailable === true;
             return (
             <div
               key={attachment.path}
               aria-busy={resolving}
-              className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-line/70 bg-elevated/60"
+              data-unavailable={unavailable ? "true" : undefined}
+              className={cn(
+                "group relative aspect-[4/3] overflow-hidden rounded-lg border border-line/70 bg-elevated/60",
+                unavailable && "opacity-60",
+              )}
             >
               <button
                 type="button"
-                disabled={resolving}
+                disabled={resolving || unavailable}
                 onClick={() =>
                   onViewImage(
                     images.findIndex((entry) => entry.path === attachment.path),
@@ -82,7 +88,14 @@ export function PostAttachments({
                 }
                 className="block h-full w-full text-left disabled:cursor-wait"
               >
-                {resolving ? (
+                {unavailable ? (
+                  <span className="grid h-full w-full place-items-center gap-2 text-muted">
+                    <AlertTriangle className="h-7 w-7" />
+                    <span className="text-[9px] uppercase tracking-wider">
+                      Unavailable
+                    </span>
+                  </span>
+                ) : resolving ? (
                   <span className="grid h-full w-full place-items-center gap-2 text-muted">
                     <LoaderCircle className="h-7 w-7 animate-spin" />
                     <span className="text-[9px] uppercase tracking-wider">
@@ -108,7 +121,7 @@ export function PostAttachments({
                     <ImageIcon className="h-7 w-7 text-accent/45" />
                   </span>
                 )}
-                {attachment.locked ? (
+                {!unavailable && attachment.locked ? (
                   <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded border border-favorite/40 bg-black/75 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-favorite">
                     <Lock className="h-3 w-3" /> Locked
                   </span>
@@ -123,7 +136,7 @@ export function PostAttachments({
                   />
                 </span>
               </button>
-              {!resolving ? (
+              {!resolving && !unavailable ? (
                 <div className="touch-visible absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
                   <IconButton
                     label={`Add ${attachment.name} to playlist`}
@@ -153,20 +166,27 @@ export function PostAttachments({
         <div className="mt-3 space-y-2">
           {playable.map((attachment) => {
             const resolving = attachment.resolving === true;
-            const Icon = resolving
-              ? LoaderCircle
-              : attachment.locked
-                ? Lock
-                : KIND_ICON[attachment.kind];
+            const unavailable = attachment.unavailable === true;
+            const Icon = unavailable
+              ? AlertTriangle
+              : resolving
+                ? LoaderCircle
+                : attachment.locked
+                  ? Lock
+                  : KIND_ICON[attachment.kind];
             return (
               <div
                 key={attachment.path}
                 aria-busy={resolving}
-                className="group flex w-full items-center gap-3 rounded-lg border border-line/70 bg-base/20 px-3 py-2.5 transition hover:border-accent/30 hover:bg-base/40"
+                data-unavailable={unavailable ? "true" : undefined}
+                className={cn(
+                  "group flex w-full items-center gap-3 rounded-lg border border-line/70 bg-base/20 px-3 py-2.5 transition hover:border-accent/30 hover:bg-base/40",
+                  unavailable && "opacity-60",
+                )}
               >
                 <button
                   type="button"
-                  disabled={resolving}
+                  disabled={resolving || unavailable}
                   onClick={() => onPlay(attachment)}
                   className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-wait"
                 >
@@ -178,25 +198,31 @@ export function PostAttachments({
                       <span className="truncate text-xs font-bold text-ink">
                         {attachment.name}
                       </span>
-                      {attachment.locked ? (
+                      {unavailable ? (
+                        <Badge tone="danger" className="shrink-0 gap-1">
+                          <AlertTriangle className="h-3 w-3" /> Unavailable
+                        </Badge>
+                      ) : attachment.locked ? (
                         <Badge tone="warning" className="shrink-0 gap-1">
                           <Lock className="h-3 w-3" /> Locked
                         </Badge>
                       ) : null}
                     </span>
                     <span className="mt-0.5 block text-[9px] uppercase tracking-wider text-muted">
-                      {resolving
-                        ? "loading provider info…"
-                        : attachment.locked
-                          ? "password protected"
-                          : attachment.kind}
+                      {unavailable
+                        ? "file unavailable"
+                        : resolving
+                          ? "loading provider info…"
+                          : attachment.locked
+                            ? "password protected"
+                            : attachment.kind}
                       {attachment.previewOnly ? " · preview only" : ""}
                     </span>
                     <AttachmentMeta attachment={attachment} />
                   </span>
                 </button>
                 <div className="flex items-center gap-0.5">
-                  {resolving ? (
+                  {unavailable ? null : resolving ? (
                     <span className="px-2 text-[9px] text-muted">Loading…</span>
                   ) : attachment.locked ? (
                     <IconButton
@@ -240,20 +266,27 @@ export function PostAttachments({
         <div className="mt-3 space-y-2">
           {documents.map((attachment) => {
             const resolving = attachment.resolving === true;
+            const unavailable = attachment.unavailable === true;
             return (
               <div
                 key={attachment.path}
                 aria-busy={resolving}
-                className="flex w-full items-center gap-3 rounded-lg border border-line/70 bg-base/20 px-3 py-2.5 transition hover:border-accent/30 hover:bg-base/40"
+                data-unavailable={unavailable ? "true" : undefined}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg border border-line/70 bg-base/20 px-3 py-2.5 transition hover:border-accent/30 hover:bg-base/40",
+                  unavailable && "opacity-60",
+                )}
               >
                 <button
                   type="button"
-                  disabled={resolving}
+                  disabled={resolving || unavailable}
                   onClick={() => onOpenFile(attachment)}
                   className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-wait"
                 >
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-muted">
-                    {resolving ? (
+                    {unavailable ? (
+                      <AlertTriangle className="h-4 w-4" />
+                    ) : resolving ? (
                       <LoaderCircle className="h-4 w-4 animate-spin" />
                     ) : attachment.locked ? (
                       <Lock className="h-4 w-4" />
@@ -266,22 +299,30 @@ export function PostAttachments({
                       <span className="truncate text-xs font-bold text-ink">
                         {attachment.name}
                       </span>
-                      {attachment.locked ? (
+                      {unavailable ? (
+                        <Badge tone="danger" className="shrink-0 gap-1">
+                          <AlertTriangle className="h-3 w-3" /> Unavailable
+                        </Badge>
+                      ) : attachment.locked ? (
                         <Badge tone="warning" className="shrink-0 gap-1">
                           <Lock className="h-3 w-3" /> Locked
                         </Badge>
                       ) : null}
                     </span>
                     <span className="mt-0.5 block text-[9px] uppercase tracking-wider text-muted">
-                      {resolving
-                        ? "loading provider info…"
-                        : attachment.locked
-                          ? "password protected"
-                          : attachment.kind}
+                      {unavailable
+                        ? "file unavailable"
+                        : resolving
+                          ? "loading provider info…"
+                          : attachment.locked
+                            ? "password protected"
+                            : attachment.kind}
                     </span>
                     <AttachmentMeta attachment={attachment} />
                   </span>
-                  {resolving ? (
+                  {unavailable ? (
+                    <AlertTriangle className="h-3.5 w-3.5 text-muted" />
+                  ) : resolving ? (
                     <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted" />
                   ) : attachment.locked ? (
                     <Lock className="h-3.5 w-3.5 text-favorite" />
@@ -289,7 +330,7 @@ export function PostAttachments({
                     <ExternalLink className="h-3.5 w-3.5 text-muted" />
                   )}
                 </button>
-                {resolving ? null : attachment.locked ? (
+                {unavailable ? null : resolving ? null : attachment.locked ? (
                   <IconButton
                     label="Unlock link"
                     icon={Lock}

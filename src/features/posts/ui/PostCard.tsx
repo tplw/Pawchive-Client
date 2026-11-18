@@ -147,9 +147,18 @@ export function PostCard({
       const playable = detail.attachments.filter(
         (attachment) =>
           !attachment.locked &&
+          !attachment.unavailable &&
           (attachment.kind === "audio" || attachment.kind === "video"),
       );
       if (playable.length === 0) {
+        if (detail.attachments.some((attachment) => attachment.unavailable)) {
+          toast(
+            "error",
+            "File unavailable",
+            "This cloud file was removed or is no longer available.",
+          );
+          return;
+        }
         if (detail.attachments.some((attachment) => attachment.locked)) {
           toast(
             "info",

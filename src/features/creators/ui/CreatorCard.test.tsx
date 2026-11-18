@@ -74,6 +74,7 @@ describe("content cards", () => {
       audioOnly: true,
       mediaFilter: "all",
       hideUnavailable: false,
+      overrideGlobalKeywords: false,
       keywords: [],
       asmr: true,
     });
@@ -328,6 +329,7 @@ describe("content cards", () => {
       audioOnly: false,
       mediaFilter: "all",
       hideUnavailable: false,
+      overrideGlobalKeywords: false,
       keywords: [],
       asmr: true,
     });

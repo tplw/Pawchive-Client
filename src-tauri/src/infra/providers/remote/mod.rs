@@ -258,6 +258,7 @@ fn folder_file_attachment(
         preview_only: false,
         locked: false,
         resolving: false,
+        unavailable: false,
     }
 }
 
@@ -837,6 +838,7 @@ mod tests {
             preview_only: false,
             locked: false,
             resolving: false,
+            unavailable: false,
         };
         let expanded = expand_folders(&mega, &proton, &remote, vec![attachment]).await;
         assert_eq!(expanded.len(), 1);

@@ -106,6 +106,14 @@ export function CreatorFilterModal({
           label="Hide unavailable posts"
           description="Hide posts that aren't imported or exceed the archive file-size limit. Posts with playable or downloadable non-image files stay visible."
         />
+        <Toggle
+          checked={filter.overrideGlobalKeywords}
+          onChange={(checked) =>
+            onUpdateFilter({ ...filter, overrideGlobalKeywords: checked })
+          }
+          label="Override global keywords"
+          description="Ignore the global hidden keywords for this creator."
+        />
         <Field
           label="Hide keywords"
           hint="Separate with commas or new lines. Matching posts are hidden for this creator."

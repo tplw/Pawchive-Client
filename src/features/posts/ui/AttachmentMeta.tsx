@@ -61,7 +61,9 @@ export function AttachmentMeta({
   } | null>(null);
 
   useEffect(() => {
-    if (attachment.locked || attachment.resolving) return;
+    if (attachment.locked || attachment.resolving || attachment.unavailable) {
+      return;
+    }
     let cancelled = false;
     void mediaSize(attachment.downloadUrl ?? attachment.url).then((value) => {
       if (!cancelled) setSize(value);
@@ -73,6 +75,7 @@ export function AttachmentMeta({
     attachment.downloadUrl,
     attachment.locked,
     attachment.resolving,
+    attachment.unavailable,
     attachment.url,
   ]);
 
@@ -119,6 +122,7 @@ export function AttachmentMeta({
     attachment.locked,
     attachment.resolving,
     attachment.thumbnailUrl,
+    attachment.unavailable,
     attachment.url,
   ]);
 

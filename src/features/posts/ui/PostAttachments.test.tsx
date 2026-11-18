@@ -46,6 +46,40 @@ describe("locked post attachments", () => {
     expect(onUnlock).toHaveBeenCalledWith(locked);
   });
 
+  it("marks unavailable files and disables their actions", () => {
+    const unavailable: Attachment = {
+      ...locked,
+      name: "mega-7W4SFZLa",
+      kind: "video",
+      locked: false,
+      unavailable: true,
+    };
+    render(
+      <PostAttachments
+        count={1}
+        images={[]}
+        playable={[unavailable]}
+        documents={[]}
+        disabled={false}
+        onViewImage={() => undefined}
+        onPlay={() => undefined}
+        onQueue={() => undefined}
+        onAddToPlaylist={() => undefined}
+        onDownload={() => undefined}
+        onOpenFile={() => undefined}
+        onUnlock={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.getByText("file unavailable")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Add to queue")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Download")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("mega-7W4SFZLa").closest("[data-unavailable]"),
+    ).toHaveAttribute("data-unavailable", "true");
+  });
+
   it("shows a loading state while provider metadata is resolving", () => {
     const onUnlock = vi.fn();
     render(

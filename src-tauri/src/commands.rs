@@ -737,7 +737,7 @@ mod tests {
             title: "A normal post".into(),
             ..Default::default()
         };
-        let page = build_post_page(&state, vec![post], 0).unwrap();
+        let page = build_post_page(&state, vec![post], 0, false).unwrap();
         assert_eq!(page.items.len(), 1);
     }
 
@@ -756,6 +756,7 @@ mod tests {
             preview_only: false,
             locked: false,
             resolving: true,
+            unavailable: false,
         };
         let resolved = PostService::new(state)
             .resolve_attachments(vec![attachment])
@@ -778,7 +779,10 @@ mod tests {
             title: "A spoiler post".into(),
             ..Default::default()
         };
-        let page = build_post_page(&state, vec![post], 0).unwrap();
+        let page = build_post_page(&state, vec![post.clone()], 0, false).unwrap();
         assert!(page.items.is_empty());
+
+        let creator_page = build_post_page(&state, vec![post], 0, true).unwrap();
+        assert_eq!(creator_page.items.len(), 1);
     }
 }

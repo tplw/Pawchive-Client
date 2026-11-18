@@ -145,6 +145,7 @@ describe("app store", () => {
       audioOnly: false,
       mediaFilter: "all",
       hideUnavailable: false,
+      overrideGlobalKeywords: false,
       keywords: ["sketch"],
     });
     vi.mocked(api.saveSettings).mockImplementation(async (settings) => settings);

@@ -155,6 +155,7 @@ describe("creator profile", () => {
       audioOnly: true,
       mediaFilter: "all",
       hideUnavailable: false,
+      overrideGlobalKeywords: false,
       keywords: ["sketch"],
       asmr: true,
     });
@@ -174,6 +175,38 @@ describe("creator profile", () => {
     expect(cleared.audioOnly).toBe(false);
     expect(cleared.keywords).toEqual([]);
     window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
+  });
+
+  it("overrides global hidden keywords for this creator", async () => {
+    useAppStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        hiddenKeywords: ["spoiler"],
+      },
+    });
+    vi.mocked(api.getCreatorPosts).mockResolvedValue({
+      items: [
+        { ...post, title: "Spoiler post" },
+        { ...post, id: "2", title: "Safe post" },
+      ],
+      offset: 0,
+      hasMore: false,
+    });
+
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    expect(await screen.findByText("Safe post")).toBeInTheDocument();
+    expect(screen.queryByText("Spoiler post")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Filter posts" }),
+    );
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Override global keywords" }),
+    );
+    expect(await screen.findByText("Spoiler post")).toBeInTheDocument();
+
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
+    useAppStore.setState({ settings: DEFAULT_SETTINGS });
   });
 
   it("searches this creator's posts", async () => {

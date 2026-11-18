@@ -74,6 +74,8 @@ export interface Attachment {
   locked?: boolean;
   /** External provider metadata is still loading. */
   resolving?: boolean;
+  /** The cloud file was removed, expired, or is no longer available. */
+  unavailable?: boolean;
 }
 
 export interface ResolvedMedia {

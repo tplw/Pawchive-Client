@@ -63,6 +63,7 @@ export function useCreatorFilterState({
       audioOnly: false,
       mediaFilter: getGlobalMediaFilterDefault(),
       hideUnavailable: false,
+      overrideGlobalKeywords: false,
       keywords: [],
     });
     setKeywordText("");

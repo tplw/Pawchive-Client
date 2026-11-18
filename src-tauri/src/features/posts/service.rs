@@ -15,6 +15,10 @@ enum ProviderMedia {
     Proton(Box<crate::infra::providers::proton::ProtonFile>),
 }
 
+fn marks_attachment_unavailable(error: &AppError) -> bool {
+    matches!(error, AppError::NotFound | AppError::Unavailable(_))
+}
+
 pub(crate) struct PostService {
     state: AppState,
 }
@@ -38,7 +42,7 @@ impl PostService {
         if let Some(id) = request_id {
             self.state.finish_cancel(id);
         }
-        build_post_page(&self.state, result?, offset)
+        build_post_page(&self.state, result?, offset, false)
     }
 
     pub(crate) async fn summary(
@@ -192,6 +196,9 @@ impl PostService {
                         }
                     }
                     Err(AppError::PasswordRequired { .. }) => attachment.locked = true,
+                    Err(error) if marks_attachment_unavailable(&error) => {
+                        attachment.unavailable = true;
+                    }
                     Err(_) => {}
                 }
             }
@@ -264,6 +271,9 @@ impl PostService {
                     }
                 }
                 Err(AppError::PasswordRequired { .. }) => attachment.locked = true,
+                Err(error) if marks_attachment_unavailable(&error) => {
+                    attachment.unavailable = true;
+                }
                 Err(_) => {}
             }
         }
@@ -364,7 +374,7 @@ impl PostService {
         if let Some(id) = request_id {
             self.state.finish_cancel(id);
         }
-        build_post_page(&self.state, result?, offset)
+        build_post_page(&self.state, result?, offset, true)
     }
 
     pub(crate) async fn popular(
@@ -400,5 +410,27 @@ impl PostService {
             offset,
             has_more,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::marks_attachment_unavailable;
+    use crate::shared::error::AppError;
+
+    #[test]
+    fn marks_only_missing_and_unavailable_provider_files() {
+        assert!(marks_attachment_unavailable(&AppError::NotFound));
+        assert!(marks_attachment_unavailable(&AppError::Unavailable(
+            "gone".into()
+        )));
+        assert!(!marks_attachment_unavailable(&AppError::Network(
+            "offline".into()
+        )));
+        assert!(!marks_attachment_unavailable(&AppError::PasswordRequired {
+            provider: "MEGA",
+            url: "https://mega.nz/file/x".into(),
+            rejected: false,
+        }));
     }
 }

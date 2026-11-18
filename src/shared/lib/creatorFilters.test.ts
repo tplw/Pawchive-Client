@@ -39,6 +39,7 @@ describe("creator filters", () => {
       audioOnly: true,
       mediaFilter: "all" as const,
       hideUnavailable: false,
+      overrideGlobalKeywords: false,
       keywords: ["sketch"],
     };
     expect(postMatchesCreatorFilter(post(), filter)).toBe(false);
@@ -57,6 +58,7 @@ describe("creator filters", () => {
         audioOnly: false,
         mediaFilter: "all" as const,
         hideUnavailable: false,
+        overrideGlobalKeywords: false,
         keywords: [],
       }),
     ).toBe(false);
@@ -65,6 +67,7 @@ describe("creator filters", () => {
         audioOnly: false,
         mediaFilter: "filesAndPictures" as const,
         hideUnavailable: false,
+        overrideGlobalKeywords: false,
         keywords: [],
       }),
     ).toBe(false);
@@ -79,6 +82,7 @@ describe("creator filters", () => {
           audioOnly: false,
           mediaFilter: "filesAndPictures" as const,
           hideUnavailable: false,
+          overrideGlobalKeywords: false,
           keywords: [],
         },
       ),
@@ -100,6 +104,7 @@ describe("creator filters", () => {
       audioOnly: false,
       mediaFilter: "all" as const,
       hideUnavailable: true,
+      overrideGlobalKeywords: false,
       keywords: [],
     };
     expect(
@@ -107,6 +112,25 @@ describe("creator filters", () => {
     ).toBe(false);
     expect(
       postMatchesCreatorFilter(post({ unavailable: false }), filter),
+    ).toBe(true);
+  });
+
+  it("allows a creator to override global keywords", () => {
+    const filter = {
+      audioOnly: false,
+      mediaFilter: "all" as const,
+      hideUnavailable: false,
+      overrideGlobalKeywords: false,
+      keywords: [],
+    };
+    const spoiler = post({ title: "A spoiler post" });
+    expect(postMatchesCreatorFilter(spoiler, filter, ["spoiler"])).toBe(false);
+    expect(
+      postMatchesCreatorFilter(
+        spoiler,
+        { ...filter, overrideGlobalKeywords: true },
+        ["spoiler"],
+      ),
     ).toBe(true);
   });
 
@@ -136,12 +160,14 @@ describe("global media filter setting", () => {
       audioOnly: false,
       mediaFilter: "all" as const,
       hideUnavailable: false,
+      overrideGlobalKeywords: false,
       keywords: ["sketch"],
     });
     saveCreatorFilter("patreon", "2", {
       audioOnly: true,
       mediaFilter: "all" as const,
       hideUnavailable: false,
+      overrideGlobalKeywords: false,
       keywords: [],
     });
 
@@ -164,6 +190,7 @@ describe("global media filter setting", () => {
       audioOnly: false,
       mediaFilter: "all" as const,
       hideUnavailable: false,
+      overrideGlobalKeywords: false,
       keywords: [],
     });
     expect(loadCreatorFilter("patreon", "1").mediaFilter).toBe("all");
@@ -177,6 +204,7 @@ describe("global media filter setting", () => {
       audioOnly: false,
       mediaFilter: "filesAndPictures" as const,
       hideUnavailable: false,
+      overrideGlobalKeywords: false,
       keywords: [],
     };
     const filesOnly = { ...filesAndPictures, mediaFilter: "filesOnly" as const };

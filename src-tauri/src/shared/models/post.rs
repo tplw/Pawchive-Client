@@ -372,6 +372,9 @@ pub struct Attachment {
     /// External provider metadata is still being resolved in the background.
     #[serde(default)]
     pub resolving: bool,
+    /// The cloud file was removed, expired, or is no longer available.
+    #[serde(default)]
+    pub unavailable: bool,
 }
 
 impl Attachment {
@@ -444,6 +447,7 @@ impl Attachment {
                 && temp_download_url.is_none(),
             locked: false,
             resolving,
+            unavailable: false,
         })
     }
 }

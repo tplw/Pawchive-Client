@@ -4,6 +4,7 @@ export interface CreatorFilter {
   audioOnly: boolean;
   mediaFilter: MediaFilter;
   hideUnavailable: boolean;
+  overrideGlobalKeywords: boolean;
   keywords: string[];
   /** undefined = auto-detect, true = manually tagged, false = manually rejected. */
   asmr?: boolean;
@@ -13,6 +14,7 @@ const EMPTY_FILTER: CreatorFilter = {
   audioOnly: false,
   mediaFilter: "all",
   hideUnavailable: false,
+  overrideGlobalKeywords: false,
   keywords: [],
 };
 
@@ -65,6 +67,7 @@ export function applyMediaFilterToCreators(value: MediaFilter): void {
           audioOnly: Boolean(parsed.audioOnly),
           mediaFilter: value,
           hideUnavailable: Boolean(parsed.hideUnavailable),
+          overrideGlobalKeywords: Boolean(parsed.overrideGlobalKeywords),
           keywords: Array.isArray(parsed.keywords)
             ? parsed.keywords.filter(
                 (keyword): keyword is string => typeof keyword === "string",
@@ -91,6 +94,7 @@ function filterHasStoredRules(filter: CreatorFilter): boolean {
     filter.audioOnly ||
     filter.mediaFilter !== globalMediaFilterDefault ||
     filter.hideUnavailable ||
+    filter.overrideGlobalKeywords ||
     filter.keywords.length > 0 ||
     typeof filter.asmr === "boolean"
   );
@@ -124,6 +128,7 @@ export function loadCreatorFilter(
       audioOnly: Boolean(parsed.audioOnly),
       mediaFilter,
       hideUnavailable: Boolean(parsed.hideUnavailable),
+      overrideGlobalKeywords: Boolean(parsed.overrideGlobalKeywords),
       keywords: Array.isArray(parsed.keywords)
         ? parsed.keywords.filter((keyword): keyword is string => typeof keyword === "string")
         : [],
@@ -158,6 +163,7 @@ export function creatorFilterActive(filter: CreatorFilter): boolean {
     filter.audioOnly ||
     filter.mediaFilter !== "all" ||
     filter.hideUnavailable ||
+    filter.overrideGlobalKeywords ||
     filter.keywords.length > 0 ||
     filter.asmr === true
   );
@@ -188,6 +194,7 @@ export function detectAsmrCreator(
 export function postMatchesCreatorFilter(
   post: PostSummary,
   filter: CreatorFilter,
+  globalKeywords: string[] = [],
 ): boolean {
   if (filter.audioOnly && !post.mediaKinds.includes("audio")) {
     return false;
@@ -209,9 +216,20 @@ export function postMatchesCreatorFilter(
   if (filter.hideUnavailable && post.unavailable) {
     return false;
   }
-  if (filter.keywords.length === 0) return true;
-  const haystack = `${post.title} ${post.excerpt} ${post.creatorName ?? ""}`.toLowerCase();
-  return !filter.keywords.some((keyword) => haystack.includes(keyword.toLowerCase()));
+  const haystack =
+    `${post.title} ${post.excerpt} ${post.creatorName ?? ""}`.toLowerCase();
+  if (
+    !filter.overrideGlobalKeywords &&
+    globalKeywords.some(
+      (keyword) =>
+        keyword.trim() && haystack.includes(keyword.trim().toLowerCase()),
+    )
+  ) {
+    return false;
+  }
+  return !filter.keywords.some((keyword) =>
+    haystack.includes(keyword.toLowerCase()),
+  );
 }
 
 export function parseFilterKeywords(value: string): string[] {

@@ -128,7 +128,10 @@ function PostDetailContent({
     [detail],
   );
   const downloadable = useMemo(
-    () => detail?.attachments.filter((attachment) => !attachment.previewOnly) ?? [],
+    () =>
+      detail?.attachments.filter(
+        (attachment) => !attachment.previewOnly && !attachment.unavailable,
+      ) ?? [],
     [detail],
   );
   const playable = useMemo(
@@ -192,6 +195,13 @@ function PostDetailContent({
     }
   };
 
+  const unavailableToast = () =>
+    toast(
+      "error",
+      "File unavailable",
+      "This cloud file was removed or is no longer available.",
+    );
+
   const queueItemFor = (attachment: Attachment) =>
     queueItemFromAttachment(attachment, {
       title: detail?.post.title || attachment.name,
@@ -204,6 +214,10 @@ function PostDetailContent({
 
   const playPost = (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.unavailable) {
+      unavailableToast();
+      return;
+    }
     if (attachment.resolving) {
       toast("info", "Still loading", "Waiting for the provider attachment info.");
       return;
@@ -212,12 +226,26 @@ function PostDetailContent({
       void unlockAttachment(attachment);
       return;
     }
-    const entries = playable.filter((entry) => !entry.locked);
+    const entries = playable.filter(
+      (entry) => !entry.locked && !entry.unavailable,
+    );
+    if (entries.length === 0 && playable.some((entry) => entry.unavailable)) {
+      toast(
+        "error",
+        "File unavailable",
+        "This cloud file was removed or is no longer available.",
+      );
+      return;
+    }
     enqueue(entries.map(queueItemFor), true);
   };
 
   const playAttachment = (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.unavailable) {
+      unavailableToast();
+      return;
+    }
     if (attachment.resolving) {
       toast("info", "Still loading", "Waiting for the provider attachment info.");
       return;
@@ -233,6 +261,10 @@ function PostDetailContent({
 
   const queueAttachment = (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.unavailable) {
+      unavailableToast();
+      return;
+    }
     if (attachment.resolving) {
       toast("info", "Still loading", "Waiting for the provider attachment info.");
       return;
@@ -246,6 +278,10 @@ function PostDetailContent({
 
   const addToPlaylist = (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.unavailable) {
+      unavailableToast();
+      return;
+    }
     if (attachment.resolving) {
       toast("info", "Still loading", "Waiting for the provider attachment info.");
       return;
@@ -270,6 +306,10 @@ function PostDetailContent({
 
   const downloadAttachment = async (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.unavailable) {
+      unavailableToast();
+      return;
+    }
     if (attachment.resolving) {
       toast("info", "Still loading", "Waiting for the provider attachment info.");
       return;
@@ -314,6 +354,10 @@ function PostDetailContent({
   };
 
   const openFile = async (attachment: Attachment) => {
+    if (attachment.unavailable) {
+      unavailableToast();
+      return;
+    }
     if (attachment.resolving) {
       toast("info", "Still loading", "Waiting for the provider attachment info.");
       return;

@@ -43,10 +43,20 @@ pub(crate) fn post_thumbnail(st: &AppState, post: &Post) -> Option<String> {
         .find_map(|file| thumbnail_for_file(st, file))
 }
 
-pub(crate) fn build_post_page(st: &AppState, posts: Vec<Post>, offset: i64) -> AppResult<PostPage> {
+pub(crate) fn build_post_page(
+    st: &AppState,
+    posts: Vec<Post>,
+    offset: i64,
+    skip_global_keywords: bool,
+) -> AppResult<PostPage> {
     let has_more = posts.len() as i64 >= PAGE_SIZE;
     let names = creator_lookup(st, &posts);
-    let settings = st.settings();
+    let mut settings = st.settings();
+    if skip_global_keywords {
+        // Creator pages apply global keywords in the client so a creator can
+        // override them without the backend removing posts first.
+        settings.hidden_keywords.clear();
+    }
     let items = posts
         .iter()
         .filter(|post| {

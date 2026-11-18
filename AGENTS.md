@@ -452,9 +452,10 @@ move a tag after publishing. Publish a patch release instead.
   a local `npm run android:build` does not.
 - The v1.0.6 APKs were published before the signing fix and are unsigned. A
   patch release is required if a user reports an Android install failure.
-- Global content filters run in Rust before per-creator client filters. A
-  per-creator toggle can remove more posts but cannot restore a post the
-  backend already removed.
+- Global media and unavailable filters run in Rust before per-creator client
+  filters. A per-creator toggle can remove more posts but cannot restore a post
+  the backend already removed. Global keywords are skipped for creator feeds
+  and applied client-side so the per-creator override can work.
 - Provider metadata body reads do not all have timeouts. Do not hold a shared
   provider mutex across a body read.
 

@@ -89,6 +89,9 @@ function CreatorProfileContent({
   const mediaFilterDefault = useAppStore((state) =>
     effectiveMediaFilter(state.settings),
   );
+  const globalKeywords = useAppStore(
+    (state) => state.settings.hiddenKeywords ?? [],
+  );
   const {
     filter,
     keywordText,
@@ -208,8 +211,10 @@ function CreatorProfileContent({
   );
   const filteredPostItems = useMemo(
     () =>
-      postItems.filter((post) => postMatchesCreatorFilter(post, effectiveFilter)),
-    [postItems, effectiveFilter],
+      postItems.filter((post) =>
+        postMatchesCreatorFilter(post, effectiveFilter, globalKeywords),
+      ),
+    [postItems, effectiveFilter, globalKeywords],
   );
   useEffect(() => {
     rememberPostFeed({
