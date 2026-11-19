@@ -4,7 +4,13 @@ All notable changes to Pawchive Client are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.0.6.1 - 2026-11-19
+
+This release makes removed cloud media clear: playback failures explain what
+happened, affected attachments show an Unavailable badge and disabled actions,
+and file sizes appear again. It also adds per-creator keyword overrides, tag
+visibility controls, a post media filter and a hide-play-button option, plus
+queue preservation, navigation and playback fixes.
 
 ### Added
 
@@ -48,7 +54,6 @@ project follows [Semantic Versioning](https://semver.org/).
   existing player queue instead of replacing it.
 - Creator profile tabs are remembered per creator, so returning from the
   Similar Creators tab restores that tab.
-- The queue trash button now clears the queue and closes the queue panel.
 - MEGA folder-file links now resolve and stream through the folder-aware MEGA
   resolver, so folder children play instead of failing with `not a MEGA file
   link`. Expired child links refresh through the folder API.
@@ -60,8 +65,8 @@ project follows [Semantic Versioning](https://semver.org/).
   back to Queued on every progress event.
 - Deleting or clearing completed downloads now refreshes playlist Offline
   badges immediately.
-- Synced the generated iOS project version with 1.0.6 so regenerating the
-  Xcode project cannot downgrade the bundle version.
+- Synced the generated iOS project version with the release version so
+  regenerating the Xcode project cannot downgrade the bundle version.
 - Android release APKs are now debug-signed and verified in CI before upload,
   so they install instead of failing with a missing certificate.
 
