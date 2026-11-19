@@ -24,6 +24,15 @@
       "appPermissions": {},
       "versions": [
         {
+          "version": "1.0.6.1",
+          "buildVersion": "1.0.6.1",
+          "date": "2026-11-19T12:59:30Z",
+          "downloadURL": "https://github.com/tplw/Pawchive-Client/releases/download/v1.0.6.1/Pawchive_1.0.6.1_ios-unsigned.ipa",
+          "size": 6638751,
+          "minOSVersion": "15.0",
+          "localizedDescription": "Makes removed or expired cloud files clear, restores attachment file sizes, and adds per-creator keyword overrides, tag visibility controls, a post media filter and queue/navigation fixes."
+        },
+        {
           "version": "1.0.6",
           "buildVersion": "1.0.6",
           "date": "2026-11-13T15:01:05Z",
