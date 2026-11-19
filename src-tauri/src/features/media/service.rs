@@ -6,6 +6,19 @@ use std::time::Duration;
 
 const MAX_HEADER_BYTES: usize = 512 * 1024;
 
+/// Read the declared body length from the headers.
+///
+/// `reqwest::Response::content_length()` reports the length of the response
+/// body that is actually present, so a HEAD response always looks empty even
+/// when the server declared the file size in `Content-Length`.
+fn declared_content_length(response: &reqwest::Response) -> Option<u64> {
+    response
+        .headers()
+        .get(reqwest::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<u64>().ok())
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ResolvedMediaInfo {
@@ -132,8 +145,10 @@ impl MediaService {
         .await
         {
             if response.status().is_success() {
-                if let Some(length) = response.content_length() {
-                    return Ok(Some(length));
+                if let Some(length) = declared_content_length(&response) {
+                    if length > 0 {
+                        return Ok(Some(length));
+                    }
                 }
             }
         }
@@ -161,7 +176,15 @@ impl MediaService {
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.rsplit('/').next())
             .and_then(|value| value.parse::<u64>().ok());
-        Ok(total.or_else(|| response.content_length()))
+        if total.is_some() {
+            return Ok(total);
+        }
+        // A 206 body only contains the requested byte, so its length is not
+        // the file size. Only a full 200 response can supply the total.
+        if response.status() == StatusCode::OK {
+            return Ok(declared_content_length(&response));
+        }
+        Ok(None)
     }
 
     /// Read just enough of an image to detect its dimensions.
@@ -266,5 +289,45 @@ mod tests {
         })
         .unwrap();
         assert_eq!(json, serde_json::json!({ "width": 640, "height": 480 }));
+    }
+
+    #[tokio::test]
+    async fn reads_the_declared_size_from_a_head_response() {
+        use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("HEAD"))
+            .respond_with(ResponseTemplate::new(200).insert_header("Content-Length", "42685440"))
+            .mount(&server)
+            .await;
+
+        let response = reqwest::Client::new()
+            .head(server.uri())
+            .send()
+            .await
+            .unwrap();
+
+        // Reqwest reports the length of the empty HEAD body, not the size the
+        // server declared in the header.
+        assert_eq!(response.content_length(), Some(0));
+        assert_eq!(declared_content_length(&response), Some(42_685_440));
+    }
+
+    #[tokio::test]
+    async fn ignores_a_head_response_without_a_declared_size() {
+        use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("HEAD"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let response = reqwest::Client::new()
+            .head(server.uri())
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(declared_content_length(&response), None);
     }
 }

@@ -24,6 +24,8 @@ project follows [Semantic Versioning](https://semver.org/).
   or is no longer available instead of showing a raw provider or API error.
 - Removed or expired cloud attachments now show an **Unavailable** badge, are
   grayed out, and disable play, queue, playlist and download actions.
+- Attachment file sizes now appear again. The size probe read the empty HEAD
+  response body as zero instead of the declared `Content-Length`.
 - `Hide source tags` now hides ASMR creator badges as well as service badges.
 - Previous/Next post navigation now keeps the original creator, discover,
   search or playlist return target instead of changing the label to
