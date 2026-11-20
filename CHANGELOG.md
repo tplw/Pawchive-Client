@@ -4,6 +4,13 @@ All notable changes to Pawchive Client are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- Post pages no longer open with a large blank area when the stored content
+  starts with empty paragraphs.
+
 ## 1.0.6.1 - 2026-11-19
 
 This release makes removed cloud media clear: playback failures explain what

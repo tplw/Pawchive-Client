@@ -79,5 +79,60 @@ pub fn sanitize_html(raw: &str) -> String {
             Some(value.into())
         });
 
-    builder.clean(raw).to_string()
+    trim_leading_empty_blocks(&builder.clean(raw).to_string())
+}
+
+/// Remove empty spacer blocks at the start of post content. Some editors save
+/// a run of empty paragraphs before the actual text, which otherwise renders
+/// as a large blank area above the post.
+fn trim_leading_empty_blocks(html: &str) -> String {
+    let mut rest = html.trim_start();
+    loop {
+        if let Some(next) = strip_empty_block(rest, "p").or_else(|| strip_empty_block(rest, "div"))
+        {
+            rest = next.trim_start();
+            continue;
+        }
+        let next = rest
+            .strip_prefix("<br>")
+            .or_else(|| rest.strip_prefix("<br/>"))
+            .or_else(|| rest.strip_prefix("<br />"));
+        if let Some(next) = next {
+            rest = next.trim_start();
+            continue;
+        }
+        return rest.to_string();
+    }
+}
+
+fn strip_empty_block<'a>(input: &'a str, tag: &str) -> Option<&'a str> {
+    let open = format!("<{tag}>");
+    let close = format!("</{tag}>");
+    let inner = input.strip_prefix(&open)?;
+    let end = inner.find(&close)?;
+    if !is_empty_markup(&inner[..end]) {
+        return None;
+    }
+    Some(&inner[end + close.len()..])
+}
+
+fn is_empty_markup(mut value: &str) -> bool {
+    loop {
+        value = value.trim_start();
+        if value.is_empty() {
+            return true;
+        }
+        if let Some(rest) = value.strip_prefix("&nbsp;") {
+            value = rest;
+            continue;
+        }
+        let next = value
+            .strip_prefix("<br>")
+            .or_else(|| value.strip_prefix("<br/>"))
+            .or_else(|| value.strip_prefix("<br />"));
+        match next {
+            Some(rest) => value = rest,
+            None => return false,
+        }
+    }
 }

@@ -53,6 +53,26 @@ mod tests {
     }
 
     #[test]
+    fn trims_leading_empty_paragraphs() {
+        let dirty = "<p><br></p><p><br></p><p><br></p><p>一括DL用ZIP</p><p>作業用PSD</p>";
+        let clean = sanitize_html(dirty);
+        assert!(
+            clean.starts_with("<p>一括DL用ZIP</p>"),
+            "leading blank blocks remained: {clean}"
+        );
+        assert!(clean.contains("<p>作業用PSD</p>"));
+    }
+
+    #[test]
+    fn trims_leading_spacer_variants_but_keeps_the_first_content() {
+        let clean = sanitize_html(
+            "<p></p><p> &nbsp; </p><div><br></div><br><p><img src=\"https://example.com/x.png\"></p><p>after</p>",
+        );
+        assert!(clean.starts_with("<p><img"), "spacers remained: {clean}");
+        assert!(clean.contains("<p>after</p>"));
+    }
+
+    #[test]
     fn rejects_private_ipv6_and_legacy_ipv4_hosts() {
         assert!(validate_media_remote_url("https://[::1]/video.mp4").is_err());
         assert!(validate_media_remote_url("https://[::ffff:127.0.0.1]/video.mp4").is_err());
