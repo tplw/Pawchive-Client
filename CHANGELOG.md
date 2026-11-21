@@ -10,6 +10,9 @@ project follows [Semantic Versioning](https://semver.org/).
 
 - Post pages no longer open with a large blank area when the stored content
   starts with empty paragraphs.
+- The image viewer now retries the full image URL before falling back to the
+  thumbnail, so a failed blob decode no longer leaves the low-resolution image
+  on screen.
 
 ## 1.0.6.1 - 2026-11-19
 

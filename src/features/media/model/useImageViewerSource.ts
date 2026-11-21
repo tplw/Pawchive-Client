@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Attachment } from "../../../shared/types";
 import { api } from "../../../shared/api";
 import { withProviderPassword } from "../../../shared/lib/providerPasswords";
@@ -25,10 +25,12 @@ export function useImageViewerSource({
   const [displaySrc, setDisplaySrc] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
+  const triedDirect = useRef(false);
 
   useEffect(() => {
     if (!image) return;
     let cancelled = false;
+    triedDirect.current = false;
     let objectUrl: string | null = null;
     const controller = new AbortController();
     setProgress(null);
@@ -170,12 +172,20 @@ export function useImageViewerSource({
   }, [cacheMedia, image, index]);
 
   const handleImageError = useCallback(() => {
+    // A blob can finish downloading and still fail to decode. Try the full
+    // URL once before showing the thumbnail, otherwise the viewer silently
+    // stays on the low-resolution image.
+    if (image && displaySrc !== image.url && !triedDirect.current) {
+      triedDirect.current = true;
+      setDisplaySrc(image.url);
+      return;
+    }
     if (image?.thumbnailUrl && displaySrc !== image.thumbnailUrl) {
       setDisplaySrc(image.thumbnailUrl);
       return;
     }
     setFailed(true);
-  }, [displaySrc, image?.thumbnailUrl]);
+  }, [displaySrc, image]);
 
   return {
     displaySrc,
