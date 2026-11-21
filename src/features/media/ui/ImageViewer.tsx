@@ -165,6 +165,7 @@ export function ImageViewer({
     >
       {displaySrc && !failed ? (
         <img
+          key={`backdrop:${displaySrc}`}
           src={displaySrc}
           alt=""
           aria-hidden="true"
@@ -176,6 +177,7 @@ export function ImageViewer({
       <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
         {displaySrc && !failed ? (
           <img
+            key={displaySrc}
             src={displaySrc}
             alt={image.name}
             className="max-h-full max-w-full select-none object-contain"

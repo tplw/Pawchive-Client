@@ -66,6 +66,20 @@ describe("image viewer source", () => {
     expect(result.current.displaySrc).toBe("blob:test");
   });
 
+  it("tries the full URL when the full-image request is rejected", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("blocked", { status: 403 })),
+    );
+
+    const { result } = renderHook(() =>
+      useImageViewerSource({ image, index: 0, cacheMedia: false }),
+    );
+
+    expect(result.current.displaySrc).toBe(image.thumbnailUrl);
+    await waitFor(() => expect(result.current.displaySrc).toBe(image.url));
+  });
+
   it("tries the full URL before falling back to the thumbnail", async () => {
     vi.stubGlobal(
       "fetch",

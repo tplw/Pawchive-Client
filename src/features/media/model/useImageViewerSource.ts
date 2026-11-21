@@ -56,8 +56,11 @@ export function useImageViewerSource({
           cache: "force-cache",
         });
         if (!response.ok) {
+          // A rejected blob request (rate limit, expired redirect) should
+          // still let the image element try the full URL directly. Only fall
+          // back to the thumbnail if that also fails.
           if (!cancelled) {
-            setDisplaySrc(thumbnailUrl ?? imageUrl);
+            setDisplaySrc(imageUrl);
           }
           return;
         }

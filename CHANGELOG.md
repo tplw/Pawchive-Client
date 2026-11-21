@@ -15,6 +15,9 @@ project follows [Semantic Versioning](https://semver.org/).
   on screen.
 - Opening an image from a download or playlist no longer resets to the
   thumbnail when the row re-renders while the full image is loading.
+- The image viewer no longer falls back to the thumbnail when the full-image
+  request is rejected, and a late thumbnail error can no longer overwrite a
+  loaded full image.
 
 ## 1.0.6.1 - 2026-11-19
 
