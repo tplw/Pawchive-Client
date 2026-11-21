@@ -13,6 +13,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - The image viewer now retries the full image URL before falling back to the
   thumbnail, so a failed blob decode no longer leaves the low-resolution image
   on screen.
+- Opening an image from a download or playlist no longer resets to the
+  thumbnail when the row re-renders while the full image is loading.
 
 ## 1.0.6.1 - 2026-11-19
 

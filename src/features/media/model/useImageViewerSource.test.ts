@@ -41,6 +41,31 @@ describe("image viewer source", () => {
     );
   });
 
+  it("keeps the full image when the parent rebuilds an equal attachment", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(new Uint8Array([0xff, 0xd8, 0xff]), {
+          headers: {
+            "content-type": "image/jpeg",
+            "content-length": "3",
+          },
+        }),
+      ),
+    );
+
+    const { result, rerender } = renderHook(
+      ({ current }) =>
+        useImageViewerSource({ image: current, index: 0, cacheMedia: false }),
+      { initialProps: { current: image } },
+    );
+    await waitFor(() => expect(result.current.displaySrc).toBe("blob:test"));
+
+    rerender({ current: { ...image } });
+
+    expect(result.current.displaySrc).toBe("blob:test");
+  });
+
   it("tries the full URL before falling back to the thumbnail", async () => {
     vi.stubGlobal(
       "fetch",

@@ -26,15 +26,17 @@ export function useImageViewerSource({
   const [progress, setProgress] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   const triedDirect = useRef(false);
+  const imageUrl = image?.url;
+  const thumbnailUrl = image?.thumbnailUrl;
 
   useEffect(() => {
-    if (!image) return;
+    if (!imageUrl) return;
     let cancelled = false;
     triedDirect.current = false;
     let objectUrl: string | null = null;
     const controller = new AbortController();
     setProgress(null);
-    setDisplaySrc(image.thumbnailUrl ?? null);
+    setDisplaySrc(thumbnailUrl ?? null);
     setFailed(false);
 
     const loadFromNetwork = async () => {
@@ -42,20 +44,20 @@ export function useImageViewerSource({
         // MEGA links are encrypted file pages, and Drive/Dropbox/GoFile hide
         // the direct file behind a provider API. Resolve them to the loopback
         // server before fetching, just like the player does.
-        const src = needsMediaResolution(image.url)
+        const src = needsMediaResolution(imageUrl)
           ? (
-              await withProviderPassword(image.url, () =>
-                api.resolveMedia(image.url),
+              await withProviderPassword(imageUrl, () =>
+                api.resolveMedia(imageUrl),
               )
             ).url
-          : image.url;
+          : imageUrl;
         const response = await fetch(src, {
           signal: controller.signal,
           cache: "force-cache",
         });
         if (!response.ok) {
           if (!cancelled) {
-            setDisplaySrc(image.thumbnailUrl ?? image.url);
+            setDisplaySrc(thumbnailUrl ?? imageUrl);
           }
           return;
         }
@@ -100,7 +102,7 @@ export function useImageViewerSource({
           return;
         }
         setProgress(null);
-        setDisplaySrc(image.url);
+        setDisplaySrc(imageUrl);
       }
     };
 
@@ -108,8 +110,8 @@ export function useImageViewerSource({
     let cacheRequestId: string | null = null;
     if (
       cacheMedia &&
-      image.url.startsWith("https://") &&
-      !isMegaFileUrl(image.url)
+      imageUrl.startsWith("https://") &&
+      !isMegaFileUrl(imageUrl)
     ) {
       const requestId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -142,7 +144,7 @@ export function useImageViewerSource({
         else unlisten = fn;
       });
       void api
-        .cacheMedia(image.url, requestId)
+        .cacheMedia(imageUrl, requestId)
         .then((url) => {
           if (cancelled) return;
           setDisplaySrc(url);
@@ -169,23 +171,23 @@ export function useImageViewerSource({
       }
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [cacheMedia, image, index]);
+  }, [cacheMedia, imageUrl, thumbnailUrl, index]);
 
   const handleImageError = useCallback(() => {
     // A blob can finish downloading and still fail to decode. Try the full
     // URL once before showing the thumbnail, otherwise the viewer silently
     // stays on the low-resolution image.
-    if (image && displaySrc !== image.url && !triedDirect.current) {
+    if (imageUrl && displaySrc !== imageUrl && !triedDirect.current) {
       triedDirect.current = true;
-      setDisplaySrc(image.url);
+      setDisplaySrc(imageUrl);
       return;
     }
-    if (image?.thumbnailUrl && displaySrc !== image.thumbnailUrl) {
-      setDisplaySrc(image.thumbnailUrl);
+    if (thumbnailUrl && displaySrc !== thumbnailUrl) {
+      setDisplaySrc(thumbnailUrl);
       return;
     }
     setFailed(true);
-  }, [displaySrc, image]);
+  }, [displaySrc, imageUrl, thumbnailUrl]);
 
   return {
     displaySrc,
