@@ -13,10 +13,13 @@ pub(super) fn is_not_modified(request: &str, etag: &str) -> bool {
             .unwrap_or(false)
 }
 
-pub(super) fn parse_range(request: &str, length: u64) -> Option<(u64, u64)> {
-    if length == 0 {
-        return None;
-    }
+pub(super) enum ByteRange {
+    Absent,
+    Satisfiable(u64, u64),
+    Unsatisfiable,
+}
+
+pub(super) fn parse_range(request: &str, length: u64) -> ByteRange {
     for line in request.lines() {
         let Some((name, value)) = line.split_once(':') else {
             continue;
@@ -24,30 +27,44 @@ pub(super) fn parse_range(request: &str, length: u64) -> Option<(u64, u64)> {
         if !name.eq_ignore_ascii_case("range") {
             continue;
         }
-        let spec = value.trim().strip_prefix("bytes=")?;
-        let (start, end) = spec.split_once('-')?;
-        if start.trim().is_empty() {
-            let suffix = end.trim().parse::<u64>().ok()?;
-            if suffix == 0 {
-                return None;
-            }
-            return Some((length.saturating_sub(suffix), length - 1));
+        let Some(spec) = value.trim().strip_prefix("bytes=") else {
+            return ByteRange::Absent;
+        };
+        let Some((start, end)) = spec.split_once('-') else {
+            return ByteRange::Unsatisfiable;
+        };
+        if length == 0 {
+            return ByteRange::Unsatisfiable;
         }
-        let start = start.trim().parse::<u64>().ok()?;
+        if start.trim().is_empty() {
+            let Ok(suffix) = end.trim().parse::<u64>() else {
+                return ByteRange::Unsatisfiable;
+            };
+            if suffix == 0 {
+                return ByteRange::Unsatisfiable;
+            }
+            return ByteRange::Satisfiable(length.saturating_sub(suffix), length - 1);
+        }
+        let Ok(start) = start.trim().parse::<u64>() else {
+            return ByteRange::Unsatisfiable;
+        };
         if start >= length {
-            return None;
+            return ByteRange::Unsatisfiable;
         }
         let end = if end.trim().is_empty() {
             length - 1
         } else {
-            end.trim().parse::<u64>().ok()?
+            let Ok(end) = end.trim().parse::<u64>() else {
+                return ByteRange::Unsatisfiable;
+            };
+            end
         };
         if end < start {
-            return None;
+            return ByteRange::Unsatisfiable;
         }
-        return Some((start, end.min(length - 1)));
+        return ByteRange::Satisfiable(start, end.min(length - 1));
     }
-    None
+    ByteRange::Absent
 }
 
 /// Parse an upstream `Content-Range: bytes start-end/total` header.
@@ -55,9 +72,11 @@ pub(super) fn parse_content_range(value: &str) -> Option<(u64, u64, u64)> {
     let value = value.trim().strip_prefix("bytes ")?;
     let (range, total) = value.split_once('/')?;
     let (start, end) = range.split_once('-')?;
-    Some((
-        start.trim().parse().ok()?,
-        end.trim().parse().ok()?,
-        total.trim().parse().ok()?,
-    ))
+    let start = start.trim().parse().ok()?;
+    let end = end.trim().parse().ok()?;
+    let total = total.trim().parse().ok()?;
+    if start > end || end >= total {
+        return None;
+    }
+    Some((start, end, total))
 }

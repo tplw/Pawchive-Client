@@ -2,7 +2,7 @@ mod mime;
 mod range;
 
 use mime::content_type;
-use range::{is_not_modified, parse_content_range, parse_range};
+use range::{is_not_modified, parse_content_range, parse_range, ByteRange};
 
 pub use mime::content_type_for_name;
 
@@ -226,7 +226,13 @@ async fn serve_file(
         return respond_not_modified(&mut socket, &etag).await;
     }
 
-    let range = parse_range(&request, length);
+    let range = match parse_range(&request, length) {
+        ByteRange::Absent => None,
+        ByteRange::Satisfiable(start, end) => Some((start, end)),
+        ByteRange::Unsatisfiable => {
+            return respond_range_not_satisfiable(&mut socket, length).await;
+        }
+    };
     let content_type = content_type(&path);
 
     let (status, start, end) = match range {
@@ -268,7 +274,13 @@ async fn serve_mega(
         return respond_not_modified(&mut socket, &etag).await;
     }
 
-    let range = parse_range(&request, length);
+    let range = match parse_range(&request, length) {
+        ByteRange::Absent => None,
+        ByteRange::Satisfiable(start, end) => Some((start, end)),
+        ByteRange::Unsatisfiable => {
+            return respond_range_not_satisfiable(&mut socket, length).await;
+        }
+    };
     let content_type = content_type_for_name(&stream.file.name);
 
     let (status, start, end) = match range {
@@ -337,7 +349,13 @@ async fn serve_proton(
         return respond_not_modified(&mut socket, &etag).await;
     }
 
-    let range = parse_range(&request, length);
+    let range = match parse_range(&request, length) {
+        ByteRange::Absent => None,
+        ByteRange::Satisfiable(start, end) => Some((start, end)),
+        ByteRange::Unsatisfiable => {
+            return respond_range_not_satisfiable(&mut socket, length).await;
+        }
+    };
     let content_type = stream
         .file
         .content_type
@@ -452,7 +470,13 @@ async fn serve_remote(
         return respond_not_modified(&mut socket, etag).await;
     }
 
-    let range = parse_range(&request, length);
+    let range = match parse_range(&request, length) {
+        ByteRange::Absent => None,
+        ByteRange::Satisfiable(start, end) => Some((start, end)),
+        ByteRange::Unsatisfiable => {
+            return respond_range_not_satisfiable(&mut socket, length).await;
+        }
+    };
     let (status, start, end) = match range {
         Some((start, end)) => ("206 Partial Content", start, end),
         None => ("200 OK", 0, length.saturating_sub(1)),
@@ -666,6 +690,13 @@ async fn respond_not_modified(socket: &mut TcpStream, etag: &str) -> std::io::Re
     socket.write_all(response.as_bytes()).await
 }
 
+async fn respond_range_not_satisfiable(socket: &mut TcpStream, length: u64) -> std::io::Result<()> {
+    let response = format!(
+        "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{length}\r\nContent-Length: 0\r\nAccept-Ranges: bytes\r\nConnection: close\r\n\r\n"
+    );
+    socket.write_all(response.as_bytes()).await
+}
+
 async fn write_media_headers(
     socket: &mut TcpStream,
     status: &str,
@@ -706,12 +737,34 @@ mod tests {
 
     #[test]
     fn parses_byte_ranges() {
-        assert_eq!(parse_range("Range: bytes=10-19", 100), Some((10, 19)));
-        assert_eq!(parse_range("Range: bytes=90-", 100), Some((90, 99)));
-        assert_eq!(parse_range("Range: bytes=-10", 100), Some((90, 99)));
-        assert_eq!(parse_range("Range: bytes=200-", 100), None);
-        assert_eq!(parse_range("Range: bytes=10-5", 100), None);
-        assert_eq!(parse_range("Accept: text/plain", 100), None);
+        assert!(matches!(
+            parse_range("Range: bytes=10-19", 100),
+            ByteRange::Satisfiable(10, 19)
+        ));
+        assert!(matches!(
+            parse_range("Range: bytes=90-", 100),
+            ByteRange::Satisfiable(90, 99)
+        ));
+        assert!(matches!(
+            parse_range("Range: bytes=-10", 100),
+            ByteRange::Satisfiable(90, 99)
+        ));
+        assert!(matches!(
+            parse_range("Range: bytes=200-", 100),
+            ByteRange::Unsatisfiable
+        ));
+        assert!(matches!(
+            parse_range("Range: bytes=10-5", 100),
+            ByteRange::Unsatisfiable
+        ));
+        assert!(matches!(
+            parse_range("Accept: text/plain", 100),
+            ByteRange::Absent
+        ));
+        assert!(matches!(
+            parse_range("Range: bytes=0-", 0),
+            ByteRange::Unsatisfiable
+        ));
     }
 
     #[tokio::test]
