@@ -101,12 +101,12 @@ describe("settings", () => {
       ),
     );
 
-    fireEvent.click(
-      screen.getByRole("switch", { name: "Prefetch comic images" }),
-    );
+    fireEvent.change(screen.getByDisplayValue("Off"), {
+      target: { value: "2" },
+    });
     await waitFor(() =>
       expect(api.saveSettings).toHaveBeenCalledWith(
-        expect.objectContaining({ comicPrefetchImages: true }),
+        expect.objectContaining({ comicPrefetchCount: 2 }),
       ),
     );
   });

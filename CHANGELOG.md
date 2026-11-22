@@ -42,11 +42,14 @@ queue preservation, navigation and playback fixes.
   continues into the next visible post's images using the active Discover,
   Search or creator feed order and filters. The mode stays on for the session
   and stops at the end of the loaded feed.
-- **Comic mode images** in Settings and in each creator filter. The default
-  can load only the first image when comic mode moves to another post, and a
-  creator can override it to load all images.
-- **Prefetch comic images** in Settings. When enabled, comic mode preloads the
-  next two images so moving to the next image does not wait for the download.
+- A dedicated **Comic mode** section in Settings with **Images per post** and
+  a **Prefetch images** count from Off to 5. Each creator filter can override
+  the image mode.
+- **Prefetch images** preloads the chosen number of upcoming images and loads
+  the next visible post ahead near the end of a post, so Next is ready. Higher
+  values use more network and memory.
+- Creator filters are grouped under **Creator**, **Posts**, **Comic mode** and
+  **Keywords** headings.
 - Settings now shows **Blocked creators** and **Updates** as full-width
   collapsible cards at the bottom, matching the account and About sections.
 

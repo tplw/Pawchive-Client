@@ -30,7 +30,7 @@ export function ImageViewer({
   onToggleComicMode,
   onNextPost,
   comicLoading = false,
-  prefetchImages = false,
+  prefetchCount = 0,
 }: {
   images: Attachment[];
   index: number;
@@ -40,7 +40,7 @@ export function ImageViewer({
   onToggleComicMode?: () => void;
   onNextPost?: () => void;
   comicLoading?: boolean;
-  prefetchImages?: boolean;
+  prefetchCount?: number;
 }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -110,8 +110,11 @@ export function ImageViewer({
   });
 
   useEffect(() => {
-    if (!comicMode || !prefetchImages) return;
-    for (const target of images.slice(index + 1, index + 3)) {
+    if (!comicMode || prefetchCount <= 0) return;
+    for (const target of images.slice(
+      index + 1,
+      index + 1 + prefetchCount,
+    )) {
       if (
         !target.url.startsWith("https://") ||
         needsMediaResolution(target.url)
@@ -122,7 +125,7 @@ export function ImageViewer({
       preload.decoding = "async";
       preload.src = target.url;
     }
-  }, [comicMode, images, index, prefetchImages]);
+  }, [comicMode, images, index, prefetchCount]);
 
   useEffect(() => {
     setZoom(1);

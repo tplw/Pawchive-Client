@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Ban,
+  BookOpen,
   ChevronDown,
   ExternalLink,
   Filter,
@@ -437,34 +438,6 @@ export function SettingsPage() {
               text-only and image-only posts. This is the default for every
               creator filter.
             </p>
-            <label className="flex items-center justify-between gap-3 py-1.5 text-xs font-medium text-ink">
-              Comic mode images
-              <select
-                value={settings.comicFirstImageOnly ? "first" : "all"}
-                onChange={(event) =>
-                  void saveSettings({
-                    comicFirstImageOnly: event.target.value === "first",
-                  })
-                }
-                className="h-8 w-40 rounded-lg border border-line bg-base px-2 text-xs text-ink outline-none focus:border-accent/70"
-              >
-                <option value="all">All images</option>
-                <option value="first">First image only</option>
-              </select>
-            </label>
-            <p className="text-[10px] leading-relaxed text-muted">
-              Default for creator filters. Comic mode loads only the first
-              image when it moves to another post.
-            </p>
-            <Toggle
-              compact
-              checked={settings.comicPrefetchImages}
-              onChange={(checked) =>
-                void saveSettings({ comicPrefetchImages: checked })
-              }
-              label="Prefetch comic images"
-              description="Preload the next two images while reading in Comic mode. Uses extra network and memory."
-            />
             <Toggle
               compact
               checked={settings.hideUnavailablePosts}
@@ -502,6 +475,56 @@ export function SettingsPage() {
             </label>
           </div>
         </SettingsSection>
+        </div>
+
+        <div className="md:col-span-2">
+          <SettingsSection icon={BookOpen} title="Comic mode">
+            <div className="space-y-2">
+              <label className="flex items-center justify-between gap-3 py-1.5 text-xs font-medium text-ink">
+                Images per post
+                <select
+                  value={settings.comicFirstImageOnly ? "first" : "all"}
+                  onChange={(event) =>
+                    void saveSettings({
+                      comicFirstImageOnly: event.target.value === "first",
+                    })
+                  }
+                  className="h-8 w-40 rounded-lg border border-line bg-base px-2 text-xs text-ink outline-none focus:border-accent/70"
+                >
+                  <option value="all">All images</option>
+                  <option value="first">First image only</option>
+                </select>
+              </label>
+              <p className="text-[10px] leading-relaxed text-muted">
+                Default for creator filters. Comic mode applies this when it
+                moves into another post.
+              </p>
+              <label className="flex items-center justify-between gap-3 py-1.5 text-xs font-medium text-ink">
+                Prefetch images
+                <select
+                  value={settings.comicPrefetchCount}
+                  onChange={(event) =>
+                    void saveSettings({
+                      comicPrefetchCount: Number(event.target.value),
+                    })
+                  }
+                  className="h-8 w-40 rounded-lg border border-line bg-base px-2 text-xs text-ink outline-none focus:border-accent/70"
+                >
+                  <option value={0}>Off</option>
+                  {[1, 2, 3, 4, 5].map((count) => (
+                    <option key={count} value={count}>
+                      {count} image{count === 1 ? "" : "s"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-[10px] leading-relaxed text-muted">
+                Preloads this many upcoming images. Near the end of a post,
+                the next visible post is loaded ahead. Higher values use more
+                network and memory.
+              </p>
+            </div>
+          </SettingsSection>
         </div>
 
         <SettingsSection icon={FolderOpen} title="Downloads">

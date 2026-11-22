@@ -87,8 +87,8 @@ function PostDetailContent({
   const comicFirstImageOnly = useAppStore(
     (state) => state.settings.comicFirstImageOnly,
   );
-  const comicPrefetchImages = useAppStore(
-    (state) => state.settings.comicPrefetchImages,
+  const comicPrefetchCount = useAppStore(
+    (state) => state.settings.comicPrefetchCount,
   );
   const previousRoute = useAppStore((state) => state.previousRoute);
   const enqueue = usePlayerStore((state) => state.enqueue);
@@ -568,7 +568,7 @@ function PostDetailContent({
   ]);
 
   useEffect(() => {
-    if (!comicContext || !comicMode || !comicPrefetchImages) return;
+    if (!comicContext || !comicMode || comicPrefetchCount <= 0) return;
     if (viewerIndex === null) return;
     if (viewerIndex < viewerImages.length - 2) return;
     const key = `${viewerIndex}:${viewerImages.length}`;
@@ -579,7 +579,7 @@ function PostDetailContent({
   }, [
     comicContext,
     comicMode,
-    comicPrefetchImages,
+    comicPrefetchCount,
     loadNextComicPost,
     viewerImages.length,
     viewerIndex,
@@ -848,7 +848,7 @@ function PostDetailContent({
             comicMode && comicContext ? loadNextComicPost : undefined
           }
           comicLoading={comicLoading}
-          prefetchImages={comicMode && comicPrefetchImages}
+          prefetchCount={comicMode ? comicPrefetchCount : 0}
         />
       ) : null}
 

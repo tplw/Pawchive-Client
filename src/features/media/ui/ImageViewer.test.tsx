@@ -48,7 +48,7 @@ describe("image viewer comic mode", () => {
         comicMode
         onToggleComicMode={() => undefined}
         onNextPost={() => undefined}
-        prefetchImages
+        prefetchCount={2}
       />,
     );
 

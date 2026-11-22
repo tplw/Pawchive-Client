@@ -1,5 +1,6 @@
 import type { CreatorFilter } from "../../../shared/lib/creatorFilters";
 import type { MediaFilter } from "../../../shared/types";
+import type { ReactNode } from "react";
 import { Button, Field, Modal, Toggle } from "../../../shared/ui";
 
 export function CreatorFilterModal({
@@ -46,7 +47,8 @@ export function CreatorFilterModal({
         </>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-5">
+        <FilterGroup title="Creator">
         <Toggle
           checked={isAsmr}
           onChange={(checked) =>
@@ -79,6 +81,8 @@ export function CreatorFilterModal({
               : "Only show posts that include an audio attachment."
           }
         />
+        </FilterGroup>
+        <FilterGroup title="Posts">
         <Field
           label="Post media"
           hint="Follows the main Settings option until you override it here."
@@ -98,6 +102,16 @@ export function CreatorFilterModal({
             <option value="filesOnly">Files only</option>
           </select>
         </Field>
+        <Toggle
+          checked={filter.hideUnavailable}
+          onChange={(checked) =>
+            onUpdateFilter({ ...filter, hideUnavailable: checked })
+          }
+          label="Hide unavailable posts"
+          description="Hide posts that aren't imported or exceed the archive file-size limit. Posts with playable or downloadable non-image files stay visible."
+        />
+        </FilterGroup>
+        <FilterGroup title="Comic mode">
         <Field
           label="Comic mode images"
           hint="Follows the main Settings value until you override it here."
@@ -125,14 +139,8 @@ export function CreatorFilterModal({
             <option value="all">All images</option>
           </select>
         </Field>
-        <Toggle
-          checked={filter.hideUnavailable}
-          onChange={(checked) =>
-            onUpdateFilter({ ...filter, hideUnavailable: checked })
-          }
-          label="Hide unavailable posts"
-          description="Hide posts that aren't imported or exceed the archive file-size limit. Posts with playable or downloadable non-image files stay visible."
-        />
+        </FilterGroup>
+        <FilterGroup title="Keywords">
         <Toggle
           checked={filter.overrideGlobalKeywords}
           onChange={(checked) =>
@@ -153,11 +161,29 @@ export function CreatorFilterModal({
             className="w-full resize-y rounded-lg border border-line bg-base px-3 py-2 text-sm text-ink outline-none transition placeholder:text-dim focus:border-accent/70 focus:ring-2 focus:ring-accent/15"
           />
         </Field>
+        </FilterGroup>
         <p className="text-[10px] leading-relaxed text-dim">
           Filters are saved on this device and apply to this creator's post
           list. Direct post links still open normally.
         </p>
       </div>
     </Modal>
+  );
+}
+
+function FilterGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-3 border-t border-line/60 pt-4 first:border-t-0 first:pt-0">
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">
+        {title}
+      </h3>
+      <div className="space-y-3">{children}</div>
+    </section>
   );
 }
