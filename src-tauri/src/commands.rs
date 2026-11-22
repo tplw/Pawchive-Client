@@ -11,9 +11,9 @@ use crate::features::updates::service::{UpdateInfo, UpdateService};
 use crate::shared::config::PawchiveConfig;
 use crate::shared::error::{AppError, AppResult};
 use crate::shared::models::{
-    AccountState, Announcement, AppSettings, Attachment, Comment, CreatorPage, CreatorProfile,
-    CreatorSummary, DownloadRecord, DownloadRequest, PlaybackProgress, Playlist, PlaylistItem,
-    PostDetail, PostPage, PostSummary, Revision, SearchPage,
+    AccountState, Announcement, AppSettings, Attachment, Comment, CreatorIndexStatus, CreatorPage,
+    CreatorProfile, CreatorSummary, DownloadRecord, DownloadRequest, PlaybackProgress, Playlist,
+    PlaylistItem, PostDetail, PostPage, PostSummary, Revision, SearchPage,
 };
 use crate::shared::task::blocking;
 use tauri::{AppHandle, State};
@@ -99,6 +99,11 @@ pub async fn sync_creators(
 #[tauri::command]
 pub async fn get_creator_count(state: State<'_, AppState>) -> AppResult<i64> {
     CreatorService::new(st(&state)).count().await
+}
+
+#[tauri::command]
+pub async fn get_creator_index_status(state: State<'_, AppState>) -> AppResult<CreatorIndexStatus> {
+    CreatorService::new(st(&state)).status().await
 }
 
 #[tauri::command]

@@ -26,7 +26,8 @@ npm run tauri dev
 ```
 
 The first launch downloads the creator index in the background. Later launches
-reuse the local SQLite copy.
+reuse the local SQLite copy and refresh it automatically when it is more than a
+day old.
 
 ## Repository map
 

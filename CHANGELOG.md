@@ -30,7 +30,8 @@ project follows [Semantic Versioning](https://semver.org/).
   action row below the cover art, with the updated time and profile-details
   warning on a right-aligned line underneath.
 - Creator cards now show the same last-updated time as the profile. Loading a
-  profile refreshes its cached creator-index row and the creator lists.
+  profile refreshes its cached creator-index row and the creator lists, and the
+  full creator index refreshes automatically when it is more than a day old.
 - The image viewer now supports scroll wheel and trackpad navigation. Ctrl/Cmd
   plus wheel or pinch zooms, and a plain wheel pans once the image is zoomed.
 

@@ -6,6 +6,7 @@ import type {
   AppSettings,
   Comment,
   DownloadRecord,
+  CreatorIndexStatus,
   CreatorPage,
   CreatorProfile,
   CreatorSummary,
@@ -78,6 +79,8 @@ export const api = {
       call<number>("sync_creators", { requestId }),
     ),
   getCreatorCount: () => call<number>("get_creator_count"),
+  getCreatorIndexStatus: () =>
+    call<CreatorIndexStatus>("get_creator_index_status"),
   listCreators: (params: {
     query?: string;
     service?: string;

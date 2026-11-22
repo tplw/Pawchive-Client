@@ -170,6 +170,7 @@ pub fn run() {
             commands::set_status_bar_hidden,
             commands::sync_creators,
             commands::get_creator_count,
+            commands::get_creator_index_status,
             commands::list_creators,
             commands::get_creator,
             commands::get_creator_profile,

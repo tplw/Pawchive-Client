@@ -16,7 +16,7 @@ vi.mock("../shared/api", () => ({
     saveSettings: vi.fn(),
     getSettings: vi.fn(),
     getConfig: vi.fn(),
-    getCreatorCount: vi.fn(),
+    getCreatorIndexStatus: vi.fn(),
     syncCreators: vi.fn(),
     getAccountState: vi.fn(),
     syncAccountFavorites: vi.fn(),
@@ -118,7 +118,10 @@ describe("app store", () => {
       autoSyncFavorites: true,
     });
     vi.mocked(api.getConfig).mockResolvedValue(FALLBACK_CONFIG);
-    vi.mocked(api.getCreatorCount).mockResolvedValue(100);
+    vi.mocked(api.getCreatorIndexStatus).mockResolvedValue({
+      count: 100,
+      syncedAt: Math.floor(Date.now() / 1000),
+    });
     vi.mocked(api.getAccountState).mockResolvedValue({
       loggedIn: true,
       username: "ada",
@@ -272,16 +275,34 @@ describe("app store", () => {
     expect(state.toasts).toHaveLength(0);
   });
 
-  it("uses an existing creator index without syncing again", async () => {
-    vi.mocked(api.getCreatorCount).mockResolvedValue(98_000);
+  it("uses a fresh creator index without syncing again", async () => {
+    vi.mocked(api.getCreatorIndexStatus).mockResolvedValue({
+      count: 98_000,
+      syncedAt: Math.floor(Date.now() / 1000),
+    });
     await useAppStore.getState().ensureCreatorIndex();
     expect(api.syncCreators).not.toHaveBeenCalled();
     expect(useAppStore.getState().indexState).toBe("ready");
     expect(useAppStore.getState().indexCount).toBe(98_000);
   });
 
+  it("refreshes a stale creator index automatically", async () => {
+    vi.mocked(api.getCreatorIndexStatus).mockResolvedValue({
+      count: 98_000,
+      syncedAt: Math.floor(Date.now() / 1000) - 25 * 24 * 60 * 60,
+    });
+    vi.mocked(api.syncCreators).mockResolvedValue(98_000);
+    await useAppStore.getState().ensureCreatorIndex();
+    expect(api.syncCreators).toHaveBeenCalledOnce();
+    expect(useAppStore.getState().indexState).toBe("ready");
+    expect(useAppStore.getState().indexCount).toBe(98_000);
+  });
+
   it("downloads the creator index when it is empty", async () => {
-    vi.mocked(api.getCreatorCount).mockResolvedValue(0);
+    vi.mocked(api.getCreatorIndexStatus).mockResolvedValue({
+      count: 0,
+      syncedAt: null,
+    });
     vi.mocked(api.syncCreators).mockResolvedValue(98_000);
     await useAppStore.getState().ensureCreatorIndex();
     expect(api.syncCreators).toHaveBeenCalledOnce();

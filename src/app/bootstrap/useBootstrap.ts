@@ -38,4 +38,14 @@ export function useBootstrap() {
     player.setVolume(settings.volume);
     player.setSpeed(settings.playbackSpeed);
   }, [ready, settings.volume, settings.playbackSpeed]);
+
+  useEffect(() => {
+    if (!ready) return;
+    // The store decides whether the index is old enough to download again,
+    // so this hourly check is cheap while the app stays open.
+    const timer = window.setInterval(() => {
+      void useAppStore.getState().ensureCreatorIndex();
+    }, 60 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [ready]);
 }

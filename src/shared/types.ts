@@ -131,6 +131,11 @@ export interface CreatorPage {
   synced: boolean;
 }
 
+export interface CreatorIndexStatus {
+  count: number;
+  syncedAt: number | null;
+}
+
 export interface SearchPage {
   posts: PostSummary[];
   creators: CreatorSummary[];

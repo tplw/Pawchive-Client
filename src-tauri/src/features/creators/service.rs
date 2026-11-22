@@ -1,6 +1,8 @@
 use crate::app::state::AppState;
 use crate::shared::error::{AppError, AppResult};
-use crate::shared::models::{now_ts, Announcement, CreatorPage, CreatorProfile, CreatorSummary};
+use crate::shared::models::{
+    now_ts, Announcement, CreatorIndexStatus, CreatorPage, CreatorProfile, CreatorSummary,
+};
 use crate::shared::security::{sanitize_html, validate_id, validate_service};
 use crate::shared::task::blocking;
 use std::sync::Arc;
@@ -56,6 +58,30 @@ impl CreatorService {
         let count = blocking(move || db.creator_count()).await?;
         tracing::debug!(count, "creator index count requested");
         Ok(count)
+    }
+
+    pub(crate) async fn status(&self) -> AppResult<CreatorIndexStatus> {
+        let db = Arc::clone(&self.state.db);
+        blocking(move || {
+            // Creator rows that predate import-state tracking were migrated
+            // with `ever_imported = 1`. Force one refresh so cards stop
+            // treating archived and unimported creators the same.
+            if db
+                .get_raw_setting("creators_import_state_synced")?
+                .is_none()
+            {
+                return Ok(CreatorIndexStatus {
+                    count: 0,
+                    synced_at: None,
+                });
+            }
+            let count = db.creator_count()?;
+            let synced_at = db
+                .get_raw_setting("creators_synced_at")?
+                .and_then(|value| value.parse::<i64>().ok());
+            Ok(CreatorIndexStatus { count, synced_at })
+        })
+        .await
     }
 
     pub(crate) async fn list(

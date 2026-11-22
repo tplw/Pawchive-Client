@@ -59,6 +59,13 @@ pub struct CreatorProfile {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct CreatorIndexStatus {
+    pub count: i64,
+    pub synced_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct BlockedCreator {
     pub service: String,
     pub id: String,

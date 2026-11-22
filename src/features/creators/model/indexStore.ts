@@ -4,6 +4,9 @@ import { queryClient } from "../../../shared/lib/queryClient";
 import { queryKeys } from "../../../shared/query/keys";
 import type { AppStore, AppStoreApi } from "../../../app/model/types";
 
+/** Refresh the downloaded creator index once a day in the background. */
+const CREATOR_INDEX_MAX_AGE_SECS = 24 * 60 * 60;
+
 export function createCreatorIndexActions({
   get,
   set,
@@ -13,9 +16,13 @@ export function createCreatorIndexActions({
       if (get().indexState === "syncing") return;
       set({ indexState: "syncing", indexError: null });
       try {
-        const existing = await api.getCreatorCount();
-        if (existing > 0 && !force) {
-          set({ indexState: "ready", indexCount: existing });
+        const status = await api.getCreatorIndexStatus();
+        const age = status.syncedAt
+          ? Math.floor(Date.now() / 1000) - status.syncedAt
+          : Number.POSITIVE_INFINITY;
+        const stale = age >= CREATOR_INDEX_MAX_AGE_SECS;
+        if (status.count > 0 && !force && !stale) {
+          set({ indexState: "ready", indexCount: status.count });
           return;
         }
         const total = await api.syncCreators();
