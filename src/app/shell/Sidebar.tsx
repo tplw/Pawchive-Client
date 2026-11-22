@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import type { TabName } from "../../shared/types";
 import { cn } from "../../shared/lib/format";
 import { switchTab } from "../../shared/lib/router";
-import { currentWindow } from "../../shared/lib/window";
+import { startWindowDrag } from "../../shared/lib/window";
 import { useAppStore } from "../store";
 import { SiteIcon, type SiteIconName } from "../../shared/SiteIcon";
 import { BrandPaw } from "./BrandPaw";
@@ -114,11 +114,7 @@ export function Sidebar() {
     >
       <div
         data-tauri-drag-region
-        onMouseDown={(event) => {
-          if (event.button !== 0) return;
-          const win = currentWindow();
-          if (win) void win.startDragging().catch(() => undefined);
-        }}
+        onMouseDown={startWindowDrag}
         className={cn(
           "sidebar-brand flex shrink-0 items-center gap-2.5 px-4",
           collapsed && "justify-center px-0",

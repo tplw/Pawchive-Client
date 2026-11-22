@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, LoaderCircle } from "lucide-react";
 import { goBack, goForward, routeTitle } from "../../shared/lib/router";
-import { currentWindow } from "../../shared/lib/window";
+import { startWindowDrag } from "../../shared/lib/window";
 import { useAppStore } from "../store";
 import { IconButton } from "../../shared/ui";
 import { isMobile } from "../../shared/lib/platform";
@@ -38,7 +38,11 @@ export function TopBar() {
   }
 
   return (
-    <header className="topbar flex shrink-0 items-center gap-2 border-b border-line/55 px-4 sm:px-6">
+    <header
+      data-tauri-drag-region
+      onMouseDown={startWindowDrag}
+      className="topbar flex shrink-0 items-center gap-2 border-b border-line/55 px-4 sm:px-6"
+    >
       <div className="flex items-center gap-0.5">
         <IconButton
           label="Back"
@@ -57,11 +61,6 @@ export function TopBar() {
       </div>
       <div
         data-tauri-drag-region
-        onMouseDown={(event) => {
-          if (event.button !== 0) return;
-          const win = currentWindow();
-          if (win) void win.startDragging().catch(() => undefined);
-        }}
         className="ml-1 min-w-0 flex-1 self-stretch"
       >
         <h1 className="flex h-full items-center truncate text-[13px] font-medium text-ink">
