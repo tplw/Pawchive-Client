@@ -7,7 +7,7 @@ use cache::ResponseCache;
 use reqwest::{Method, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, Weak};
 use std::time::Duration;
 use tokio::sync::{Mutex as AsyncMutex, Semaphore};
 use tokio_util::sync::CancellationToken;
@@ -25,7 +25,7 @@ pub struct ApiClient {
     http: reqwest::Client,
     cfg: PawchiveConfig,
     cache: Arc<ResponseCache>,
-    inflight: Arc<Mutex<HashMap<String, Arc<AsyncMutex<()>>>>>,
+    inflight: Arc<Mutex<HashMap<String, Weak<AsyncMutex<()>>>>>,
     gate: Arc<Semaphore>,
     net: NetworkSettings,
     session: Arc<RwLock<Option<String>>>,
@@ -273,12 +273,26 @@ impl ApiClient {
 
         let lock = {
             let mut inflight = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
-            inflight
-                .entry(url.to_string())
-                .or_insert_with(|| Arc::new(AsyncMutex::new(())))
-                .clone()
+            // Completed request locks are weakly held so they do not grow the
+            // table forever as the user searches and browses. Prune them on
+            // each lookup while preserving locks that still have waiters.
+            inflight.retain(|_, lock| lock.strong_count() > 0);
+            if let Some(lock) = inflight.get(url).and_then(Weak::upgrade) {
+                lock
+            } else {
+                let lock = Arc::new(AsyncMutex::new(()));
+                inflight.insert(url.to_string(), Arc::downgrade(&lock));
+                lock
+            }
         };
-        let _guard = lock.lock().await;
+        let guard = if let Some(token) = cancel {
+            tokio::select! {
+                guard = lock.lock() => guard,
+                _ = token.cancelled() => return Err(AppError::Cancelled),
+            }
+        } else {
+            lock.lock().await
+        };
 
         // Another caller may have filled the cache while we waited.
         if let Some(value) = self.cache.get(url) {
@@ -293,6 +307,7 @@ impl ApiClient {
             AppError::InvalidResponse(format!("the archive returned malformed JSON: {e}"))
         })?;
         self.cache.insert(url.to_string(), value.clone(), ttl);
+        drop(guard);
         Ok(value)
     }
 
