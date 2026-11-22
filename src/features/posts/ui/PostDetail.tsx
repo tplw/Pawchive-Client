@@ -985,14 +985,10 @@ function PostDetailContent({
             comicContext ? () => setComicMode(!comicMode) : undefined
           }
           onNextPost={
-            comicMode && comicContext && hasNextComicPost
-              ? loadNextComicPost
-              : undefined
+            comicMode && comicContext ? loadNextComicPost : undefined
           }
           onPreviousPost={
-            comicMode && comicContext && hasPreviousComicPost
-              ? loadPreviousComicPost
-              : undefined
+            comicMode && comicContext ? loadPreviousComicPost : undefined
           }
           comicLoading={comicLoading}
           comicPreviousLoading={comicPreviousLoading}
