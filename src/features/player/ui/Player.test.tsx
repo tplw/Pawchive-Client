@@ -413,4 +413,47 @@ describe("player", () => {
     fireEvent.loadedMetadata(video);
     await waitFor(() => expect(video.currentTime).toBeCloseTo(40, 1));
   });
+
+  it("ignores late playback events from an outgoing queue item", async () => {
+    const next: QueueItem = {
+      ...item,
+      id: "patreon:1:3:/cc/dd/next.mp4",
+      url: "https://file.pawchive.pw/data/cc/dd/next.mp4",
+      filePath: "/cc/dd/next.mp4",
+      fileName: "next.mp4",
+      title: "Next video",
+    };
+    vi.mocked(api.validateMedia).mockImplementation(async (url) => url);
+
+    render(<Player />);
+    const video = document.querySelector("video") as HTMLVideoElement;
+    await waitFor(() => expect(video.src).toBe(item.url));
+
+    act(() => {
+      usePlayerStore.setState({ queue: [item, next], currentId: next.id });
+    });
+    await waitFor(() => expect(video.src).toBe(next.url));
+
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      value: 71,
+    });
+    Object.defineProperty(video, "duration", {
+      configurable: true,
+      value: 120,
+    });
+    Object.defineProperty(video, "buffered", {
+      configurable: true,
+      value: { length: 1, end: () => 90 },
+    });
+    fireEvent.durationChange(video);
+    fireEvent.timeUpdate(video);
+    fireEvent.progress(video);
+
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTime: 0,
+      duration: 0,
+      buffered: 0,
+    });
+  });
 });

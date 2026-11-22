@@ -129,15 +129,20 @@ export function usePlaybackProgress({
 
   const onTimeUpdate = useCallback(() => {
     const video = videoRef.current;
-    if (video) setPosition(video.currentTime, video.duration);
-  }, [setPosition, videoRef]);
+    if (!video || loadedItemRef.current !== item?.id) return;
+    setPosition(video.currentTime, video.duration);
+  }, [item?.id, loadedItemRef, setPosition, videoRef]);
 
   const onProgress = useCallback(() => {
     const video = videoRef.current;
-    if (video && video.buffered.length > 0) {
+    if (
+      video &&
+      loadedItemRef.current === item?.id &&
+      video.buffered.length > 0
+    ) {
       setBuffered(video.buffered.end(video.buffered.length - 1));
     }
-  }, [setBuffered, videoRef]);
+  }, [item?.id, loadedItemRef, setBuffered, videoRef]);
 
   return { saveProgress, onTimeUpdate, onProgress };
 }

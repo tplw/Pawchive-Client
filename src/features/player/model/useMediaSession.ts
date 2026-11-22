@@ -75,21 +75,27 @@ export function useMediaSession(item: QueueItem | null | undefined) {
   useEffect(() => {
     if (!hasMediaSession()) return;
     try {
-      navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+      navigator.mediaSession.playbackState = !item
+        ? "none"
+        : playing
+          ? "playing"
+          : "paused";
     } catch {
       // Playback state is optional.
     }
-  }, [playing]);
+  }, [item, playing]);
 
   useEffect(() => {
-    if (!item || !hasMediaSession()) return;
+    if (!hasMediaSession()) return;
     try {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: item.title || item.fileName,
-        artist: item.creatorName,
-        album: "Pawchive",
-        artwork: item.artwork ? [{ src: item.artwork }] : [],
-      });
+      navigator.mediaSession.metadata = item
+        ? new MediaMetadata({
+            title: item.title || item.fileName,
+            artist: item.creatorName,
+            album: "Pawchive",
+            artwork: item.artwork ? [{ src: item.artwork }] : [],
+          })
+        : null;
     } catch {
       // Media Session is optional.
     }

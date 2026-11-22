@@ -67,6 +67,7 @@ export function Player() {
   const setPlaying = usePlayerStore((state) => state.setPlaying);
   const setPosition = usePlayerStore((state) => state.setPosition);
   const setDuration = usePlayerStore((state) => state.setDuration);
+  const setVolume = usePlayerStore((state) => state.setVolume);
   const setSpeed = usePlayerStore((state) => state.setSpeed);
   const next = usePlayerStore((state) => state.next);
   const previous = usePlayerStore((state) => state.previous);
@@ -79,6 +80,11 @@ export function Player() {
     volume: settings.volume,
     speed: settings.playbackSpeed,
   });
+
+  useEffect(() => {
+    setVolume(settings.volume);
+    setSpeed(settings.playbackSpeed);
+  }, [settings.playbackSpeed, settings.volume, setSpeed, setVolume]);
 
   const item = useMemo(() => {
     const current = queue.find((entry) => entry.id === currentId) ?? null;
@@ -405,7 +411,9 @@ export function Player() {
       videoStageStyle={videoStageStyle}
       onLoadedMetadata={onLoadedMetadata}
       onLoadedData={() => setVideoReady(true)}
-      onDurationChange={setDuration}
+      onDurationChange={(nextDuration) => {
+        if (loadedItemRef.current === item.id) setDuration(nextDuration);
+      }}
       onTimeUpdate={onTimeUpdate}
       onProgress={onProgress}
       onWaiting={() => setLoading(true)}
@@ -418,11 +426,15 @@ export function Player() {
         }
       }}
       onPlaying={() => {
+        if (loadedItemRef.current !== item.id) return;
         setLoading(false);
         setPlaying(true);
       }}
-      onPlay={() => setPlaying(true)}
+      onPlay={() => {
+        if (loadedItemRef.current === item.id) setPlaying(true);
+      }}
       onPause={() => {
+        if (loadedItemRef.current !== item.id) return;
         setPlaying(false);
         saveProgress();
       }}

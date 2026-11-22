@@ -131,4 +131,20 @@ describe("player queue", () => {
     expect(state.currentId).toBeNull();
     expect(state.playing).toBe(false);
   });
+
+  it("drops incomplete persisted queue entries", () => {
+    const merge = usePlayerStore.persist.getOptions().merge;
+    expect(merge).toBeTypeOf("function");
+
+    const hydrated = merge?.(
+      {
+        queue: [{ id: "incomplete", mediaKind: "audio" }],
+        currentId: "incomplete",
+      },
+      usePlayerStore.getState(),
+    );
+
+    expect(hydrated?.queue).toEqual([]);
+    expect(hydrated?.currentId).toBeNull();
+  });
 });

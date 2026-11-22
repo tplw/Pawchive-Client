@@ -240,6 +240,7 @@ export function useMediaSource({
       hlsFallbackRef.current !== item.id
     ) {
       hlsFallbackRef.current = item.id;
+      loadedItemRef.current = null;
       setSource(item.downloadUrl);
       setError(null);
       setLoading(true);
@@ -253,6 +254,7 @@ export function useMediaSource({
       (code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED ||
         code === MediaError.MEDIA_ERR_DECODE)
     ) {
+      loadedItemRef.current = null;
       startTranscode();
       return;
     }
@@ -292,6 +294,7 @@ export function useMediaSource({
         resumeRef.current = video.currentTime;
       }
       proxyFallbackRef.current = item.id;
+      loadedItemRef.current = null;
       setError(null);
       setLoading(true);
       setPlaying(true);
@@ -313,6 +316,7 @@ export function useMediaSource({
   }, [
     hlsFallbackRef,
     item,
+    loadedItemRef,
     proxyFallbackRef,
     resumeRef,
     setError,

@@ -61,6 +61,30 @@ function playerStorage() {
   return memoryStorage;
 }
 
+function isStoredQueueItem(entry: unknown): entry is QueueItem {
+  if (!entry || typeof entry !== "object") return false;
+  const item = entry as Partial<QueueItem>;
+  return (
+    typeof item.id === "string" &&
+    typeof item.url === "string" &&
+    typeof item.filePath === "string" &&
+    typeof item.fileName === "string" &&
+    typeof item.title === "string" &&
+    typeof item.creatorName === "string" &&
+    typeof item.service === "string" &&
+    typeof item.creatorId === "string" &&
+    typeof item.postId === "string" &&
+    (item.mediaKind === "audio" || item.mediaKind === "video") &&
+    (item.downloadUrl === undefined ||
+      item.downloadUrl === null ||
+      typeof item.downloadUrl === "string") &&
+    (item.localPath === undefined ||
+      item.localPath === null ||
+      typeof item.localPath === "string") &&
+    (item.artwork === null || typeof item.artwork === "string")
+  );
+}
+
 export const usePlayerStore = create<PlayerStore>()(
   persist(
     (set, get) => ({
@@ -137,7 +161,9 @@ export const usePlayerStore = create<PlayerStore>()(
       queue: nextQueue,
       currentId: nextId,
       playing: nextId ? get().playing : false,
-      currentTime: currentId === id ? 0 : get().currentTime,
+      ...(currentId === id
+        ? { currentTime: 0, duration: 0, buffered: 0 }
+        : {}),
     });
   },
 
@@ -250,9 +276,9 @@ export const usePlayerStore = create<PlayerStore>()(
         queue,
         currentId,
         playing: currentId ? state.playing : false,
-        currentTime: currentId ? state.currentTime : 0,
-        duration: currentId ? state.duration : 0,
-        buffered: currentId ? state.buffered : 0,
+        ...(currentId === state.currentId
+          ? {}
+          : { currentTime: 0, duration: 0, buffered: 0 }),
       };
     }),
 
@@ -286,14 +312,10 @@ export const usePlayerStore = create<PlayerStore>()(
       }),
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<PlayerStore>;
-        const savedQueue = Array.isArray(saved.queue) ? saved.queue : [];
-        const queue = savedQueue.filter(
-          (entry) =>
-            entry &&
-            typeof entry === "object" &&
-            typeof entry.id === "string" &&
-            isPlayableMediaKind(entry.mediaKind),
-        );
+        const savedQueue: unknown[] = Array.isArray(saved.queue)
+          ? saved.queue
+          : [];
+        const queue = savedQueue.filter(isStoredQueueItem);
         const currentId = queue.some((entry) => entry.id === saved.currentId)
           ? saved.currentId ?? null
           : queue[0]?.id ?? null;
