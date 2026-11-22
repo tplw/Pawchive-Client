@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -8,7 +8,7 @@ import {
   ExternalLink,
   Play,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api } from "../../../shared/api";
 import { errorMessage, isAppError, serviceLabel } from "../../../shared/lib/constants";
 import {
@@ -32,12 +32,21 @@ import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
 import { queryKeys } from "../../../shared/query/keys";
 import { PostAttachments } from "./PostAttachments";
 import { PostDiscussion } from "./PostDiscussion";
-import { neighborForPost } from "../model/postNavigation";
+import {
+  activeFeedHasMore,
+  neighborForPost,
+  nextPostsInActiveFeed,
+  postMayHaveImages,
+} from "../model/postNavigation";
 import { withProviderPassword } from "../../../shared/lib/providerPasswords";
 import { useDownloadActions } from "../../downloads/model/useDownloadActions";
 import { queueItemFromAttachment } from "../../player/model/queue";
 import { Badge, Button, EmptyState, Spinner } from "../../../shared/ui";
 import type { Attachment, PlaylistItemInput } from "../../../shared/types";
+
+// Sticky for the session: once comic mode is enabled it stays on while the
+// user moves between posts.
+let savedComicMode = false;
 
 export function PostDetailPage({
   service,
@@ -78,9 +87,21 @@ function PostDetailContent({
   const enqueue = usePlayerStore((state) => state.enqueue);
   const { startDownload, downloadPost: startPostDownload } =
     useDownloadActions();
+  const queryClient = useQueryClient();
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [viewerImages, setViewerImages] = useState<Attachment[]>([]);
+  const [comicMode, setComicModeState] = useState(savedComicMode);
+  const [comicLoading, setComicLoading] = useState(false);
+  const comicBusy = useRef(false);
+  const comicRequest = useRef(0);
+  const comicAnchor = useRef({ service, creatorId, postId });
   const [playlistItem, setPlaylistItem] = useState<PlaylistItemInput | null>(null);
   const [navigating, setNavigating] = useState(false);
+
+  const setComicMode = (value: boolean) => {
+    savedComicMode = value;
+    setComicModeState(value);
+  };
 
   const post = useQuery({
     queryKey: queryKeys.post(service, creatorId, postId),
@@ -402,6 +423,121 @@ function PostDetailContent({
       })
     : null;
 
+  const comicContext =
+    Boolean(detail) &&
+    (previousRoute?.name === "discover" ||
+      previousRoute?.name === "search" ||
+      previousRoute?.name === "creator") &&
+    nextPostsInActiveFeed({ service, creatorId, postId }).length > 0;
+
+  const openImage = (index: number) => {
+    comicAnchor.current = { service, creatorId, postId };
+    setViewerImages(images);
+    setViewerIndex(index);
+  };
+
+  const closeViewer = () => {
+    comicRequest.current += 1;
+    comicBusy.current = false;
+    comicAnchor.current = { service, creatorId, postId };
+    setComicLoading(false);
+    setViewerIndex(null);
+    setViewerImages([]);
+  };
+
+  const loadNextComicPost = async () => {
+    if (comicBusy.current || !detail) return;
+    const candidates = nextPostsInActiveFeed(comicAnchor.current);
+    if (candidates.length === 0) {
+      toast(
+        "info",
+        "End of loaded feed",
+        activeFeedHasMore()
+          ? "Scroll the feed to load more posts."
+          : "No later posts in this feed.",
+      );
+      return;
+    }
+    const batch = candidates.slice(0, 8);
+    if (batch.length === 0) {
+      toast(
+        "info",
+        "End of loaded feed",
+        activeFeedHasMore()
+          ? "Scroll the feed to load more posts."
+          : "No later posts in this feed.",
+      );
+      return;
+    }
+
+    const request = ++comicRequest.current;
+    comicBusy.current = true;
+    setComicLoading(true);
+    try {
+      for (const candidate of batch) {
+        if (comicRequest.current !== request) return;
+        if (!postMayHaveImages(candidate)) continue;
+        try {
+          const nextDetail = await queryClient.fetchQuery({
+            queryKey: queryKeys.post(
+              candidate.service,
+              candidate.user,
+              candidate.id,
+            ),
+            queryFn: ({ signal }) =>
+              api.getPost({
+                service: candidate.service,
+                creatorId: candidate.user,
+                postId: candidate.id,
+                signal,
+              }),
+            staleTime: 120_000,
+          });
+          let nextAttachments = nextDetail.attachments;
+          if (nextAttachments.some((attachment) => attachment.resolving)) {
+            nextAttachments = await api.resolvePostAttachments(nextAttachments);
+          }
+          if (comicRequest.current !== request) return;
+          const nextImages = nextAttachments.filter(
+            (attachment) =>
+              attachment.kind === "image" && !attachment.unavailable,
+          );
+          if (nextImages.length > 0) {
+            const startIndex = viewerImages.length;
+            setViewerImages((current) => [...current, ...nextImages]);
+            setViewerIndex(startIndex);
+            comicAnchor.current = {
+              service: candidate.service,
+              creatorId: candidate.user,
+              postId: candidate.id,
+            };
+            return;
+          }
+        } catch {
+          // Skip a post that cannot be opened and try the next visible one.
+        }
+      }
+      const lastScanned = batch[batch.length - 1];
+      comicAnchor.current = {
+        service: lastScanned.service,
+        creatorId: lastScanned.user,
+        postId: lastScanned.id,
+      };
+      toast(
+        "info",
+        "No images nearby",
+        activeFeedHasMore()
+          ? "Scroll the feed to load more posts."
+          : "The next visible posts have no images.",
+      );
+    } finally {
+      if (comicRequest.current === request) {
+        comicBusy.current = false;
+        setComicLoading(false);
+      }
+    }
+  };
+
   const postNotFound = isAppError(post.error) && post.error.code === "not_found";
   const isNotImportedPost =
     detail?.post.origin?.trim().toLowerCase() === "kemono";
@@ -605,7 +741,7 @@ function PostDetailContent({
               playable={playable}
               documents={documents}
               disabled={isNotImportedPost}
-              onViewImage={setViewerIndex}
+              onViewImage={openImage}
               onPlay={playAttachment}
               onQueue={queueAttachment}
               onAddToPlaylist={addToPlaylist}
@@ -651,12 +787,20 @@ function PostDetailContent({
         </div>
       </article>
 
-      {viewerIndex !== null && images.length > 0 ? (
+      {viewerIndex !== null && viewerImages.length > 0 ? (
         <ImageViewer
-          images={images}
+          images={viewerImages}
           index={viewerIndex}
           onIndexChange={setViewerIndex}
-          onClose={() => setViewerIndex(null)}
+          onClose={closeViewer}
+          comicMode={comicMode && comicContext}
+          onToggleComicMode={
+            comicContext ? () => setComicMode(!comicMode) : undefined
+          }
+          onNextPost={
+            comicMode && comicContext ? loadNextComicPost : undefined
+          }
+          comicLoading={comicLoading}
         />
       ) : null}
 

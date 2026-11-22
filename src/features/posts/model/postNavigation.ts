@@ -8,8 +8,54 @@ interface PostFeed {
 
 const feeds = new Map<string, PostFeed>();
 
+interface ActivePostFeed {
+  visible: PostSummary[];
+  hasMore: boolean;
+}
+
+let activeFeed: ActivePostFeed | null = null;
+
 function feedKey(service: string, creatorId: string): string {
   return `${service}:${creatorId}`;
+}
+
+/** Remember the visible order of the feed the user is currently browsing. */
+export function rememberActivePostFeed(
+  visible: PostSummary[],
+  hasMore: boolean,
+): void {
+  activeFeed = { visible, hasMore };
+}
+
+/** Posts after the current one in the active visible feed. */
+export function nextPostsInActiveFeed({
+  service,
+  creatorId,
+  postId,
+}: {
+  service: string;
+  creatorId: string;
+  postId: string;
+}): PostSummary[] {
+  if (!activeFeed) return [];
+  const index = activeFeed.visible.findIndex(
+    (post) =>
+      post.service === service && post.user === creatorId && post.id === postId,
+  );
+  if (index < 0) return [];
+  return activeFeed.visible.slice(index + 1);
+}
+
+/** Whether the active feed has unloaded pages after its visible list. */
+export function activeFeedHasMore(): boolean {
+  return activeFeed?.hasMore ?? false;
+}
+
+/** Cheap pre-check before fetching a post's attachments for comic mode. */
+export function postMayHaveImages(post: PostSummary): boolean {
+  if (post.unavailable || post.attachmentCount === 0) return false;
+  const kinds = post.mediaKinds ?? [];
+  return kinds.length === 0 || kinds.includes("image");
 }
 
 /** Remember the currently filtered creator feed for post-to-post navigation. */
@@ -31,11 +77,13 @@ export function rememberPostFeed({
     allIds: new Set(all.map((post) => post.id)),
     hasMore,
   });
+  rememberActivePostFeed(visible, hasMore);
 }
 
 /** Used by tests and when a creator feed is no longer relevant. */
 export function clearPostFeeds(): void {
   feeds.clear();
+  activeFeed = null;
 }
 
 /**

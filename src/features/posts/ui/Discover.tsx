@@ -1,11 +1,12 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Compass, LoaderCircle, RefreshCw, Users } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../shared/api";
 import { errorMessage } from "../../../shared/lib/constants";
 import { nextOffset } from "../../../shared/query/pagination";
 import { visibleCreators } from "../../creators/model/feed";
 import { visiblePosts } from "../model/feed";
+import { rememberActivePostFeed } from "../model/postNavigation";
 import { queryKeys } from "../../../shared/query/keys";
 import { cn } from "../../../shared/lib/format";
 import { creatorGridMetrics, postGridMetrics } from "../../../shared/lib/layout";
@@ -113,6 +114,14 @@ export function DiscoverPage() {
         : postItems,
     [postItems, service],
   );
+
+  useEffect(() => {
+    if (tab !== "posts") return;
+    rememberActivePostFeed(
+      visiblePostItems,
+      Boolean(activePosts.hasNextPage),
+    );
+  }, [activePosts.hasNextPage, tab, visiblePostItems]);
 
   const creatorItems = useMemo(
     () =>

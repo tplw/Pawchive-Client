@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   LoaderCircle,
@@ -6,8 +7,9 @@ import {
   Minimize,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "../../../shared/lib/format";
 import { currentWindow } from "../../../shared/lib/window";
 import { useIsLandscape } from "../../../shared/lib/orientation";
 import { isMobile } from "../../../shared/lib/platform";
@@ -23,11 +25,19 @@ export function ImageViewer({
   index,
   onIndexChange,
   onClose,
+  comicMode = false,
+  onToggleComicMode,
+  onNextPost,
+  comicLoading = false,
 }: {
   images: Attachment[];
   index: number;
   onIndexChange: (index: number) => void;
   onClose: () => void;
+  comicMode?: boolean;
+  onToggleComicMode?: () => void;
+  onNextPost?: () => void;
+  comicLoading?: boolean;
 }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -42,23 +52,55 @@ export function ImageViewer({
   const autoHideControls = isLandscape && (isMobile || fullscreen);
   const { displaySrc, progress, failed, handleImageError } =
     useImageViewerSource({ image, index, cacheMedia });
+
+  const goNext = useCallback(() => {
+    if (comicLoading) return;
+    if (index < images.length - 1) {
+      onIndexChange(index + 1);
+      return;
+    }
+    if (comicMode && onNextPost) {
+      onNextPost();
+      return;
+    }
+    onIndexChange(0);
+  }, [
+    comicLoading,
+    comicMode,
+    images.length,
+    index,
+    onIndexChange,
+    onNextPost,
+  ]);
+  const goPrevious = useCallback(() => {
+    if (index > 0) {
+      onIndexChange(index - 1);
+      return;
+    }
+    if (comicMode) return;
+    onIndexChange(images.length - 1);
+  }, [comicMode, images.length, index, onIndexChange]);
+  const showPrevious = index > 0 || (!comicMode && images.length > 1);
+  const showNext =
+    index < images.length - 1 ||
+    (comicMode && Boolean(onNextPost)) ||
+    (!comicMode && images.length > 1);
+
   const gestures = useImageViewerGestures({
     zoom,
     pan,
     setZoom,
     setPan,
-    index,
-    imageCount: images.length,
-    onIndexChange,
+    onNext: goNext,
+    onPrevious: goPrevious,
     onToggleControls: () => setControlsVisible((visible) => !visible),
   });
   useImageViewerKeyboard({
     rootRef,
     fullscreen,
     setFullscreen,
-    index,
-    imageCount: images.length,
-    onIndexChange,
+    onNext: goNext,
+    onPrevious: goPrevious,
     onClose,
     setZoom,
     setPan,
@@ -221,6 +263,21 @@ export function ImageViewer({
             </p>
           </div>
           <div className="pointer-events-auto flex items-center gap-1">
+            {onToggleComicMode ? (
+              <IconButton
+                label={comicMode ? "Comic mode on" : "Comic mode"}
+                icon={BookOpen}
+                size="sm"
+                active={comicMode}
+                aria-pressed={comicMode}
+                iconClassName={comicMode ? "text-accent" : undefined}
+                className={cn(
+                  !comicMode &&
+                    "text-white/75 hover:bg-white/10 hover:text-white",
+                )}
+                onClick={onToggleComicMode}
+              />
+            ) : null}
             {!isMobile ? (
               <IconButton
                 label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
@@ -241,27 +298,30 @@ export function ImageViewer({
         </div>
       ) : null}
 
-      {controlsVisible && images.length > 1 ? (
-        <>
-          <button
-            type="button"
-            aria-label="Previous image"
-            onClick={() =>
-              onIndexChange((index - 1 + images.length) % images.length)
-            }
-            className="absolute left-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-black/35 text-white/70 backdrop-blur transition hover:bg-black/65 hover:text-white"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Next image"
-            onClick={() => onIndexChange((index + 1) % images.length)}
-            className="absolute right-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-black/35 text-white/70 backdrop-blur transition hover:bg-black/65 hover:text-white"
-          >
+      {controlsVisible && showPrevious ? (
+        <button
+          type="button"
+          aria-label="Previous image"
+          onClick={goPrevious}
+          className="absolute left-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-black/35 text-white/70 backdrop-blur transition hover:bg-black/65 hover:text-white"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+      ) : null}
+      {controlsVisible && showNext ? (
+        <button
+          type="button"
+          aria-label="Next image"
+          onClick={goNext}
+          disabled={comicLoading}
+          className="absolute right-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-black/35 text-white/70 backdrop-blur transition hover:bg-black/65 hover:text-white disabled:cursor-wait disabled:opacity-60"
+        >
+          {comicLoading ? (
+            <LoaderCircle className="h-5 w-5 animate-spin" />
+          ) : (
             <ChevronRight className="h-5 w-5" />
-          </button>
-        </>
+          )}
+        </button>
       ) : null}
     </div>,
     document.body,

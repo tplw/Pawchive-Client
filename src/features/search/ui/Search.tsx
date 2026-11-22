@@ -19,6 +19,7 @@ import { errorMessage } from "../../../shared/lib/constants";
 import { nextOffset } from "../../../shared/query/pagination";
 import { visibleCreators } from "../../creators/model/feed";
 import { visiblePosts } from "../../posts/model/feed";
+import { rememberActivePostFeed } from "../../posts/model/postNavigation";
 import { queryKeys } from "../../../shared/query/keys";
 import { cn } from "../../../shared/lib/format";
 import { creatorGridMetrics, postGridMetrics } from "../../../shared/lib/layout";
@@ -159,6 +160,11 @@ export function SearchPage({ query }: { query: string }) {
   }, [blockedCreators, content, creatorSearch.data, results.data]);
 
   const limitations = results.data?.pages[0]?.limitations ?? [];
+
+  useEffect(() => {
+    if (!valid || content === "creators") return;
+    rememberActivePostFeed(posts, Boolean(results.hasNextPage));
+  }, [content, posts, results.hasNextPage, valid]);
 
   useEffect(() => {
     searchStarted.current = performance.now();

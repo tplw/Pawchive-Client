@@ -6,9 +6,8 @@ export function useImageViewerKeyboard({
   rootRef,
   fullscreen,
   setFullscreen,
-  index,
-  imageCount,
-  onIndexChange,
+  onNext,
+  onPrevious,
   onClose,
   setZoom,
   setPan,
@@ -16,9 +15,8 @@ export function useImageViewerKeyboard({
   rootRef: RefObject<HTMLDivElement | null>;
   fullscreen: boolean;
   setFullscreen: (fullscreen: boolean) => void;
-  index: number;
-  imageCount: number;
-  onIndexChange: (index: number) => void;
+  onNext: () => void;
+  onPrevious: () => void;
   onClose: () => void;
   setZoom: (zoom: number | ((value: number) => number)) => void;
   setPan: (pan: { x: number; y: number }) => void;
@@ -69,9 +67,9 @@ export function useImageViewerKeyboard({
           onClose();
         }
       } else if (event.key === "ArrowLeft") {
-        onIndexChange((index - 1 + imageCount) % imageCount);
+        onPrevious();
       } else if (event.key === "ArrowRight") {
-        onIndexChange((index + 1) % imageCount);
+        onNext();
       } else if (event.key === "+" || event.key === "=") {
         setZoom((value) => Math.min(value + 0.25, 5));
       } else if (event.key === "-") {
@@ -85,10 +83,9 @@ export function useImageViewerKeyboard({
     return () => window.removeEventListener("keydown", onKey);
   }, [
     fullscreen,
-    imageCount,
-    index,
     onClose,
-    onIndexChange,
+    onNext,
+    onPrevious,
     rootRef,
     setFullscreen,
     setPan,

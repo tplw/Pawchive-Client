@@ -26,18 +26,16 @@ export function useImageViewerGestures({
   pan,
   setZoom,
   setPan,
-  index,
-  imageCount,
-  onIndexChange,
+  onNext,
+  onPrevious,
   onToggleControls,
 }: {
   zoom: number;
   pan: { x: number; y: number };
   setZoom: (zoom: number | ((value: number) => number)) => void;
   setPan: (pan: { x: number; y: number }) => void;
-  index: number;
-  imageCount: number;
-  onIndexChange: (index: number) => void;
+  onNext: () => void;
+  onPrevious: () => void;
   onToggleControls: () => void;
 }) {
   const touchStart = useRef<{
@@ -146,20 +144,17 @@ export function useImageViewerGestures({
       }
       const start = touchStart.current;
       touchStart.current = null;
-      if (!start || zoom > 1 || imageCount < 2) return;
+      if (!start || zoom > 1) return;
       const touch = event.changedTouches[0];
       if (!touch) return;
       const dx = touch.clientX - start.x;
       const dy = touch.clientY - start.y;
       if (Math.abs(dx) < 60 || Math.abs(dy) > 60) return;
       suppressNextTap();
-      onIndexChange(
-        dx > 0
-          ? (index - 1 + imageCount) % imageCount
-          : (index + 1) % imageCount,
-      );
+      if (dx > 0) onPrevious();
+      else onNext();
     },
-    [imageCount, index, onIndexChange, suppressNextTap, zoom],
+    [onNext, onPrevious, suppressNextTap, zoom],
   );
 
   const onTouchCancel = useCallback(() => {

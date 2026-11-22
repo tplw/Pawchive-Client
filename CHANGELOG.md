@@ -18,6 +18,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - The image viewer no longer falls back to the thumbnail when the full-image
   request is rejected, and a late thumbnail error can no longer overwrite a
   loaded full image.
+- Opening a downloaded image no longer uses its thumbnail as the viewer source
+  while the local file URL is still loading.
 
 ## 1.0.6.1 - 2026-11-19
 
@@ -36,6 +38,10 @@ queue preservation, navigation and playback fixes.
   `Files and pictures` for existing installs.
 - A per-creator **Override global keywords** option. When enabled, the global
   hidden keywords no longer apply to that creator's posts.
+- An image viewer **Comic mode** toggle. When enabled, Next at the last image
+  continues into the next visible post's images using the active Discover,
+  Search or creator feed order and filters. The mode stays on for the session
+  and stops at the end of the loaded feed.
 
 ### Fixed
 
