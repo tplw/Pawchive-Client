@@ -108,6 +108,67 @@ describe("player", () => {
     expect(play).toHaveBeenCalled();
   });
 
+  it.each([false, true])(
+    "toggles mute with M when expanded is %s",
+    (expanded) => {
+      usePlayerStore.setState({ expanded });
+      render(<Player />);
+
+      fireEvent.keyDown(window, { key: "m" });
+      expect(usePlayerStore.getState().muted).toBe(true);
+
+      fireEvent.keyDown(window, { key: "m" });
+      expect(usePlayerStore.getState().muted).toBe(false);
+    },
+  );
+
+  it.each([false, true])(
+    "pauses with K when expanded is %s",
+    (expanded) => {
+      usePlayerStore.setState({ expanded });
+      render(<Player />);
+      const video = document.querySelector("video") as HTMLVideoElement;
+      Object.defineProperty(video, "paused", {
+        configurable: true,
+        value: false,
+      });
+
+      fireEvent.keyDown(window, { key: "k" });
+      expect(usePlayerStore.getState().playing).toBe(false);
+    },
+  );
+
+  it.each([false, true])(
+    "pauses with Space when expanded is %s",
+    (expanded) => {
+      usePlayerStore.setState({ expanded });
+      render(<Player />);
+      const video = document.querySelector("video") as HTMLVideoElement;
+      Object.defineProperty(video, "paused", {
+        configurable: true,
+        value: false,
+      });
+
+      fireEvent.keyDown(window, { key: " " });
+      expect(usePlayerStore.getState().playing).toBe(false);
+    },
+  );
+
+  it("ignores playback keys while typing", () => {
+    render(<Player />);
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+
+    fireEvent.keyDown(input, { key: "m" });
+    fireEvent.keyDown(input, { key: "k" });
+    fireEvent.keyDown(input, { key: " " });
+
+    expect(usePlayerStore.getState().muted).toBe(false);
+    expect(usePlayerStore.getState().playing).toBe(true);
+    input.remove();
+  });
+
   it("shows the buffering animation beside the media time", async () => {
     usePlayerStore.setState({ expanded: true });
     render(<Player />);

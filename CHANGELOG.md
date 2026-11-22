@@ -8,6 +8,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Space and K now toggle playback and M toggles mute while the player is
+  minimized as well as expanded. Typing and open dialogs still keep their keys.
 - Post pages no longer open with a large blank area when the stored content
   starts with empty paragraphs.
 - The image viewer now retries the full image URL before falling back to the
