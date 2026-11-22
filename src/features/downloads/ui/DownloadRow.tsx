@@ -71,10 +71,7 @@ export const DownloadRow = memo(function DownloadRow({
 
   const image = useMemo<Attachment>(
     () =>
-      attachmentFromDownload(
-        record,
-        localUrl ?? record.thumbnailUrl ?? record.url,
-      ),
+      attachmentFromDownload(record, localUrl),
     [localUrl, record],
   );
 

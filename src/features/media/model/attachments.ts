@@ -24,18 +24,24 @@ export function attachmentFromPlaylistItem(
   };
 }
 
-/** Build the image-viewer attachment for a completed download. */
+/**
+ * Build the image-viewer attachment for a completed download. When the local
+ * file URL is not ready, keep the original full media URL as the viewer source.
+ * The thumbnail must only ever be preview art; using it as the source would
+ * leave the viewer showing the low-resolution image after the fetch finishes.
+ */
 export function attachmentFromDownload(
   record: DownloadRecord,
-  displayUrl: string,
+  displayUrl: string | null,
 ): Attachment {
+  const source = displayUrl ?? record.url;
   return {
     name: record.title || record.fileName,
     path: record.filePath,
-    url: displayUrl,
+    url: source,
     thumbnailUrl: record.thumbnailUrl ?? record.url,
     kind: "image",
-    provider: providerForUrl(record.url),
+    provider: providerForUrl(source),
     ext: record.fileName.split(".").pop() ?? "",
     previewOnly: false,
   };

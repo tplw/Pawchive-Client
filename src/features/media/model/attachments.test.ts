@@ -60,6 +60,20 @@ describe("media attachments", () => {
     });
   });
 
+  it("keeps the full media URL when a download has no local URL yet", () => {
+    const imageDownload: DownloadRecord = {
+      ...download,
+      url: "https://file.pawchive.pw/data/aa/bb/page.png",
+      thumbnailUrl: "https://img.pawchive.pw/thumbnail/data/aa/bb/page.png",
+      mediaKind: "image",
+    };
+
+    const attachment = attachmentFromDownload(imageDownload, null);
+
+    expect(attachment.url).toBe(imageDownload.url);
+    expect(attachment.thumbnailUrl).toBe(imageDownload.thumbnailUrl);
+  });
+
   it("converts a download into an image attachment and queue item", () => {
     const attachment = attachmentFromDownload(download, download.filePath);
     expect(attachment).toMatchObject({
