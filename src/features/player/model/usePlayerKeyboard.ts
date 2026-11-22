@@ -1,24 +1,20 @@
 import { useEffect } from "react";
 import { isEditableTarget } from "../../../shared/lib/format";
-import { currentWindow } from "../../../shared/lib/window";
 import { usePlayerStore } from "./store";
 
 /**
  * Global media shortcuts. Playback and mute work in both the compact bar and
- * the expanded player. F expands the compact player, then toggles fullscreen
- * once expanded. Seeking and Escape stay expanded-only so the page underneath
- * keeps its normal keys.
+ * the expanded player. F toggles between the two, while seeking and Escape
+ * stay expanded-only so the page underneath keeps its normal keys.
  */
 export function usePlayerKeyboard({
-  fullscreen,
-  setFullscreen,
-  toggleFullscreen,
   togglePlayback,
+  onToggleExpanded,
+  onCollapse,
 }: {
-  fullscreen: boolean;
-  setFullscreen: (fullscreen: boolean) => void;
-  toggleFullscreen: () => void;
   togglePlayback: () => void;
+  onToggleExpanded: () => void;
+  onCollapse: () => void;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -44,11 +40,7 @@ export function usePlayerKeyboard({
       if (key === "f") {
         if (event.repeat) return;
         event.preventDefault();
-        if (state.expanded) {
-          void toggleFullscreen();
-        } else {
-          state.setExpanded(true);
-        }
+        onToggleExpanded();
         return;
       }
 
@@ -73,16 +65,7 @@ export function usePlayerKeyboard({
           state.setVolume(Math.max(0, state.volume - 0.05));
           break;
         case "escape":
-          if (fullscreen) {
-            const win = currentWindow();
-            if (win) {
-              void win
-                .setFullscreen(false)
-                .then(() => setFullscreen(false))
-                .catch(() => undefined);
-            }
-          }
-          usePlayerStore.getState().setExpanded(false);
+          onCollapse();
           break;
         default:
           break;
@@ -90,5 +73,5 @@ export function usePlayerKeyboard({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fullscreen, setFullscreen, toggleFullscreen, togglePlayback]);
+  }, [onCollapse, onToggleExpanded, togglePlayback]);
 }

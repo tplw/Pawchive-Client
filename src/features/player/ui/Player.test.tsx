@@ -161,6 +161,14 @@ describe("player", () => {
     expect(usePlayerStore.getState().expanded).toBe(true);
   });
 
+  it("minimizes the player with F when expanded", () => {
+    usePlayerStore.setState({ expanded: true });
+    render(<Player />);
+
+    fireEvent.keyDown(window, { key: "f" });
+    expect(usePlayerStore.getState().expanded).toBe(false);
+  });
+
   it("ignores playback keys while typing", () => {
     render(<Player />);
     const input = document.createElement("input");

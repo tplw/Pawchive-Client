@@ -283,13 +283,6 @@ export function Player() {
     }
   }, [forcePlayback, setPlaying]);
 
-  usePlayerKeyboard({
-    fullscreen,
-    setFullscreen,
-    toggleFullscreen,
-    togglePlayback,
-  });
-
   const collapse = useCallback(() => {
     saveProgress();
     setShowQueue(false);
@@ -304,6 +297,20 @@ export function Player() {
     }
     setExpanded(false);
   }, [fullscreen, saveProgress, setExpanded, setFullscreen]);
+
+  const toggleExpanded = useCallback(() => {
+    if (usePlayerStore.getState().expanded) {
+      collapse();
+    } else {
+      setExpanded(true);
+    }
+  }, [collapse, setExpanded]);
+
+  usePlayerKeyboard({
+    togglePlayback,
+    onToggleExpanded: toggleExpanded,
+    onCollapse: collapse,
+  });
 
   const stopPlayback = useCallback(() => {
     saveProgress();
