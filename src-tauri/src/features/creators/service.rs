@@ -137,7 +137,18 @@ impl CreatorService {
         if let Some(id) = request_id {
             self.state.finish_cancel(id);
         }
-        result
+        let profile = result?;
+        if let Some(updated) = profile.updated.filter(|value| *value > 0) {
+            let db = Arc::clone(&self.state.db);
+            let service = service.to_string();
+            let creator_id = creator_id.to_string();
+            if let Err(error) =
+                blocking(move || db.refresh_creator_updated(&service, &creator_id, updated)).await
+            {
+                tracing::warn!(%error, "could not refresh creator update time");
+            }
+        }
+        Ok(profile)
     }
 
     pub(crate) async fn links(

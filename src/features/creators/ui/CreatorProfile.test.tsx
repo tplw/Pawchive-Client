@@ -14,6 +14,7 @@ import {
   saveCreatorFilter,
 } from "../../../shared/lib/creatorFilters";
 import { useAppStore } from "../../../app/store";
+import { queryKeys } from "../../../shared/query/keys";
 import type { CreatorSummary, PostSummary } from "../../../shared/types";
 import { CreatorProfilePage } from "./CreatorProfile";
 
@@ -231,6 +232,33 @@ describe("creator profile", () => {
       filter.compareDocumentPosition(updated) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("refreshes creator lists after the live profile loads", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    render(
+      <QueryClientProvider client={client}>
+        <CreatorProfilePage service="patreon" creatorId="42" />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: queryKeys.favoritesCreators(),
+      }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: queryKeys.creators(),
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: queryKeys.creator("patreon", "42"),
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: queryKeys.creatorSimilarAll(),
+    });
   });
 
   it("persists auto-detected ASMR for creator previews", async () => {

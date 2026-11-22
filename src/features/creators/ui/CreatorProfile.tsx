@@ -11,7 +11,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../shared/api";
 import { errorMessage } from "../../../shared/lib/constants";
 import {
@@ -129,6 +129,25 @@ function CreatorProfileContent({
     queryFn: ({ signal }) => api.getCreatorProfile(service, creatorId, signal),
     staleTime: 300_000,
   });
+  // The creator index is downloaded once, so a card's update time can lag the
+  // live profile. The backend refreshes the cached row when the profile loads;
+  // refresh the creator lists so visible cards pick up the same value.
+  const syncedProfileUpdated = useRef<number | null>(null);
+  useEffect(() => {
+    const updated = profile.data?.updated;
+    if (!updated || syncedProfileUpdated.current === updated) return;
+    syncedProfileUpdated.current = updated;
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.favoritesCreators(),
+    });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.creators() });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.creator(service, creatorId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.creatorSimilarAll(),
+    });
+  }, [creatorId, profile.data?.updated, queryClient, service]);
   const links = useQuery({
     queryKey: queryKeys.creatorLinks(service, creatorId),
     queryFn: ({ signal }) => api.getCreatorLinks(service, creatorId, signal),

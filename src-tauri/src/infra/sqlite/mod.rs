@@ -335,6 +335,28 @@ mod tests {
     }
 
     #[test]
+    fn creator_profile_refresh_keeps_the_newest_update_time() {
+        let db = Db::open_in_memory().unwrap();
+        db.sync_creators(&[sample_creator("1", "Alpha", 10, 5)])
+            .unwrap();
+
+        db.refresh_creator_updated("fanbox", "1", 30).unwrap();
+        assert_eq!(
+            db.get_creator("fanbox", "1").unwrap().unwrap().updated,
+            Some(30)
+        );
+
+        db.refresh_creator_updated("fanbox", "1", 20).unwrap();
+        assert_eq!(
+            db.get_creator("fanbox", "1").unwrap().unwrap().updated,
+            Some(30)
+        );
+
+        db.refresh_creator_updated("fanbox", "missing", 40).unwrap();
+        assert!(db.get_creator("fanbox", "missing").unwrap().is_none());
+    }
+
+    #[test]
     fn creator_sync_updates_existing_rows() {
         let db = Db::open_in_memory().unwrap();
         db.sync_creators(&[sample_creator("1", "Old", 10, 1)])

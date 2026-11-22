@@ -117,6 +117,20 @@ impl Db {
         })
     }
 
+    /// Keep the local creator index in step with a live profile lookup. The
+    /// index is downloaded once, so without this a card can show a much older
+    /// update time than the profile.
+    pub fn refresh_creator_updated(&self, service: &str, id: &str, updated: i64) -> AppResult<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE creators SET updated = MAX(COALESCE(updated, 0), ?3)
+                 WHERE service = ?1 AND id = ?2",
+                params![service, id, updated],
+            )?;
+            Ok(())
+        })
+    }
+
     /* ------------------------------ favorites ------------------------------ */
 
     pub fn set_favorite_creator(
