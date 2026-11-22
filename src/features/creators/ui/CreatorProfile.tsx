@@ -326,53 +326,52 @@ function CreatorProfileContent({
                 </div>
               </div>
             </div>
-            <div className="flex flex-col gap-1.5 pb-1 text-[10px] text-muted sm:items-end">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  loading={favorite.isPending}
-                  onClick={() => favorite.mutate(!summary?.is_favorite)}
-                >
-                  <SiteIcon
-                    name="favorites"
-                    size={15}
-                    tone={summary?.is_favorite ? "favorite" : "default"}
-                  />
-                  {summary?.is_favorite ? "Favorited" : "Favorite"}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setBlockConfirmOpen(true)}
-                >
-                  <Ban className="h-3.5 w-3.5" /> Block
-                </Button>
-                <IconButton
-                  label="Filter posts"
-                  icon={Filter}
-                  active={creatorFilterActive(effectiveFilter)}
-                  onClick={() => setFilterOpen(true)}
+            <div className="flex flex-wrap items-center gap-2 pb-1 text-[10px] text-muted">
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={favorite.isPending}
+                onClick={() => favorite.mutate(!summary?.is_favorite)}
+              >
+                <SiteIcon
+                  name="favorites"
+                  size={15}
+                  tone={summary?.is_favorite ? "favorite" : "default"}
                 />
-              </div>
-              {updated || profile.isError ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  {updated ? (
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarDays className="h-3 w-3" /> Updated{" "}
-                      {formatRelative(updated)}
-                    </span>
-                  ) : null}
-                  {profile.isError ? (
-                    <span className="inline-flex items-center gap-1 text-amber-400/80">
-                      <AlertCircle className="h-3 w-3" /> Profile details
-                      unavailable
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
+                {summary?.is_favorite ? "Favorited" : "Favorite"}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setBlockConfirmOpen(true)}
+              >
+                <Ban className="h-3.5 w-3.5" /> Block
+              </Button>
+              <IconButton
+                label="Filter posts"
+                icon={Filter}
+                active={creatorFilterActive(effectiveFilter)}
+                onClick={() => setFilterOpen(true)}
+              />
             </div>
           </div>
+
+          {updated || profile.isError ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted sm:justify-end">
+              {updated ? (
+                <span className="inline-flex items-center gap-1">
+                  <CalendarDays className="h-3 w-3" /> Updated{" "}
+                  {formatRelative(updated)}
+                </span>
+              ) : null}
+              {profile.isError ? (
+                <span className="inline-flex items-center gap-1 text-amber-400/80">
+                  <AlertCircle className="h-3 w-3" /> Profile details
+                  unavailable
+                </span>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="mt-5 flex gap-1 overflow-x-auto border-b border-line/60">
             {(

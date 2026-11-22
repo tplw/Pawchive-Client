@@ -26,8 +26,9 @@ project follows [Semantic Versioning](https://semver.org/).
   to the surrounding feed instead of a post from that creator. Direct links to
   blocked creators return to the feed with a toast instead of a full-page
   blocked notice.
-- Creator profile actions now place the filter button after Block and move the
-  updated time and profile-details warning below the action buttons.
+- Creator profile actions now place the filter button after Block and keep the
+  action row below the cover art, with the updated time and profile-details
+  warning on a right-aligned line underneath.
 - The image viewer now supports scroll wheel and trackpad navigation. Ctrl/Cmd
   plus wheel or pinch zooms, and a plain wheel pans once the image is zoomed.
 
