@@ -26,6 +26,7 @@ vi.mock("../../../shared/api", () => ({
     getCreatorPosts: vi.fn(),
     getSimilarCreators: vi.fn(),
     setFavoriteCreator: vi.fn(),
+    saveSettings: vi.fn(),
   },
 }));
 
@@ -98,6 +99,38 @@ describe("creator profile", () => {
         is_favorite: false,
       },
     ]);
+    vi.mocked(api.saveSettings).mockImplementation(async (patch) => ({
+      ...DEFAULT_SETTINGS,
+      ...patch,
+    }));
+  });
+
+  it("asks for confirmation before blocking a creator", async () => {
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Block" }));
+    expect(api.saveSettings).not.toHaveBeenCalled();
+    expect(screen.getByText("Block creator?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(api.saveSettings).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Block" }));
+    fireEvent.click(screen.getByRole("button", { name: "Block creator" }));
+
+    await waitFor(() =>
+      expect(api.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          blockedCreators: expect.arrayContaining([
+            expect.objectContaining({
+              id: "42",
+              name: "Ada",
+              service: "patreon",
+            }),
+          ]),
+        }),
+      ),
+    );
   });
 
   it("persists auto-detected ASMR for creator previews", async () => {

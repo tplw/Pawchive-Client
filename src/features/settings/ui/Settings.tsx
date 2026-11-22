@@ -480,6 +480,15 @@ export function SettingsPage() {
         <div className="md:col-span-2">
           <SettingsSection icon={BookOpen} title="Comic mode">
             <div className="space-y-2">
+              <Toggle
+                compact
+                checked={settings.comicAutoEnable}
+                onChange={(checked) =>
+                  void saveSettings({ comicAutoEnable: checked })
+                }
+                label="Auto-enable Comic mode"
+                description="Start Comic mode when opening an image from a feed. Creator filters can override this."
+              />
               <label className="flex items-center justify-between gap-3 py-1.5 text-xs font-medium text-ink">
                 Images per post
                 <select

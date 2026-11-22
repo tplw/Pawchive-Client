@@ -22,6 +22,11 @@ project follows [Semantic Versioning](https://semver.org/).
   while the local file URL is still loading.
 - Prefetched comic images now open directly at full resolution instead of
   showing the thumbnail and running the fetch animation again.
+- Blocking a creator now asks for confirmation in a small dialog and returns
+  to the previous page after blocking instead of showing the full blocked
+  profile screen.
+- The image viewer now supports scroll wheel and trackpad navigation. Ctrl/Cmd
+  plus wheel or pinch zooms, and a plain wheel pans once the image is zoomed.
 
 ## 1.0.6.1 - 2026-11-19
 
@@ -50,6 +55,8 @@ queue preservation, navigation and playback fixes.
 - **Prefetch images** preloads the chosen number of upcoming images and loads
   the next visible post ahead near the end of a post, so Next is ready. Higher
   values use more network and memory.
+- **Auto-enable Comic mode** in Settings and in each creator filter, so comic
+  mode can start automatically when opening an image from a feed.
 - Creator filters are grouped under **Creator**, **Posts**, **Comic mode** and
   **Keywords** headings.
 - Settings now shows **Blocked creators** and **Updates** as full-width

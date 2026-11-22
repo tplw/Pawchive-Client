@@ -47,6 +47,8 @@ pub struct AppSettings {
     pub comic_first_image_only: bool,
     /// Number of upcoming images to preload while reading in comic mode.
     pub comic_prefetch_count: u64,
+    /// Start comic mode automatically when opening an image from a feed.
+    pub comic_auto_enable: bool,
     pub auto_check_updates: bool,
     /// Latest release the user dismissed, so the update prompt only appears
     /// once per version.
@@ -91,6 +93,7 @@ impl Default for AppSettings {
             hide_post_play_button: false,
             comic_first_image_only: false,
             comic_prefetch_count: 0,
+            comic_auto_enable: false,
             auto_check_updates: true,
             dismissed_update_version: String::new(),
             blocked_creators: Vec::new(),

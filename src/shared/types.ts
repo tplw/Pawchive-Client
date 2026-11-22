@@ -218,6 +218,8 @@ export interface AppSettings {
   comicFirstImageOnly: boolean;
   /** Number of upcoming images to preload while reading in comic mode. */
   comicPrefetchCount: number;
+  /** Start comic mode automatically when opening an image from a feed. */
+  comicAutoEnable: boolean;
   autoCheckUpdates: boolean;
   /** Release version the user dismissed; newer versions show the prompt again. */
   dismissedUpdateVersion: string;

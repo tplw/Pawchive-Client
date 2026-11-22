@@ -33,6 +33,6 @@ describe("creator filter modal", () => {
     expect(screen.getByText("Posts")).toBeInTheDocument();
     expect(screen.getByText("Comic mode")).toBeInTheDocument();
     expect(screen.getByText("Keywords")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Use main setting")).toBeInTheDocument();
+    expect(screen.getAllByDisplayValue("Use main setting")).toHaveLength(2);
   });
 });

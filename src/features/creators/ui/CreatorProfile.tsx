@@ -52,6 +52,7 @@ import { SiteIcon } from "../../../shared/SiteIcon";
 import {
   Badge,
   Button,
+  ConfirmDialog,
   EmptyState,
   IconButton,
   SectionHeader,
@@ -80,6 +81,7 @@ function CreatorProfileContent({
 }) {
   const [tab, setTab] = useCreatorTab(service, creatorId);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [postSearch, setPostSearch] = useState("");
   const debouncedPostSearch = useDebouncedValue(postSearch.trim(), 300);
   const postQuery = debouncedPostSearch.length >= 3 ? debouncedPostSearch : "";
@@ -184,14 +186,16 @@ function CreatorProfileContent({
         id: creatorId,
         name,
       }),
-    }).then(() => {
-      void queryClient.invalidateQueries();
-      toast(
-        "success",
-        "Creator blocked",
-        `${name} is hidden from feeds, search and direct links.`,
-      );
-    });
+    })
+      .then(() => {
+        void queryClient.invalidateQueries();
+        toast(
+          "success",
+          "Creator blocked",
+          `${name} is hidden from feeds, search and direct links.`,
+        );
+      })
+      .catch((error) => reportError(error, "Could not block creator"));
   };
   const detectedAsmr = useMemo(
     () =>
@@ -339,7 +343,11 @@ function CreatorProfileContent({
                 active={creatorFilterActive(effectiveFilter)}
                 onClick={() => setFilterOpen(true)}
               />
-              <Button variant="secondary" size="sm" onClick={blockCreator}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setBlockConfirmOpen(true)}
+              >
                 <Ban className="h-3.5 w-3.5" /> Block
               </Button>
               {updated ? (
@@ -564,6 +572,19 @@ function CreatorProfileContent({
         onUpdateFilter={updateFilter}
         onClear={clearFilter}
         onKeywordsChange={changeKeywords}
+      />
+
+      <ConfirmDialog
+        open={blockConfirmOpen}
+        title="Block creator?"
+        message={`Block ${name}? Their posts will be hidden from feeds, search and direct links. You can unblock them in Settings.`}
+        confirmLabel="Block creator"
+        danger
+        onConfirm={() => {
+          goBack();
+          blockCreator();
+        }}
+        onClose={() => setBlockConfirmOpen(false)}
       />
     </div>
   );

@@ -7,6 +7,8 @@ export interface CreatorFilter {
   overrideGlobalKeywords: boolean;
   /** undefined = use the main comic setting. */
   firstImageOnly?: boolean;
+  /** undefined = use the main comic setting. */
+  autoComicMode?: boolean;
   keywords: string[];
   /** undefined = auto-detect, true = manually tagged, false = manually rejected. */
   asmr?: boolean;
@@ -73,6 +75,9 @@ export function applyMediaFilterToCreators(value: MediaFilter): void {
           ...(typeof parsed.firstImageOnly === "boolean"
             ? { firstImageOnly: parsed.firstImageOnly }
             : {}),
+          ...(typeof parsed.autoComicMode === "boolean"
+            ? { autoComicMode: parsed.autoComicMode }
+            : {}),
           keywords: Array.isArray(parsed.keywords)
             ? parsed.keywords.filter(
                 (keyword): keyword is string => typeof keyword === "string",
@@ -101,6 +106,7 @@ function filterHasStoredRules(filter: CreatorFilter): boolean {
     filter.hideUnavailable ||
     filter.overrideGlobalKeywords ||
     typeof filter.firstImageOnly === "boolean" ||
+    typeof filter.autoComicMode === "boolean" ||
     filter.keywords.length > 0 ||
     typeof filter.asmr === "boolean"
   );
@@ -138,6 +144,9 @@ export function loadCreatorFilter(
       ...(typeof parsed.firstImageOnly === "boolean"
         ? { firstImageOnly: parsed.firstImageOnly }
         : {}),
+      ...(typeof parsed.autoComicMode === "boolean"
+        ? { autoComicMode: parsed.autoComicMode }
+        : {}),
       keywords: Array.isArray(parsed.keywords)
         ? parsed.keywords.filter((keyword): keyword is string => typeof keyword === "string")
         : [],
@@ -174,6 +183,7 @@ export function creatorFilterActive(filter: CreatorFilter): boolean {
     filter.hideUnavailable ||
     filter.overrideGlobalKeywords ||
     typeof filter.firstImageOnly === "boolean" ||
+    typeof filter.autoComicMode === "boolean" ||
     filter.keywords.length > 0 ||
     filter.asmr === true
   );
@@ -186,6 +196,15 @@ export function firstImageOnlyForCreator(
   globalDefault: boolean,
 ): boolean {
   return loadCreatorFilter(service, creatorId).firstImageOnly ?? globalDefault;
+}
+
+/** Creator override for starting comic mode automatically. */
+export function autoComicModeForCreator(
+  service: string,
+  creatorId: string,
+  globalDefault: boolean,
+): boolean {
+  return loadCreatorFilter(service, creatorId).autoComicMode ?? globalDefault;
 }
 
 export function creatorNameLooksAsmr(name: string): boolean {

@@ -44,6 +44,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hidePostPlayButton: false,
   comicFirstImageOnly: false,
   comicPrefetchCount: 0,
+  comicAutoEnable: false,
   autoCheckUpdates: true,
   dismissedUpdateVersion: "",
   blockedCreators: [],

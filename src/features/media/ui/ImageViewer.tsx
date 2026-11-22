@@ -24,6 +24,7 @@ import {
 import { useImageViewerSource } from "../model/useImageViewerSource";
 import { useImageViewerGestures } from "../model/useImageViewerGestures";
 import { useImageViewerKeyboard } from "../model/useImageViewerKeyboard";
+import { useImageViewerWheel } from "../model/useImageViewerWheel";
 
 export function ImageViewer({
   images,
@@ -112,6 +113,7 @@ export function ImageViewer({
     setZoom,
     setPan,
   });
+  useImageViewerWheel({ rootRef, zoom, setZoom, setPan });
 
   useEffect(() => {
     if (!comicMode || prefetchCount <= 0) return;

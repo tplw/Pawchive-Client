@@ -3,6 +3,7 @@ import type { PostSummary } from "../types";
 import {
   applyMediaFilterToCreators,
   creatorFilterActive,
+  autoComicModeForCreator,
   detectAsmrCreator,
   firstImageOnlyForCreator,
   loadCreatorFilter,
@@ -220,6 +221,34 @@ describe("global media filter setting", () => {
 
     saveCreatorFilter("patreon", "comic", { ...base, firstImageOnly: true });
     expect(firstImageOnlyForCreator("patreon", "comic", false)).toBe(true);
+  });
+
+  it("persists an auto-comic override", () => {
+    const base = {
+      audioOnly: false,
+      mediaFilter: "all" as const,
+      hideUnavailable: false,
+      overrideGlobalKeywords: false,
+      keywords: [],
+    };
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:autoComic");
+
+    expect(autoComicModeForCreator("patreon", "autoComic", true)).toBe(true);
+    expect(autoComicModeForCreator("patreon", "autoComic", false)).toBe(false);
+
+    saveCreatorFilter("patreon", "autoComic", {
+      ...base,
+      autoComicMode: false,
+    });
+    expect(loadCreatorFilter("patreon", "autoComic").autoComicMode).toBe(false);
+    expect(creatorFilterActive({ ...base, autoComicMode: false })).toBe(true);
+    expect(autoComicModeForCreator("patreon", "autoComic", true)).toBe(false);
+
+    saveCreatorFilter("patreon", "autoComic", {
+      ...base,
+      autoComicMode: true,
+    });
+    expect(autoComicModeForCreator("patreon", "autoComic", false)).toBe(true);
   });
 
   it("matches files-and-pictures and files-only modes", () => {

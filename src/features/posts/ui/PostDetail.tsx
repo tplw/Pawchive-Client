@@ -29,7 +29,10 @@ import { PlaylistPicker } from "../../playlists/ui/PlaylistPicker";
 import { SanitizedHtml } from "../../../shared/SanitizedHtml";
 import { BlockedCreatorNotice } from "../../creators/ui/BlockedCreatorNotice";
 import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
-import { firstImageOnlyForCreator } from "../../../shared/lib/creatorFilters";
+import {
+  autoComicModeForCreator,
+  firstImageOnlyForCreator,
+} from "../../../shared/lib/creatorFilters";
 import { queryKeys } from "../../../shared/query/keys";
 import { PostAttachments } from "./PostAttachments";
 import { PostDiscussion } from "./PostDiscussion";
@@ -89,6 +92,9 @@ function PostDetailContent({
   );
   const comicPrefetchCount = useAppStore(
     (state) => state.settings.comicPrefetchCount,
+  );
+  const comicAutoEnable = useAppStore(
+    (state) => state.settings.comicAutoEnable,
   );
   const previousRoute = useAppStore((state) => state.previousRoute);
   const enqueue = usePlayerStore((state) => state.enqueue);
@@ -441,6 +447,9 @@ function PostDetailContent({
   const openImage = (index: number) => {
     comicAnchor.current = { service, creatorId, postId };
     comicPrefetchKey.current = null;
+    if (autoComicModeForCreator(service, creatorId, comicAutoEnable)) {
+      setComicMode(true);
+    }
     setViewerImages(images);
     setViewerIndex(index);
   };

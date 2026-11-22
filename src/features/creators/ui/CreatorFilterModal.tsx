@@ -113,6 +113,33 @@ export function CreatorFilterModal({
         </FilterGroup>
         <FilterGroup title="Comic mode">
         <Field
+          label="Auto-enable Comic mode"
+          hint="Start Comic mode when opening an image from this creator."
+        >
+          <select
+            value={
+              filter.autoComicMode === undefined
+                ? "default"
+                : filter.autoComicMode
+                  ? "on"
+                  : "off"
+            }
+            onChange={(event) => {
+              const value = event.target.value;
+              onUpdateFilter({
+                ...filter,
+                autoComicMode:
+                  value === "default" ? undefined : value === "on",
+              });
+            }}
+            className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+          >
+            <option value="default">Use main setting</option>
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </select>
+        </Field>
+        <Field
           label="Comic mode images"
           hint="Follows the main Settings value until you override it here."
         >

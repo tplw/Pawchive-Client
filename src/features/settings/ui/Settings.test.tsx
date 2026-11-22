@@ -109,6 +109,15 @@ describe("settings", () => {
         expect.objectContaining({ comicPrefetchCount: 2 }),
       ),
     );
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Auto-enable Comic mode" }),
+    );
+    await waitFor(() =>
+      expect(api.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ comicAutoEnable: true }),
+      ),
+    );
   });
 
   it("saves the post media filter", async () => {
