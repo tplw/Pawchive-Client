@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Attachment } from "../../../shared/types";
 import { ImageViewer } from "./ImageViewer";
 
@@ -27,6 +27,37 @@ function image(name: string): Attachment {
 }
 
 describe("image viewer comic mode", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("prefetches the next two images when enabled", () => {
+    const sources: string[] = [];
+    class FakeImage {
+      decoding = "";
+      set src(value: string) {
+        sources.push(value);
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+
+    render(
+      <ImageViewer
+        images={[image("one.jpg"), image("two.jpg"), image("three.jpg")]}
+        index={0}
+        onIndexChange={() => undefined}
+        onClose={() => undefined}
+        comicMode
+        onToggleComicMode={() => undefined}
+        onNextPost={() => undefined}
+        prefetchImages
+      />,
+    );
+
+    expect(sources).toEqual([
+      "https://example.com/two.jpg",
+      "https://example.com/three.jpg",
+    ]);
+  });
+
   it("advances to the next post when the last image is reached", () => {
     const nextPost = vi.fn();
     const onIndexChange = vi.fn();

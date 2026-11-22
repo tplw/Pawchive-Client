@@ -78,6 +78,39 @@ describe("settings", () => {
     );
   });
 
+  it("uses collapsible cards for updates and blocked creators", () => {
+    wrapper(<SettingsPage />);
+
+    const updates = screen.getByText("Updates").closest("details");
+    const blocked = screen.getByText("Blocked creators").closest("details");
+    expect(updates).toBeInTheDocument();
+    expect(blocked).toBeInTheDocument();
+    expect(updates).not.toHaveAttribute("open");
+    expect(blocked).not.toHaveAttribute("open");
+  });
+
+  it("saves the comic image options", async () => {
+    wrapper(<SettingsPage />);
+
+    fireEvent.change(await screen.findByDisplayValue("All images"), {
+      target: { value: "first" },
+    });
+    await waitFor(() =>
+      expect(api.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ comicFirstImageOnly: true }),
+      ),
+    );
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Prefetch comic images" }),
+    );
+    await waitFor(() =>
+      expect(api.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ comicPrefetchImages: true }),
+      ),
+    );
+  });
+
   it("saves the post media filter", async () => {
     wrapper(<SettingsPage />);
 

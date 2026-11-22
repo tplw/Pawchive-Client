@@ -214,6 +214,10 @@ export interface AppSettings {
   hideFileTags: boolean;
   hideSourceTags: boolean;
   hidePostPlayButton: boolean;
+  /** Comic mode loads only the first image when it moves to another post. */
+  comicFirstImageOnly: boolean;
+  /** Preload the next images while reading in comic mode. */
+  comicPrefetchImages: boolean;
   autoCheckUpdates: boolean;
   /** Release version the user dismissed; newer versions show the prompt again. */
   dismissedUpdateVersion: string;

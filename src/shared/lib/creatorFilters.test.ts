@@ -4,6 +4,7 @@ import {
   applyMediaFilterToCreators,
   creatorFilterActive,
   detectAsmrCreator,
+  firstImageOnlyForCreator,
   loadCreatorFilter,
   parseFilterKeywords,
   postMatchesCreatorFilter,
@@ -197,6 +198,28 @@ describe("global media filter setting", () => {
 
     applyMediaFilterToCreators("all");
     expect(loadCreatorFilter("patreon", "1").mediaFilter).toBe("all");
+  });
+
+  it("persists a comic first-image override", () => {
+    const base = {
+      audioOnly: false,
+      mediaFilter: "all" as const,
+      hideUnavailable: false,
+      overrideGlobalKeywords: false,
+      keywords: [],
+    };
+    window.localStorage.removeItem("pawchive-creator-filter:patreon:comic");
+
+    expect(firstImageOnlyForCreator("patreon", "comic", true)).toBe(true);
+    expect(firstImageOnlyForCreator("patreon", "comic", false)).toBe(false);
+
+    saveCreatorFilter("patreon", "comic", { ...base, firstImageOnly: false });
+    expect(loadCreatorFilter("patreon", "comic").firstImageOnly).toBe(false);
+    expect(creatorFilterActive({ ...base, firstImageOnly: false })).toBe(true);
+    expect(firstImageOnlyForCreator("patreon", "comic", true)).toBe(false);
+
+    saveCreatorFilter("patreon", "comic", { ...base, firstImageOnly: true });
+    expect(firstImageOnlyForCreator("patreon", "comic", false)).toBe(true);
   });
 
   it("matches files-and-pictures and files-only modes", () => {

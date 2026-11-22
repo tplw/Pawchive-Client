@@ -8,7 +8,7 @@ import {
   ExternalLink,
   Play,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../shared/api";
 import { errorMessage, isAppError, serviceLabel } from "../../../shared/lib/constants";
 import {
@@ -29,6 +29,7 @@ import { PlaylistPicker } from "../../playlists/ui/PlaylistPicker";
 import { SanitizedHtml } from "../../../shared/SanitizedHtml";
 import { BlockedCreatorNotice } from "../../creators/ui/BlockedCreatorNotice";
 import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
+import { firstImageOnlyForCreator } from "../../../shared/lib/creatorFilters";
 import { queryKeys } from "../../../shared/query/keys";
 import { PostAttachments } from "./PostAttachments";
 import { PostDiscussion } from "./PostDiscussion";
@@ -83,6 +84,12 @@ function PostDetailContent({
   const reportError = useAppStore((state) => state.reportError);
   const config = useAppStore((state) => state.config);
   const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
+  const comicFirstImageOnly = useAppStore(
+    (state) => state.settings.comicFirstImageOnly,
+  );
+  const comicPrefetchImages = useAppStore(
+    (state) => state.settings.comicPrefetchImages,
+  );
   const previousRoute = useAppStore((state) => state.previousRoute);
   const enqueue = usePlayerStore((state) => state.enqueue);
   const { startDownload, downloadPost: startPostDownload } =
@@ -95,6 +102,7 @@ function PostDetailContent({
   const comicBusy = useRef(false);
   const comicRequest = useRef(0);
   const comicAnchor = useRef({ service, creatorId, postId });
+  const comicPrefetchKey = useRef<string | null>(null);
   const [playlistItem, setPlaylistItem] = useState<PlaylistItemInput | null>(null);
   const [navigating, setNavigating] = useState(false);
 
@@ -432,6 +440,7 @@ function PostDetailContent({
 
   const openImage = (index: number) => {
     comicAnchor.current = { service, creatorId, postId };
+    comicPrefetchKey.current = null;
     setViewerImages(images);
     setViewerIndex(index);
   };
@@ -440,33 +449,38 @@ function PostDetailContent({
     comicRequest.current += 1;
     comicBusy.current = false;
     comicAnchor.current = { service, creatorId, postId };
+    comicPrefetchKey.current = null;
     setComicLoading(false);
     setViewerIndex(null);
     setViewerImages([]);
   };
 
-  const loadNextComicPost = async () => {
+  const loadNextComicPost = useCallback(async (advance = true, notify = true) => {
     if (comicBusy.current || !detail) return;
     const candidates = nextPostsInActiveFeed(comicAnchor.current);
     if (candidates.length === 0) {
-      toast(
-        "info",
-        "End of loaded feed",
-        activeFeedHasMore()
-          ? "Scroll the feed to load more posts."
-          : "No later posts in this feed.",
-      );
+      if (notify) {
+        toast(
+          "info",
+          "End of loaded feed",
+          activeFeedHasMore()
+            ? "Scroll the feed to load more posts."
+            : "No later posts in this feed.",
+        );
+      }
       return;
     }
     const batch = candidates.slice(0, 8);
     if (batch.length === 0) {
-      toast(
-        "info",
-        "End of loaded feed",
-        activeFeedHasMore()
-          ? "Scroll the feed to load more posts."
-          : "No later posts in this feed.",
-      );
+      if (notify) {
+        toast(
+          "info",
+          "End of loaded feed",
+          activeFeedHasMore()
+            ? "Scroll the feed to load more posts."
+            : "No later posts in this feed.",
+        );
+      }
       return;
     }
 
@@ -502,10 +516,17 @@ function PostDetailContent({
             (attachment) =>
               attachment.kind === "image" && !attachment.unavailable,
           );
-          if (nextImages.length > 0) {
+          const imagesToAppend = firstImageOnlyForCreator(
+            candidate.service,
+            candidate.user,
+            comicFirstImageOnly,
+          )
+            ? nextImages.slice(0, 1)
+            : nextImages;
+          if (imagesToAppend.length > 0) {
             const startIndex = viewerImages.length;
-            setViewerImages((current) => [...current, ...nextImages]);
-            setViewerIndex(startIndex);
+            setViewerImages((current) => [...current, ...imagesToAppend]);
+            if (advance) setViewerIndex(startIndex);
             comicAnchor.current = {
               service: candidate.service,
               creatorId: candidate.user,
@@ -523,20 +544,46 @@ function PostDetailContent({
         creatorId: lastScanned.user,
         postId: lastScanned.id,
       };
-      toast(
-        "info",
-        "No images nearby",
-        activeFeedHasMore()
-          ? "Scroll the feed to load more posts."
-          : "The next visible posts have no images.",
-      );
+      if (notify) {
+        toast(
+          "info",
+          "No images nearby",
+          activeFeedHasMore()
+            ? "Scroll the feed to load more posts."
+            : "The next visible posts have no images.",
+        );
+      }
     } finally {
       if (comicRequest.current === request) {
         comicBusy.current = false;
         setComicLoading(false);
       }
     }
-  };
+  }, [
+    comicFirstImageOnly,
+    detail,
+    queryClient,
+    toast,
+    viewerImages.length,
+  ]);
+
+  useEffect(() => {
+    if (!comicContext || !comicMode || !comicPrefetchImages) return;
+    if (viewerIndex === null) return;
+    if (viewerIndex < viewerImages.length - 2) return;
+    const key = `${viewerIndex}:${viewerImages.length}`;
+    if (comicPrefetchKey.current === key) return;
+    comicPrefetchKey.current = key;
+    if (nextPostsInActiveFeed(comicAnchor.current).length === 0) return;
+    void loadNextComicPost(false, false);
+  }, [
+    comicContext,
+    comicMode,
+    comicPrefetchImages,
+    loadNextComicPost,
+    viewerImages.length,
+    viewerIndex,
+  ]);
 
   const postNotFound = isAppError(post.error) && post.error.code === "not_found";
   const isNotImportedPost =
@@ -801,6 +848,7 @@ function PostDetailContent({
             comicMode && comicContext ? loadNextComicPost : undefined
           }
           comicLoading={comicLoading}
+          prefetchImages={comicMode && comicPrefetchImages}
         />
       ) : null}
 

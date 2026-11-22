@@ -16,6 +16,7 @@ import { isMobile } from "../../../shared/lib/platform";
 import { useAppStore } from "../../../app/store";
 import type { Attachment } from "../../../shared/types";
 import { IconButton, lockBodyScroll, unlockBodyScroll } from "../../../shared/ui";
+import { needsMediaResolution } from "../../player/model/queue";
 import { useImageViewerSource } from "../model/useImageViewerSource";
 import { useImageViewerGestures } from "../model/useImageViewerGestures";
 import { useImageViewerKeyboard } from "../model/useImageViewerKeyboard";
@@ -29,6 +30,7 @@ export function ImageViewer({
   onToggleComicMode,
   onNextPost,
   comicLoading = false,
+  prefetchImages = false,
 }: {
   images: Attachment[];
   index: number;
@@ -38,6 +40,7 @@ export function ImageViewer({
   onToggleComicMode?: () => void;
   onNextPost?: () => void;
   comicLoading?: boolean;
+  prefetchImages?: boolean;
 }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -105,6 +108,21 @@ export function ImageViewer({
     setZoom,
     setPan,
   });
+
+  useEffect(() => {
+    if (!comicMode || !prefetchImages) return;
+    for (const target of images.slice(index + 1, index + 3)) {
+      if (
+        !target.url.startsWith("https://") ||
+        needsMediaResolution(target.url)
+      ) {
+        continue;
+      }
+      const preload = new Image();
+      preload.decoding = "async";
+      preload.src = target.url;
+    }
+  }, [comicMode, images, index, prefetchImages]);
 
   useEffect(() => {
     setZoom(1);

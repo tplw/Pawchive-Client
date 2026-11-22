@@ -98,6 +98,33 @@ export function CreatorFilterModal({
             <option value="filesOnly">Files only</option>
           </select>
         </Field>
+        <Field
+          label="Comic mode images"
+          hint="Follows the main Settings value until you override it here."
+        >
+          <select
+            value={
+              filter.firstImageOnly === undefined
+                ? "default"
+                : filter.firstImageOnly
+                  ? "first"
+                  : "all"
+            }
+            onChange={(event) => {
+              const value = event.target.value;
+              onUpdateFilter({
+                ...filter,
+                firstImageOnly:
+                  value === "default" ? undefined : value === "first",
+              });
+            }}
+            className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+          >
+            <option value="default">Use main setting</option>
+            <option value="first">First image only</option>
+            <option value="all">All images</option>
+          </select>
+        </Field>
         <Toggle
           checked={filter.hideUnavailable}
           onChange={(checked) =>

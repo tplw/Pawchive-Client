@@ -42,6 +42,11 @@ pub struct AppSettings {
     pub hide_file_tags: bool,
     pub hide_source_tags: bool,
     pub hide_post_play_button: bool,
+    /// Comic mode loads only the first image when it moves to another post.
+    /// Creator filters can override this.
+    pub comic_first_image_only: bool,
+    /// Preload the next images while reading in comic mode.
+    pub comic_prefetch_images: bool,
     pub auto_check_updates: bool,
     /// Latest release the user dismissed, so the update prompt only appears
     /// once per version.
@@ -84,6 +89,8 @@ impl Default for AppSettings {
             hide_file_tags: false,
             hide_source_tags: false,
             hide_post_play_button: false,
+            comic_first_image_only: false,
+            comic_prefetch_images: false,
             auto_check_updates: true,
             dismissed_update_version: String::new(),
             blocked_creators: Vec::new(),

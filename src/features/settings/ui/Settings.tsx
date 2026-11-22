@@ -436,6 +436,34 @@ export function SettingsPage() {
               text-only and image-only posts. This is the default for every
               creator filter.
             </p>
+            <label className="flex items-center justify-between gap-3 py-1.5 text-xs font-medium text-ink">
+              Comic mode images
+              <select
+                value={settings.comicFirstImageOnly ? "first" : "all"}
+                onChange={(event) =>
+                  void saveSettings({
+                    comicFirstImageOnly: event.target.value === "first",
+                  })
+                }
+                className="h-8 w-40 rounded-lg border border-line bg-base px-2 text-xs text-ink outline-none focus:border-accent/70"
+              >
+                <option value="all">All images</option>
+                <option value="first">First image only</option>
+              </select>
+            </label>
+            <p className="text-[10px] leading-relaxed text-muted">
+              Default for creator filters. Comic mode loads only the first
+              image when it moves to another post.
+            </p>
+            <Toggle
+              compact
+              checked={settings.comicPrefetchImages}
+              onChange={(checked) =>
+                void saveSettings({ comicPrefetchImages: checked })
+              }
+              label="Prefetch comic images"
+              description="Preload the next two images while reading in Comic mode. Uses extra network and memory."
+            />
             <Toggle
               compact
               checked={settings.hideUnavailablePosts}
@@ -474,7 +502,7 @@ export function SettingsPage() {
           </div>
         </SettingsSection>
 
-        <SettingsSection icon={Ban} title="Blocked creators">
+        <SettingsDetails icon={Ban} title="Blocked creators">
           {blockedCreators.length === 0 ? (
             <p className="text-xs leading-relaxed text-muted">
               No blocked creators. Use the Block button on a creator profile to
@@ -506,7 +534,7 @@ export function SettingsPage() {
               ))}
             </div>
           )}
-        </SettingsSection>
+        </SettingsDetails>
 
         <SettingsSection icon={FolderOpen} title="Downloads">
           <div className="space-y-2">
@@ -598,7 +626,7 @@ export function SettingsPage() {
           </div>
         </SettingsSection>
 
-        <SettingsSection icon={RefreshCw} title="Updates">
+        <SettingsDetails icon={RefreshCw} title="Updates">
           <div className="space-y-2">
             <p className="text-[10px] leading-relaxed text-muted">
               Current version{" "}
@@ -649,27 +677,16 @@ export function SettingsPage() {
               <p className="text-[10px] text-danger">{updateError}</p>
             ) : null}
           </div>
-        </SettingsSection>
+        </SettingsDetails>
 
       </div>
 
-      <details className="group rounded-xl2 border border-line/70 bg-card/70">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs font-semibold text-ink [&::-webkit-details-marker]:hidden">
-          <UserRound className="h-4 w-4 text-accent" /> Pawchive account
-          <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted transition group-open:rotate-180" />
-        </summary>
-        <div className="border-t border-line/60 p-4">
-          <AccountPanel />
-        </div>
-      </details>
+      <SettingsDetails icon={UserRound} title="Pawchive account">
+        <AccountPanel />
+      </SettingsDetails>
 
-      <details className="group rounded-xl2 border border-line/70 bg-card/70">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs font-semibold text-ink [&::-webkit-details-marker]:hidden">
-          <Info className="h-4 w-4 text-accent" /> About
-          <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted transition group-open:rotate-180" />
-        </summary>
-        <div className="border-t border-line/60 p-4">
-          <dl className="grid gap-2 text-[11px] text-muted sm:grid-cols-2">
+      <SettingsDetails icon={Info} title="About">
+        <dl className="grid gap-2 text-[11px] text-muted sm:grid-cols-2">
             <div className="flex justify-between gap-3 sm:block">
               <dt>Version</dt>
               <dd className="text-ink">{config.appVersion}</dd>
@@ -687,8 +704,7 @@ export function SettingsPage() {
               <dd className="truncate text-ink">{config.fileBase}</dd>
             </div>
           </dl>
-        </div>
-      </details>
+      </SettingsDetails>
     </div>
   );
 }
@@ -710,5 +726,25 @@ function SettingsSection({
       </div>
       {children}
     </section>
+  );
+}
+
+function SettingsDetails({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: typeof Settings2;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="group rounded-xl2 border border-line/70 bg-card/70">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs font-semibold text-ink [&::-webkit-details-marker]:hidden">
+        <Icon className="h-4 w-4 text-accent" /> {title}
+        <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted transition group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-line/60 p-4">{children}</div>
+    </details>
   );
 }
