@@ -4,7 +4,13 @@ All notable changes to Pawchive Client are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.0.7 - 2026-11-22
+
+This release adds adaptive Comic mode prefetching and previous-post navigation,
+media-cache-aware prefetching, automatic creator-index refresh, wheel and
+trackpad image navigation, and player keyboard shortcuts. It also fixes
+duplicate attachments, blocked-creator navigation, creator update times, macOS
+window dragging and several playback and media-cache edge cases.
 
 ### Fixed
 

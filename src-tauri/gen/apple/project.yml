@@ -57,8 +57,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 1.0.6.1
-        CFBundleVersion: "1.0.6.1"
+        CFBundleShortVersionString: 1.0.7
+        CFBundleVersion: "1.0.7"
     entitlements:
       path: pawchive-client_iOS/pawchive-client_iOS.entitlements
     scheme:
