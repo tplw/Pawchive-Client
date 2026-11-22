@@ -1,6 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Attachment } from "../../../shared/types";
+import {
+  clearImagePrefetchCache,
+  markImagePrefetched,
+} from "./imagePrefetch";
 import { useImageViewerSource } from "./useImageViewerSource";
 
 const image: Attachment = {
@@ -16,7 +20,23 @@ const image: Attachment = {
 };
 
 describe("image viewer source", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearImagePrefetchCache();
+  });
+
+  it("opens a prefetched image at full resolution without the thumbnail", () => {
+    markImagePrefetched(image.url);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useImageViewerSource({ image, index: 0, cacheMedia: false }),
+    );
+
+    expect(result.current.displaySrc).toBe(image.url);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
   it("replaces the thumbnail with the fetched full image", async () => {
     const fetchMock = vi.fn().mockResolvedValue(

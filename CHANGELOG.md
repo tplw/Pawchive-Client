@@ -20,6 +20,8 @@ project follows [Semantic Versioning](https://semver.org/).
   loaded full image.
 - Opening a downloaded image no longer uses its thumbnail as the viewer source
   while the local file URL is still loading.
+- Prefetched comic images now open directly at full resolution instead of
+  showing the thumbnail and running the fetch animation again.
 
 ## 1.0.6.1 - 2026-11-19
 

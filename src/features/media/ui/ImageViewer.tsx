@@ -17,6 +17,7 @@ import { useAppStore } from "../../../app/store";
 import type { Attachment } from "../../../shared/types";
 import { IconButton, lockBodyScroll, unlockBodyScroll } from "../../../shared/ui";
 import { needsMediaResolution } from "../../player/model/queue";
+import { markImagePrefetched } from "../model/imagePrefetch";
 import { useImageViewerSource } from "../model/useImageViewerSource";
 import { useImageViewerGestures } from "../model/useImageViewerGestures";
 import { useImageViewerKeyboard } from "../model/useImageViewerKeyboard";
@@ -123,6 +124,7 @@ export function ImageViewer({
       }
       const preload = new Image();
       preload.decoding = "async";
+      preload.onload = () => markImagePrefetched(target.url);
       preload.src = target.url;
     }
   }, [comicMode, images, index, prefetchCount]);

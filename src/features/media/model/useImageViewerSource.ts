@@ -7,6 +7,7 @@ import {
   isMegaFileUrl,
   needsMediaResolution,
 } from "../../player/model/queue";
+import { isImagePrefetched } from "./imagePrefetch";
 
 /**
  * Load the current image for the viewer. Cached images win; otherwise the
@@ -31,8 +32,16 @@ export function useImageViewerSource({
 
   useEffect(() => {
     if (!imageUrl) return;
-    let cancelled = false;
     triedDirect.current = false;
+    // A completed prefetch is already in the browser's image cache. Use the
+    // full URL directly so the thumbnail and the fetch progress never flash.
+    if (!cacheMedia && isImagePrefetched(imageUrl)) {
+      setProgress(null);
+      setDisplaySrc(imageUrl);
+      setFailed(false);
+      return;
+    }
+    let cancelled = false;
     let objectUrl: string | null = null;
     const controller = new AbortController();
     setProgress(null);
