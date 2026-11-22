@@ -20,11 +20,9 @@ import {
  */
 export function useImageViewerSource({
   image,
-  index,
   cacheMedia,
 }: {
   image: Attachment | undefined;
-  index: number;
   cacheMedia: boolean;
 }) {
   const [displaySrc, setDisplaySrc] = useState<string | null>(null);
@@ -214,7 +212,7 @@ export function useImageViewerSource({
       }
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [cacheMedia, imageUrl, thumbnailUrl, index]);
+  }, [cacheMedia, imageUrl, thumbnailUrl]);
 
   const handleImageError = useCallback(() => {
     // A blob can finish downloading and still fail to decode. Try the full

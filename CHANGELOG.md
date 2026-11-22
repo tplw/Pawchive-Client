@@ -16,6 +16,9 @@ project follows [Semantic Versioning](https://semver.org/).
   going older.
 - Comic mode prefetch no longer appends the same post twice when the adjacent
   posts have one image, so the same page cannot appear twice in the viewer.
+- Comic mode prefetch now follows the reading direction. It loads older posts
+  by default and switches to newer posts after moving backward. Newer posts
+  are prepended without resetting the current image or zoom.
 - Space and K now toggle playback, M toggles mute and F toggles the player
   between minimized and expanded. Typing and open dialogs still keep their
   keys.

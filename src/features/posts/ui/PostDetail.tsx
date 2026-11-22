@@ -111,10 +111,18 @@ function PostDetailContent({
   const [comicMode, setComicModeState] = useState(savedComicMode);
   const [comicLoading, setComicLoading] = useState(false);
   const [comicPreviousLoading, setComicPreviousLoading] = useState(false);
+  const [comicDirection, setComicDirection] = useState<"next" | "previous">(
+    "next",
+  );
   const comicBusy = useRef(false);
   const comicRequest = useRef(0);
   const comicAnchor = useRef<ComicAnchor>({ service, creatorId, postId });
   const comicScanAnchor = useRef<ComicAnchor>({ service, creatorId, postId });
+  const comicPreviousScanAnchor = useRef<ComicAnchor>({
+    service,
+    creatorId,
+    postId,
+  });
   const comicImageAnchors = useRef<ComicAnchor[]>([]);
   const comicPrefetchKey = useRef<string | null>(null);
   const [playlistItem, setPlaylistItem] = useState<PlaylistItemInput | null>(null);
@@ -460,8 +468,10 @@ function PostDetailContent({
     const anchor = { service, creatorId, postId };
     comicAnchor.current = anchor;
     comicScanAnchor.current = anchor;
+    comicPreviousScanAnchor.current = anchor;
     comicImageAnchors.current = images.map(() => anchor);
     comicPrefetchKey.current = null;
+    setComicDirection("next");
     if (autoComicModeForCreator(service, creatorId, comicAutoEnable)) {
       setComicMode(true);
     }
@@ -469,11 +479,17 @@ function PostDetailContent({
     setViewerIndex(index);
   };
 
-  const changeViewerIndex = useCallback((next: number) => {
-    setViewerIndex(next);
-    const anchor = comicImageAnchors.current[next];
-    if (anchor) comicAnchor.current = anchor;
-  }, []);
+  const changeViewerIndex = useCallback(
+    (next: number) => {
+      if (viewerIndex !== null && next !== viewerIndex) {
+        setComicDirection(next > viewerIndex ? "next" : "previous");
+      }
+      setViewerIndex(next);
+      const anchor = comicImageAnchors.current[next];
+      if (anchor) comicAnchor.current = anchor;
+    },
+    [viewerIndex],
+  );
 
   const closeViewer = () => {
     comicRequest.current += 1;
@@ -481,8 +497,10 @@ function PostDetailContent({
     const anchor = { service, creatorId, postId };
     comicAnchor.current = anchor;
     comicScanAnchor.current = anchor;
+    comicPreviousScanAnchor.current = anchor;
     comicImageAnchors.current = [];
     comicPrefetchKey.current = null;
+    setComicDirection("next");
     setComicLoading(false);
     setComicPreviousLoading(false);
     setViewerIndex(null);
@@ -490,6 +508,7 @@ function PostDetailContent({
   };
 
   const loadNextComicPost = useCallback(async (advance = true, notify = true) => {
+    if (advance) setComicDirection("next");
     if (comicBusy.current || !detail) return;
     const candidates = nextPostsInActiveFeed(comicScanAnchor.current);
     if (candidates.length === 0) {
@@ -611,9 +630,12 @@ function PostDetailContent({
   ]);
 
   const loadPreviousComicPost = useCallback(
-    async (notify = true) => {
+    async (advance = true, notify = true) => {
+      if (advance) setComicDirection("previous");
       if (comicBusy.current || !detail) return;
-      const candidates = previousPostsInActiveFeed(comicAnchor.current);
+      const candidates = previousPostsInActiveFeed(
+        comicPreviousScanAnchor.current,
+      );
       if (candidates.length === 0) {
         if (notify) {
           toast(
@@ -674,12 +696,21 @@ function PostDetailContent({
                 creatorId: candidate.user,
                 postId: candidate.id,
               };
-              comicImageAnchors.current = imagesToShow.map(() => anchor);
-              comicAnchor.current = anchor;
-              comicScanAnchor.current = anchor;
-              comicPrefetchKey.current = null;
-              setViewerImages(imagesToShow);
-              setViewerIndex(imagesToShow.length - 1);
+              comicImageAnchors.current = [
+                ...imagesToShow.map(() => anchor),
+                ...comicImageAnchors.current,
+              ];
+              comicPreviousScanAnchor.current = anchor;
+              setViewerImages((current) => [...imagesToShow, ...current]);
+              if (advance) {
+                comicAnchor.current = anchor;
+                comicPrefetchKey.current = null;
+                setViewerIndex(imagesToShow.length - 1);
+              } else {
+                setViewerIndex((current) =>
+                  current === null ? current : current + imagesToShow.length,
+                );
+              }
               return;
             }
           } catch {
@@ -688,7 +719,7 @@ function PostDetailContent({
         }
         const earliest = batch[0];
         if (earliest) {
-          comicAnchor.current = {
+          comicPreviousScanAnchor.current = {
             service: earliest.service,
             creatorId: earliest.user,
             postId: earliest.id,
@@ -714,17 +745,30 @@ function PostDetailContent({
   useEffect(() => {
     if (!comicContext || !comicMode || comicPrefetchCount <= 0) return;
     if (viewerIndex === null) return;
-    if (viewerIndex < viewerImages.length - 2) return;
-    const key = `${viewerIndex}:${viewerImages.length}`;
+    const key = `${comicDirection}:${viewerIndex}:${viewerImages.length}`;
     if (comicPrefetchKey.current === key) return;
-    comicPrefetchKey.current = key;
+    if (comicDirection === "previous") {
+      if (viewerIndex > 1) return;
+      if (
+        previousPostsInActiveFeed(comicPreviousScanAnchor.current).length === 0
+      ) {
+        return;
+      }
+      comicPrefetchKey.current = key;
+      void loadPreviousComicPost(false, false);
+      return;
+    }
+    if (viewerIndex < viewerImages.length - 2) return;
     if (nextPostsInActiveFeed(comicScanAnchor.current).length === 0) return;
+    comicPrefetchKey.current = key;
     void loadNextComicPost(false, false);
   }, [
     comicContext,
+    comicDirection,
     comicMode,
     comicPrefetchCount,
     loadNextComicPost,
+    loadPreviousComicPost,
     viewerImages.length,
     viewerIndex,
   ]);
@@ -997,6 +1041,7 @@ function PostDetailContent({
           comicLoading={comicLoading}
           comicPreviousLoading={comicPreviousLoading}
           prefetchCount={comicMode ? comicPrefetchCount : 0}
+          prefetchDirection={comicDirection}
         />
       ) : null}
 

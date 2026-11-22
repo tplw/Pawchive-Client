@@ -75,6 +75,36 @@ describe("image viewer comic mode", () => {
     ]);
   });
 
+  it("prefetches previous images when the reading direction is previous", () => {
+    const sources: string[] = [];
+    class FakeImage {
+      decoding = "";
+      set src(value: string) {
+        sources.push(value);
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+
+    render(
+      <ImageViewer
+        images={[image("one.jpg"), image("two.jpg"), image("three.jpg")]}
+        index={2}
+        onIndexChange={() => undefined}
+        onClose={() => undefined}
+        comicMode
+        onToggleComicMode={() => undefined}
+        onNextPost={() => undefined}
+        prefetchCount={2}
+        prefetchDirection="previous"
+      />,
+    );
+
+    expect(sources).toEqual([
+      "https://example.com/two.jpg",
+      "https://example.com/one.jpg",
+    ]);
+  });
+
   it("prefetches through the media cache when caching is enabled", () => {
     useAppStore.setState({
       settings: { ...DEFAULT_SETTINGS, cacheMedia: true },

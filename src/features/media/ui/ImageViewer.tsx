@@ -42,6 +42,7 @@ export function ImageViewer({
   comicLoading = false,
   comicPreviousLoading = false,
   prefetchCount = 0,
+  prefetchDirection = "next",
 }: {
   images: Attachment[];
   index: number;
@@ -54,6 +55,7 @@ export function ImageViewer({
   comicLoading?: boolean;
   comicPreviousLoading?: boolean;
   prefetchCount?: number;
+  prefetchDirection?: "next" | "previous";
 }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -67,7 +69,7 @@ export function ImageViewer({
   const image = images[index];
   const autoHideControls = isLandscape && (isMobile || fullscreen);
   const { displaySrc, progress, failed, handleImageError } =
-    useImageViewerSource({ image, index, cacheMedia });
+    useImageViewerSource({ image, cacheMedia });
 
   const goNext = useCallback(() => {
     if (comicLoading || comicPreviousLoading) return;
@@ -146,10 +148,11 @@ export function ImageViewer({
 
   useEffect(() => {
     if (!comicMode || prefetchCount <= 0) return;
-    for (const target of images.slice(
-      index + 1,
-      index + 1 + prefetchCount,
-    )) {
+    const targets =
+      prefetchDirection === "previous"
+        ? images.slice(Math.max(0, index - prefetchCount), index).reverse()
+        : images.slice(index + 1, index + 1 + prefetchCount);
+    for (const target of targets) {
       if (
         !target.url.startsWith("https://") ||
         needsMediaResolution(target.url)
@@ -174,12 +177,19 @@ export function ImageViewer({
       preload.onerror = () => forgetImagePrefetched(target.url);
       preload.src = target.url;
     }
-  }, [cacheMedia, comicMode, images, index, prefetchCount]);
+  }, [
+    cacheMedia,
+    comicMode,
+    images,
+    index,
+    prefetchCount,
+    prefetchDirection,
+  ]);
 
   useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  }, [index, image?.url]);
+  }, [image?.url]);
 
   useEffect(() => {
     if (zoom <= 1) setPan({ x: 0, y: 0 });

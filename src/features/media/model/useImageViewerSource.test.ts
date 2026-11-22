@@ -34,7 +34,7 @@ describe("image viewer source", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { result } = renderHook(() =>
-      useImageViewerSource({ image, index: 0, cacheMedia: false }),
+      useImageViewerSource({ image, cacheMedia: false }),
     );
 
     expect(result.current.displaySrc).toBe(image.url);
@@ -47,7 +47,7 @@ describe("image viewer source", () => {
     const cacheMedia = vi.spyOn(api, "cacheMedia");
 
     const { result } = renderHook(() =>
-      useImageViewerSource({ image, index: 0, cacheMedia: true }),
+      useImageViewerSource({ image, cacheMedia: true }),
     );
 
     expect(result.current.displaySrc).toBe(cached);
@@ -66,7 +66,7 @@ describe("image viewer source", () => {
     const cacheMedia = vi.spyOn(api, "cacheMedia");
 
     const { result } = renderHook(() =>
-      useImageViewerSource({ image, index: 0, cacheMedia: true }),
+      useImageViewerSource({ image, cacheMedia: true }),
     );
 
     expect(result.current.displaySrc).toBe(image.thumbnailUrl);
@@ -88,7 +88,7 @@ describe("image viewer source", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { result } = renderHook(() =>
-      useImageViewerSource({ image, index: 0, cacheMedia: false }),
+      useImageViewerSource({ image, cacheMedia: false }),
     );
 
     expect(result.current.displaySrc).toBe(image.thumbnailUrl);
@@ -114,7 +114,7 @@ describe("image viewer source", () => {
 
     const { result, rerender } = renderHook(
       ({ current }) =>
-        useImageViewerSource({ image: current, index: 0, cacheMedia: false }),
+        useImageViewerSource({ image: current, cacheMedia: false }),
       { initialProps: { current: image } },
     );
     await waitFor(() => expect(result.current.displaySrc).toBe("blob:test"));
@@ -131,7 +131,7 @@ describe("image viewer source", () => {
     );
 
     const { result } = renderHook(() =>
-      useImageViewerSource({ image, index: 0, cacheMedia: false }),
+      useImageViewerSource({ image, cacheMedia: false }),
     );
 
     expect(result.current.displaySrc).toBe(image.thumbnailUrl);
@@ -152,7 +152,7 @@ describe("image viewer source", () => {
     );
 
     const { result } = renderHook(() =>
-      useImageViewerSource({ image, index: 0, cacheMedia: false }),
+      useImageViewerSource({ image, cacheMedia: false }),
     );
     await waitFor(() => expect(result.current.displaySrc).toBe("blob:test"));
 
