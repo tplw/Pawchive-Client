@@ -256,9 +256,6 @@ describe("creator profile", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: queryKeys.creator("patreon", "42"),
     });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: queryKeys.creatorSimilarAll(),
-    });
   });
 
   it("persists auto-detected ASMR for creator previews", async () => {

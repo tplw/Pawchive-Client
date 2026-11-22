@@ -144,9 +144,6 @@ function CreatorProfileContent({
     void queryClient.invalidateQueries({
       queryKey: queryKeys.creator(service, creatorId),
     });
-    void queryClient.invalidateQueries({
-      queryKey: queryKeys.creatorSimilarAll(),
-    });
   }, [creatorId, profile.data?.updated, queryClient, service]);
   const links = useQuery({
     queryKey: queryKeys.creatorLinks(service, creatorId),
