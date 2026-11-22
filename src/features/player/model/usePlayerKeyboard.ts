@@ -4,9 +4,10 @@ import { currentWindow } from "../../../shared/lib/window";
 import { usePlayerStore } from "./store";
 
 /**
- * Global media shortcuts. Playback, mute and pause work in both the compact
- * bar and the expanded player; seeking, fullscreen and Escape stay
- * expanded-only so the page underneath keeps its normal keys.
+ * Global media shortcuts. Playback and mute work in both the compact bar and
+ * the expanded player. F expands the compact player, then toggles fullscreen
+ * once expanded. Seeking and Escape stay expanded-only so the page underneath
+ * keeps its normal keys.
  */
 export function usePlayerKeyboard({
   fullscreen,
@@ -40,6 +41,16 @@ export function usePlayerKeyboard({
         state.toggleMute();
         return;
       }
+      if (key === "f") {
+        if (event.repeat) return;
+        event.preventDefault();
+        if (state.expanded) {
+          void toggleFullscreen();
+        } else {
+          state.setExpanded(true);
+        }
+        return;
+      }
 
       // The remaining shortcuts only make sense in the expanded player.
       if (!state.expanded) return;
@@ -60,9 +71,6 @@ export function usePlayerKeyboard({
         case "arrowdown":
           event.preventDefault();
           state.setVolume(Math.max(0, state.volume - 0.05));
-          break;
-        case "f":
-          void toggleFullscreen();
           break;
         case "escape":
           if (fullscreen) {

@@ -154,6 +154,13 @@ describe("player", () => {
     },
   );
 
+  it("expands the player with F when minimized", () => {
+    render(<Player />);
+
+    fireEvent.keyDown(window, { key: "f" });
+    expect(usePlayerStore.getState().expanded).toBe(true);
+  });
+
   it("ignores playback keys while typing", () => {
     render(<Player />);
     const input = document.createElement("input");
