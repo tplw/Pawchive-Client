@@ -9,6 +9,11 @@ export function isImagePrefetched(url: string): boolean {
   return prefetchedImages.has(url);
 }
 
+/** Drop an optimistic prefetch after the image failed to load. */
+export function forgetImagePrefetched(url: string): void {
+  prefetchedImages.delete(url);
+}
+
 /** Used by tests; the set only holds URL strings for the session. */
 export function clearImagePrefetchCache(): void {
   prefetchedImages.clear();
