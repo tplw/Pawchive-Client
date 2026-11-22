@@ -47,8 +47,8 @@ queue preservation, navigation and playback fixes.
   creator can override it to load all images.
 - **Prefetch comic images** in Settings. When enabled, comic mode preloads the
   next two images so moving to the next image does not wait for the download.
-- Settings now shows **Blocked creators** and **Updates** as collapsible
-  cards, matching the account and About sections.
+- Settings now shows **Blocked creators** and **Updates** as full-width
+  collapsible cards at the bottom, matching the account and About sections.
 
 ### Fixed
 

@@ -403,6 +403,7 @@ export function SettingsPage() {
           </div>
         </SettingsSection>
 
+        <div className="md:col-span-2">
         <SettingsSection icon={Filter} title="Content filters">
           <div className="space-y-2">
             <Toggle
@@ -501,40 +502,7 @@ export function SettingsPage() {
             </label>
           </div>
         </SettingsSection>
-
-        <SettingsDetails icon={Ban} title="Blocked creators">
-          {blockedCreators.length === 0 ? (
-            <p className="text-xs leading-relaxed text-muted">
-              No blocked creators. Use the Block button on a creator profile to
-              hide that creator and all of their posts everywhere.
-            </p>
-          ) : (
-            <div className="space-y-1.5">
-              {blockedCreators.map((creator) => (
-                <div
-                  key={`${creator.service}:${creator.id}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-line/60 bg-base/25 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-ink">
-                      {creator.name || creator.id}
-                    </p>
-                    <p className="mt-0.5 truncate text-[10px] text-muted">
-                      {serviceLabel(creator.service)} · {creator.id}
-                    </p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => void unblockCreator(creator)}
-                  >
-                    Unblock
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </SettingsDetails>
+        </div>
 
         <SettingsSection icon={FolderOpen} title="Downloads">
           <div className="space-y-2">
@@ -626,6 +594,42 @@ export function SettingsPage() {
           </div>
         </SettingsSection>
 
+      </div>
+
+        <SettingsDetails icon={Ban} title="Blocked creators">
+          {blockedCreators.length === 0 ? (
+            <p className="text-xs leading-relaxed text-muted">
+              No blocked creators. Use the Block button on a creator profile to
+              hide that creator and all of their posts everywhere.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {blockedCreators.map((creator) => (
+                <div
+                  key={`${creator.service}:${creator.id}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-line/60 bg-base/25 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-ink">
+                      {creator.name || creator.id}
+                    </p>
+                    <p className="mt-0.5 truncate text-[10px] text-muted">
+                      {serviceLabel(creator.service)} · {creator.id}
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void unblockCreator(creator)}
+                  >
+                    Unblock
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </SettingsDetails>
+
         <SettingsDetails icon={RefreshCw} title="Updates">
           <div className="space-y-2">
             <p className="text-[10px] leading-relaxed text-muted">
@@ -678,8 +682,6 @@ export function SettingsPage() {
             ) : null}
           </div>
         </SettingsDetails>
-
-      </div>
 
       <SettingsDetails icon={UserRound} title="Pawchive account">
         <AccountPanel />
