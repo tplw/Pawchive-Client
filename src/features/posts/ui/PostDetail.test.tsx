@@ -9,6 +9,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../../shared/api";
 import { DEFAULT_SETTINGS } from "../../../shared/lib/constants";
+import { saveCreatorFilter } from "../../../shared/lib/creatorFilters";
 import { useAppStore } from "../../../app/store";
 import { wireNavigation } from "../../../app/bootstrap/wireNavigation";
 import { usePlayerStore } from "../../player/model/store";
@@ -233,6 +234,86 @@ describe("post detail", () => {
         "Some files exceed the archive size limit and weren't saved",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("starts comic mode from a per-creator override", async () => {
+    saveCreatorFilter("fanbox", "7", {
+      audioOnly: false,
+      mediaFilter: "all",
+      hideUnavailable: false,
+      overrideGlobalKeywords: false,
+      autoComicMode: true,
+      keywords: [],
+    });
+    const creatorRoute = {
+      name: "creator" as const,
+      service: "fanbox",
+      creatorId: "7",
+    };
+    const postRoute = {
+      name: "post" as const,
+      service: "fanbox",
+      creatorId: "7",
+      postId: "99",
+    };
+    const tabs = structuredClone(useAppStore.getState().tabs);
+    tabs.discover = {
+      stack: [{ name: "discover" }, creatorRoute, postRoute],
+      index: 2,
+    };
+    useAppStore.setState({
+      activeTab: "discover",
+      route: postRoute,
+      previousRoute: creatorRoute,
+      tabs,
+      settings: { ...DEFAULT_SETTINGS, comicAutoEnable: false },
+    });
+    const summary = (id: string): PostSummary =>
+      ({
+        id,
+        service: "fanbox",
+        user: "7",
+        creatorName: "Grace Hopper",
+        title: id,
+        excerpt: "",
+        published: 1,
+        added: 1,
+        thumbnailUrl: null,
+        attachmentCount: 1,
+        mediaKinds: ["image"],
+        previewState: null,
+        hasFull: null,
+        imported: true,
+        exceedsLimit: false,
+        unavailable: false,
+      }) as PostSummary;
+    rememberPostFeed({
+      service: "fanbox",
+      creatorId: "7",
+      visible: [summary("99"), summary("100")],
+      all: [summary("99"), summary("100")],
+      hasMore: false,
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("offline"));
+
+    wrapper(<PostDetailPage service="fanbox" creatorId="7" postId="99" />);
+    const image = await screen.findByText("image.jpg");
+    fireEvent.click(image.closest("button")!);
+
+    expect(
+      await screen.findByRole("button", { name: "Comic mode on" }),
+    ).toBeInTheDocument();
+
+    fetchSpy.mockRestore();
+    clearPostFeeds();
+    window.localStorage.removeItem("pawchive-creator-filter:fanbox:7");
+    useAppStore.setState({
+      route: { name: "discover" },
+      previousRoute: null,
+      settings: DEFAULT_SETTINGS,
+    });
   });
 
   it("keeps the existing queue when a single attachment is played", async () => {

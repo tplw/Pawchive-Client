@@ -18,7 +18,8 @@ import {
   addBlockedCreator,
   isCreatorBlocked,
 } from "../../../shared/lib/blockedCreators";
-import { BlockedCreatorNotice } from "./BlockedCreatorNotice";
+import { leaveBlockedCreator } from "../model/blockedNavigation";
+import { BlockedCreatorRedirect } from "./BlockedCreatorRedirect";
 import { nextOffset, uniqueBy } from "../../../shared/query/pagination";
 import { queryKeys } from "../../../shared/query/keys";
 import {
@@ -68,7 +69,9 @@ export function CreatorProfilePage({
   const blocked = useAppStore((state) =>
     isCreatorBlocked(state.settings.blockedCreators ?? [], service, creatorId),
   );
-  if (blocked) return <BlockedCreatorNotice service={service} id={creatorId} />;
+  if (blocked) {
+    return <BlockedCreatorRedirect service={service} creatorId={creatorId} />;
+  }
   return <CreatorProfileContent service={service} creatorId={creatorId} />;
 }
 
@@ -323,42 +326,50 @@ function CreatorProfileContent({
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 pb-1 text-[10px] text-muted">
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={favorite.isPending}
-                onClick={() => favorite.mutate(!summary?.is_favorite)}
-              >
-                <SiteIcon
-                  name="favorites"
-                  size={15}
-                  tone={summary?.is_favorite ? "favorite" : "default"}
+            <div className="flex flex-col gap-1.5 pb-1 text-[10px] text-muted sm:items-end">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={favorite.isPending}
+                  onClick={() => favorite.mutate(!summary?.is_favorite)}
+                >
+                  <SiteIcon
+                    name="favorites"
+                    size={15}
+                    tone={summary?.is_favorite ? "favorite" : "default"}
+                  />
+                  {summary?.is_favorite ? "Favorited" : "Favorite"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setBlockConfirmOpen(true)}
+                >
+                  <Ban className="h-3.5 w-3.5" /> Block
+                </Button>
+                <IconButton
+                  label="Filter posts"
+                  icon={Filter}
+                  active={creatorFilterActive(effectiveFilter)}
+                  onClick={() => setFilterOpen(true)}
                 />
-                {summary?.is_favorite ? "Favorited" : "Favorite"}
-              </Button>
-              <IconButton
-                label="Filter posts"
-                icon={Filter}
-                active={creatorFilterActive(effectiveFilter)}
-                onClick={() => setFilterOpen(true)}
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setBlockConfirmOpen(true)}
-              >
-                <Ban className="h-3.5 w-3.5" /> Block
-              </Button>
-              {updated ? (
-                <span className="inline-flex items-center gap-1">
-                  <CalendarDays className="h-3 w-3" /> Updated {formatRelative(updated)}
-                </span>
-              ) : null}
-              {profile.isError ? (
-                <span className="inline-flex items-center gap-1 text-amber-400/80">
-                  <AlertCircle className="h-3 w-3" /> Profile details unavailable
-                </span>
+              </div>
+              {updated || profile.isError ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {updated ? (
+                    <span className="inline-flex items-center gap-1">
+                      <CalendarDays className="h-3 w-3" /> Updated{" "}
+                      {formatRelative(updated)}
+                    </span>
+                  ) : null}
+                  {profile.isError ? (
+                    <span className="inline-flex items-center gap-1 text-amber-400/80">
+                      <AlertCircle className="h-3 w-3" /> Profile details
+                      unavailable
+                    </span>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </div>
@@ -581,7 +592,7 @@ function CreatorProfileContent({
         confirmLabel="Block creator"
         danger
         onConfirm={() => {
-          goBack();
+          leaveBlockedCreator(service, creatorId);
           blockCreator();
         }}
         onClose={() => setBlockConfirmOpen(false)}

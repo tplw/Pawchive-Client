@@ -76,7 +76,16 @@ describe("creator profile", () => {
     useAppStore.setState({
       route: { name: "creator" },
       previousRoute: null,
+      activeTab: "discover",
+      tabs: {
+        home: { stack: [{ name: "home" }], index: 0 },
+        discover: { stack: [{ name: "discover" }], index: 0 },
+        search: { stack: [{ name: "search" }], index: 0 },
+        downloads: { stack: [{ name: "downloads" }], index: 0 },
+        settings: { stack: [{ name: "settings" }], index: 0 },
+      },
       settings: DEFAULT_SETTINGS,
+      toasts: [],
     });
     vi.mocked(api.getCreator).mockResolvedValue(creator);
     vi.mocked(api.getCreatorProfile).mockResolvedValue({
@@ -131,6 +140,97 @@ describe("creator profile", () => {
         }),
       ),
     );
+  });
+
+  it("leaves the blocked creator context after blocking", async () => {
+    const creatorRoute = {
+      name: "creator" as const,
+      service: "patreon",
+      creatorId: "42",
+    };
+    const postRoute = {
+      name: "post" as const,
+      service: "patreon",
+      creatorId: "42",
+      postId: "1",
+    };
+    const tabs = structuredClone(useAppStore.getState().tabs);
+    tabs.discover = {
+      stack: [{ name: "discover" }, postRoute, creatorRoute],
+      index: 2,
+    };
+    useAppStore.setState({
+      activeTab: "discover",
+      route: creatorRoute,
+      previousRoute: postRoute,
+      tabs,
+    });
+
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Block" }));
+    fireEvent.click(screen.getByRole("button", { name: "Block creator" }));
+
+    await waitFor(() =>
+      expect(useAppStore.getState().route).toEqual({ name: "discover" }),
+    );
+    expect(screen.queryByText("Creator blocked")).not.toBeInTheDocument();
+  });
+
+  it("redirects away from a directly opened blocked creator", async () => {
+    const creatorRoute = {
+      name: "creator" as const,
+      service: "patreon",
+      creatorId: "42",
+    };
+    const tabs = structuredClone(useAppStore.getState().tabs);
+    tabs.discover = {
+      stack: [{ name: "discover" }, creatorRoute],
+      index: 1,
+    };
+    useAppStore.setState({
+      activeTab: "discover",
+      route: creatorRoute,
+      previousRoute: { name: "discover" },
+      tabs,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        blockedCreators: [{ service: "patreon", id: "42", name: "Ada" }],
+      },
+    });
+
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+
+    await waitFor(() =>
+      expect(useAppStore.getState().route).toEqual({ name: "discover" }),
+    );
+    expect(screen.queryByText("Creator blocked")).not.toBeInTheDocument();
+    expect(
+      useAppStore
+        .getState()
+        .toasts.some((toast) => toast.title === "Creator blocked"),
+    ).toBe(true);
+  });
+
+  it("puts the filter action after block and status below the buttons", async () => {
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+
+    const updated = await screen.findByText(/Updated/);
+    const favorite = screen.getByRole("button", { name: "Favorite" });
+    const block = screen.getByRole("button", { name: "Block" });
+    const filter = screen.getByRole("button", { name: "Filter posts" });
+
+    expect(
+      favorite.compareDocumentPosition(block) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      block.compareDocumentPosition(filter) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      filter.compareDocumentPosition(updated) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("persists auto-detected ASMR for creator previews", async () => {

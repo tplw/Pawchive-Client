@@ -27,7 +27,7 @@ import {
 import { ImageViewer } from "../../media/ui/ImageViewer";
 import { PlaylistPicker } from "../../playlists/ui/PlaylistPicker";
 import { SanitizedHtml } from "../../../shared/SanitizedHtml";
-import { BlockedCreatorNotice } from "../../creators/ui/BlockedCreatorNotice";
+import { BlockedCreatorRedirect } from "../../creators/ui/BlockedCreatorRedirect";
 import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
 import {
   autoComicModeForCreator,
@@ -64,7 +64,9 @@ export function PostDetailPage({
   const blocked = useAppStore((state) =>
     isCreatorBlocked(state.settings.blockedCreators ?? [], service, creatorId),
   );
-  if (blocked) return <BlockedCreatorNotice service={service} id={creatorId} />;
+  if (blocked) {
+    return <BlockedCreatorRedirect service={service} creatorId={creatorId} />;
+  }
   return (
     <PostDetailContent
       service={service}
