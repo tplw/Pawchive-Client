@@ -75,6 +75,26 @@ impl FileRef {
     }
 }
 
+/// Stable identity for a file entry. The archive can repeat the main file in
+/// both `file` and `attachments`, so posts must collapse equal paths.
+fn file_identity(file: &FileRef) -> String {
+    let path = file.path.trim().trim_matches('/');
+    if !path.is_empty() {
+        return format!("path:{path}");
+    }
+    if let Some(url) = file.temp_download_url() {
+        return format!("url:{url}");
+    }
+    if let Some(url) = file.temp_url() {
+        return format!("url:{url}");
+    }
+    format!(
+        "name:{}:node:{}",
+        file.name.trim(),
+        file.node.unwrap_or_default()
+    )
+}
+
 /// The archive occasionally gives a cover image a video-looking `name`.
 /// Prefer the actual path extension when it is a recognised media type.
 pub fn media_kind_for_file(file: &FileRef) -> MediaKind {
@@ -151,10 +171,16 @@ impl Post {
 
     pub fn all_files(&self) -> Vec<&FileRef> {
         let mut out = Vec::new();
+        let mut seen = HashSet::new();
         if let Some(file) = self.primary_file() {
+            seen.insert(file_identity(file));
             out.push(file);
         }
-        out.extend(self.attachments.iter().filter(|a| a.has_source()));
+        for file in self.attachments.iter().filter(|a| a.has_source()) {
+            if seen.insert(file_identity(file)) {
+                out.push(file);
+            }
+        }
         out
     }
 

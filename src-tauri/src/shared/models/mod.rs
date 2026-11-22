@@ -77,6 +77,24 @@ mod tests {
     }
 
     #[test]
+    fn deduplicates_repeated_post_files() {
+        let raw = serde_json::json!({
+            "id": "1",
+            "file": {"name": "67.png", "path": "/aa/bb/67.png"},
+            "attachments": [
+                {"name": "67.png", "path": "/aa/bb/67.png"},
+                {"name": "68.png", "path": "/aa/bb/68.png"},
+                {"name": "68-copy.png", "path": "aa/bb/68.png"}
+            ]
+        });
+        let post: Post = serde_json::from_value(raw).unwrap();
+        let files = post.all_files();
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].path, "/aa/bb/67.png");
+        assert_eq!(files[1].path, "/aa/bb/68.png");
+    }
+
+    #[test]
     fn treats_kemono_previews_as_unimported() {
         let preview: Post = serde_json::from_value(serde_json::json!({
             "id": "1",

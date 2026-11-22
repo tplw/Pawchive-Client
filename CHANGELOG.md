@@ -35,6 +35,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - The whole top bar is now draggable on macOS, including the top edge and the
   space around the navigation buttons, so the window no longer ignores some
   grabs near the title bar.
+- Posts that list the same file in both `file` and `attachments` no longer show
+  duplicate attachment cards or count the file twice.
 - The image viewer now supports scroll wheel and trackpad navigation. Ctrl/Cmd
   plus wheel or pinch zooms, and a plain wheel pans once the image is zoomed.
 
