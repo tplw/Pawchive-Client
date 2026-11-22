@@ -14,6 +14,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - Comic mode now has a previous-post action at the first image. Starting from
   an old post can move toward newer posts in the loaded feed instead of only
   going older.
+- Comic mode prefetch no longer appends the same post twice when the adjacent
+  posts have one image, so the same page cannot appear twice in the viewer.
 - Space and K now toggle playback, M toggles mute and F toggles the player
   between minimized and expanded. Typing and open dialogs still keep their
   keys.

@@ -438,6 +438,124 @@ describe("post detail", () => {
     });
   });
 
+  it("does not append the same prefetched post twice", async () => {
+    useAppStore.setState({
+      settings: { ...DEFAULT_SETTINGS, comicPrefetchCount: 5 },
+    });
+    const creatorRoute = {
+      name: "creator" as const,
+      service: "fanbox",
+      creatorId: "7",
+    };
+    const postRoute = {
+      name: "post" as const,
+      service: "fanbox",
+      creatorId: "7",
+      postId: "99",
+    };
+    const tabs = structuredClone(useAppStore.getState().tabs);
+    tabs.discover = {
+      stack: [{ name: "discover" }, creatorRoute, postRoute],
+      index: 2,
+    };
+    useAppStore.setState({
+      activeTab: "discover",
+      route: postRoute,
+      previousRoute: creatorRoute,
+      tabs,
+    });
+    const summary = (id: string): PostSummary =>
+      ({
+        id,
+        service: "fanbox",
+        user: "7",
+        creatorName: "Grace Hopper",
+        title: id,
+        excerpt: "",
+        published: 1,
+        added: 1,
+        thumbnailUrl: null,
+        attachmentCount: 1,
+        mediaKinds: ["image"],
+        previewState: null,
+        hasFull: null,
+        imported: true,
+        exceedsLimit: false,
+        unavailable: false,
+      }) as PostSummary;
+    rememberPostFeed({
+      service: "fanbox",
+      creatorId: "7",
+      visible: [summary("100"), summary("99"), summary("101")],
+      all: [summary("100"), summary("99"), summary("101")],
+      hasMore: false,
+    });
+    const detailFor = (id: string, imageName: string): PostDetail =>
+      ({
+        post: {
+          id,
+          user: "7",
+          service: "fanbox",
+          title: `Post ${id}`,
+          content: "",
+          embed: {},
+          shared_file: false,
+          added: 1700000000,
+          published: 1700000000,
+          edited: null,
+          file: null,
+          attachments: [],
+          next: null,
+          prev: null,
+        },
+        attachments: [
+          {
+            name: imageName,
+            path: `/aa/bb/${imageName}`,
+            url: `https://file.pawchive.pw/data/aa/bb/${imageName}`,
+            downloadUrl: `https://file.pawchive.pw/data/aa/bb/${imageName}`,
+            thumbnailUrl: `https://img.pawchive.pw/thumbnail/data/aa/bb/${imageName}`,
+            kind: "image",
+            provider: "pawchive",
+            ext: "png",
+            previewOnly: false,
+          },
+        ],
+        creator: { id: "7", name: "Grace Hopper", service: "fanbox" },
+        next: null,
+        prev: null,
+      }) as PostDetail;
+    vi.mocked(api.getPost).mockImplementation(async ({ postId }) =>
+      postId === "101" ? detailFor("101", "101.png") : detailFor("99", "99.png"),
+    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("offline"));
+
+    wrapper(<PostDetailPage service="fanbox" creatorId="7" postId="99" />);
+    const image = await screen.findByText("99.png");
+    fireEvent.click(image.closest("button")!);
+    const viewer = await screen.findByRole("dialog", {
+      name: "Image viewer",
+    });
+
+    expect(await within(viewer).findByText("1 / 2")).toBeInTheDocument();
+    expect(within(viewer).queryByText("1 / 3")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(viewer).getByRole("button", { name: "Next image" }),
+    );
+    expect(await within(viewer).findByText("101.png")).toBeInTheDocument();
+
+    fetchSpy.mockRestore();
+    clearPostFeeds();
+    useAppStore.setState({
+      route: { name: "discover" },
+      previousRoute: null,
+      settings: DEFAULT_SETTINGS,
+    });
+  });
+
   it("keeps the existing queue when a single attachment is played", async () => {
     const existing: QueueItem = {
       id: "existing",

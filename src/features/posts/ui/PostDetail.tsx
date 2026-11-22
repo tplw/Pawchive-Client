@@ -114,6 +114,7 @@ function PostDetailContent({
   const comicBusy = useRef(false);
   const comicRequest = useRef(0);
   const comicAnchor = useRef<ComicAnchor>({ service, creatorId, postId });
+  const comicScanAnchor = useRef<ComicAnchor>({ service, creatorId, postId });
   const comicImageAnchors = useRef<ComicAnchor[]>([]);
   const comicPrefetchKey = useRef<string | null>(null);
   const [playlistItem, setPlaylistItem] = useState<PlaylistItemInput | null>(null);
@@ -458,6 +459,7 @@ function PostDetailContent({
   const openImage = (index: number) => {
     const anchor = { service, creatorId, postId };
     comicAnchor.current = anchor;
+    comicScanAnchor.current = anchor;
     comicImageAnchors.current = images.map(() => anchor);
     comicPrefetchKey.current = null;
     if (autoComicModeForCreator(service, creatorId, comicAutoEnable)) {
@@ -476,7 +478,9 @@ function PostDetailContent({
   const closeViewer = () => {
     comicRequest.current += 1;
     comicBusy.current = false;
-    comicAnchor.current = { service, creatorId, postId };
+    const anchor = { service, creatorId, postId };
+    comicAnchor.current = anchor;
+    comicScanAnchor.current = anchor;
     comicImageAnchors.current = [];
     comicPrefetchKey.current = null;
     setComicLoading(false);
@@ -487,7 +491,7 @@ function PostDetailContent({
 
   const loadNextComicPost = useCallback(async (advance = true, notify = true) => {
     if (comicBusy.current || !detail) return;
-    const candidates = nextPostsInActiveFeed(comicAnchor.current);
+    const candidates = nextPostsInActiveFeed(comicScanAnchor.current);
     if (candidates.length === 0) {
       if (notify) {
         toast(
@@ -563,6 +567,7 @@ function PostDetailContent({
               ...comicImageAnchors.current,
               ...imagesToAppend.map(() => anchor),
             ];
+            comicScanAnchor.current = anchor;
             const startIndex = viewerImages.length;
             setViewerImages((current) => [...current, ...imagesToAppend]);
             if (advance) {
@@ -576,14 +581,12 @@ function PostDetailContent({
           // Skip a post that cannot be opened and try the next visible one.
         }
       }
-      if (advance) {
-        const lastScanned = batch[batch.length - 1];
-        comicAnchor.current = {
-          service: lastScanned.service,
-          creatorId: lastScanned.user,
-          postId: lastScanned.id,
-        };
-      }
+      const lastScanned = batch[batch.length - 1];
+      comicScanAnchor.current = {
+        service: lastScanned.service,
+        creatorId: lastScanned.user,
+        postId: lastScanned.id,
+      };
       if (notify) {
         toast(
           "info",
@@ -673,6 +676,7 @@ function PostDetailContent({
               };
               comicImageAnchors.current = imagesToShow.map(() => anchor);
               comicAnchor.current = anchor;
+              comicScanAnchor.current = anchor;
               comicPrefetchKey.current = null;
               setViewerImages(imagesToShow);
               setViewerIndex(imagesToShow.length - 1);
@@ -714,7 +718,7 @@ function PostDetailContent({
     const key = `${viewerIndex}:${viewerImages.length}`;
     if (comicPrefetchKey.current === key) return;
     comicPrefetchKey.current = key;
-    if (nextPostsInActiveFeed(comicAnchor.current).length === 0) return;
+    if (nextPostsInActiveFeed(comicScanAnchor.current).length === 0) return;
     void loadNextComicPost(false, false);
   }, [
     comicContext,
