@@ -7,7 +7,11 @@ import {
   isMegaFileUrl,
   needsMediaResolution,
 } from "../../player/model/queue";
-import { isImagePrefetched } from "./imagePrefetch";
+import {
+  cachedImagePrefetched,
+  isImagePrefetched,
+  pendingCachedImagePrefetch,
+} from "./imagePrefetch";
 
 /**
  * Load the current image for the viewer. Cached images win; otherwise the
@@ -33,7 +37,19 @@ export function useImageViewerSource({
   useEffect(() => {
     if (!imageUrl) return;
     triedDirect.current = false;
-    // A completed prefetch is already in the browser's image cache. Use the
+    // A completed media-cache prefetch already has a loopback URL. Use it
+    // directly so enabling "cache viewed media" does not reintroduce the
+    // thumbnail and fetch animation.
+    if (cacheMedia) {
+      const cached = cachedImagePrefetched(imageUrl);
+      if (cached) {
+        setProgress(null);
+        setDisplaySrc(cached);
+        setFailed(false);
+        return;
+      }
+    }
+    // A completed browser prefetch is already in the image cache. Use the
     // full URL directly so the thumbnail and the fetch progress never flash.
     if (!cacheMedia && isImagePrefetched(imageUrl)) {
       setProgress(null);
@@ -125,51 +141,66 @@ export function useImageViewerSource({
       imageUrl.startsWith("https://") &&
       !isMegaFileUrl(imageUrl)
     ) {
-      const requestId =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      cacheRequestId = requestId;
-      setProgress(0);
-      void listen<{
-        requestId?: string;
-        downloaded: number;
-        total?: number | null;
-      }>("media-cache://progress", (event) => {
-        if (
-          cancelled ||
-          event.payload.requestId !== requestId ||
-          !event.payload.total
-        ) {
-          return;
-        }
-        setProgress(
-          Math.min(
-            99,
-            Math.round(
-              (event.payload.downloaded / event.payload.total) * 100,
+      const pending = pendingCachedImagePrefetch(imageUrl);
+      if (pending) {
+        // Reuse the prefetch that is already running instead of starting a
+        // second cache download when the reader reaches the image.
+        void pending
+          .then((url) => {
+            if (!cancelled) setDisplaySrc(url);
+          })
+          .catch(() => {
+            if (cancelled) return;
+            setProgress(null);
+            void loadFromNetwork();
+          });
+      } else {
+        const requestId =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        cacheRequestId = requestId;
+        setProgress(0);
+        void listen<{
+          requestId?: string;
+          downloaded: number;
+          total?: number | null;
+        }>("media-cache://progress", (event) => {
+          if (
+            cancelled ||
+            event.payload.requestId !== requestId ||
+            !event.payload.total
+          ) {
+            return;
+          }
+          setProgress(
+            Math.min(
+              99,
+              Math.round(
+                (event.payload.downloaded / event.payload.total) * 100,
+              ),
             ),
-          ),
-        );
-      }).then((fn) => {
-        if (cancelled) fn();
-        else unlisten = fn;
-      });
-      void api
-        .cacheMedia(imageUrl, requestId)
-        .then((url) => {
-          if (cancelled) return;
-          setDisplaySrc(url);
-          setProgress(100);
-          window.setTimeout(() => {
-            if (!cancelled) setProgress(null);
-          }, 250);
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setProgress(null);
-          void loadFromNetwork();
+          );
+        }).then((fn) => {
+          if (cancelled) fn();
+          else unlisten = fn;
         });
+        void api
+          .cacheMedia(imageUrl, requestId)
+          .then((url) => {
+            if (cancelled) return;
+            setDisplaySrc(url);
+            setProgress(100);
+            window.setTimeout(() => {
+              if (!cancelled) setProgress(null);
+            }, 250);
+          })
+          .catch(() => {
+            if (cancelled) return;
+            setProgress(null);
+            void loadFromNetwork();
+          });
+      }
     } else {
       void loadFromNetwork();
     }

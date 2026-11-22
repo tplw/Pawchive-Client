@@ -41,6 +41,7 @@ import {
   neighborForPost,
   nextPostsInActiveFeed,
   postMayHaveImages,
+  previousPostsInActiveFeed,
 } from "../model/postNavigation";
 import { withProviderPassword } from "../../../shared/lib/providerPasswords";
 import { useDownloadActions } from "../../downloads/model/useDownloadActions";
@@ -51,6 +52,8 @@ import type { Attachment, PlaylistItemInput } from "../../../shared/types";
 // Sticky for the session: once comic mode is enabled it stays on while the
 // user moves between posts.
 let savedComicMode = false;
+
+type ComicAnchor = { service: string; creatorId: string; postId: string };
 
 export function PostDetailPage({
   service,
@@ -107,9 +110,11 @@ function PostDetailContent({
   const [viewerImages, setViewerImages] = useState<Attachment[]>([]);
   const [comicMode, setComicModeState] = useState(savedComicMode);
   const [comicLoading, setComicLoading] = useState(false);
+  const [comicPreviousLoading, setComicPreviousLoading] = useState(false);
   const comicBusy = useRef(false);
   const comicRequest = useRef(0);
-  const comicAnchor = useRef({ service, creatorId, postId });
+  const comicAnchor = useRef<ComicAnchor>({ service, creatorId, postId });
+  const comicImageAnchors = useRef<ComicAnchor[]>([]);
   const comicPrefetchKey = useRef<string | null>(null);
   const [playlistItem, setPlaylistItem] = useState<PlaylistItemInput | null>(null);
   const [navigating, setNavigating] = useState(false);
@@ -439,15 +444,21 @@ function PostDetailContent({
       })
     : null;
 
+  const hasNextComicPost =
+    nextPostsInActiveFeed({ service, creatorId, postId }).length > 0;
+  const hasPreviousComicPost =
+    previousPostsInActiveFeed({ service, creatorId, postId }).length > 0;
   const comicContext =
     Boolean(detail) &&
     (previousRoute?.name === "discover" ||
       previousRoute?.name === "search" ||
       previousRoute?.name === "creator") &&
-    nextPostsInActiveFeed({ service, creatorId, postId }).length > 0;
+    (hasNextComicPost || hasPreviousComicPost);
 
   const openImage = (index: number) => {
-    comicAnchor.current = { service, creatorId, postId };
+    const anchor = { service, creatorId, postId };
+    comicAnchor.current = anchor;
+    comicImageAnchors.current = images.map(() => anchor);
     comicPrefetchKey.current = null;
     if (autoComicModeForCreator(service, creatorId, comicAutoEnable)) {
       setComicMode(true);
@@ -456,12 +467,20 @@ function PostDetailContent({
     setViewerIndex(index);
   };
 
+  const changeViewerIndex = useCallback((next: number) => {
+    setViewerIndex(next);
+    const anchor = comicImageAnchors.current[next];
+    if (anchor) comicAnchor.current = anchor;
+  }, []);
+
   const closeViewer = () => {
     comicRequest.current += 1;
     comicBusy.current = false;
     comicAnchor.current = { service, creatorId, postId };
+    comicImageAnchors.current = [];
     comicPrefetchKey.current = null;
     setComicLoading(false);
+    setComicPreviousLoading(false);
     setViewerIndex(null);
     setViewerImages([]);
   };
@@ -535,26 +554,36 @@ function PostDetailContent({
             ? nextImages.slice(0, 1)
             : nextImages;
           if (imagesToAppend.length > 0) {
-            const startIndex = viewerImages.length;
-            setViewerImages((current) => [...current, ...imagesToAppend]);
-            if (advance) setViewerIndex(startIndex);
-            comicAnchor.current = {
+            const anchor = {
               service: candidate.service,
               creatorId: candidate.user,
               postId: candidate.id,
             };
+            comicImageAnchors.current = [
+              ...comicImageAnchors.current,
+              ...imagesToAppend.map(() => anchor),
+            ];
+            const startIndex = viewerImages.length;
+            setViewerImages((current) => [...current, ...imagesToAppend]);
+            if (advance) {
+              setViewerIndex(startIndex);
+              comicAnchor.current = anchor;
+              comicPrefetchKey.current = null;
+            }
             return;
           }
         } catch {
           // Skip a post that cannot be opened and try the next visible one.
         }
       }
-      const lastScanned = batch[batch.length - 1];
-      comicAnchor.current = {
-        service: lastScanned.service,
-        creatorId: lastScanned.user,
-        postId: lastScanned.id,
-      };
+      if (advance) {
+        const lastScanned = batch[batch.length - 1];
+        comicAnchor.current = {
+          service: lastScanned.service,
+          creatorId: lastScanned.user,
+          postId: lastScanned.id,
+        };
+      }
       if (notify) {
         toast(
           "info",
@@ -577,6 +606,106 @@ function PostDetailContent({
     toast,
     viewerImages.length,
   ]);
+
+  const loadPreviousComicPost = useCallback(
+    async (notify = true) => {
+      if (comicBusy.current || !detail) return;
+      const candidates = previousPostsInActiveFeed(comicAnchor.current);
+      if (candidates.length === 0) {
+        if (notify) {
+          toast(
+            "info",
+            "Start of loaded feed",
+            "No earlier posts in this feed.",
+          );
+        }
+        return;
+      }
+      const batch = candidates.slice(-8);
+      const request = ++comicRequest.current;
+      comicBusy.current = true;
+      setComicPreviousLoading(true);
+      try {
+        for (let cursor = batch.length - 1; cursor >= 0; cursor -= 1) {
+          const candidate = batch[cursor];
+          if (comicRequest.current !== request) return;
+          if (!postMayHaveImages(candidate)) continue;
+          try {
+            const previousDetail = await queryClient.fetchQuery({
+              queryKey: queryKeys.post(
+                candidate.service,
+                candidate.user,
+                candidate.id,
+              ),
+              queryFn: ({ signal }) =>
+                api.getPost({
+                  service: candidate.service,
+                  creatorId: candidate.user,
+                  postId: candidate.id,
+                  signal,
+                }),
+              staleTime: 120_000,
+            });
+            let previousAttachments = previousDetail.attachments;
+            if (
+              previousAttachments.some((attachment) => attachment.resolving)
+            ) {
+              previousAttachments =
+                await api.resolvePostAttachments(previousAttachments);
+            }
+            if (comicRequest.current !== request) return;
+            const previousImages = previousAttachments.filter(
+              (attachment) =>
+                attachment.kind === "image" && !attachment.unavailable,
+            );
+            const imagesToShow = firstImageOnlyForCreator(
+              candidate.service,
+              candidate.user,
+              comicFirstImageOnly,
+            )
+              ? previousImages.slice(0, 1)
+              : previousImages;
+            if (imagesToShow.length > 0) {
+              const anchor = {
+                service: candidate.service,
+                creatorId: candidate.user,
+                postId: candidate.id,
+              };
+              comicImageAnchors.current = imagesToShow.map(() => anchor);
+              comicAnchor.current = anchor;
+              comicPrefetchKey.current = null;
+              setViewerImages(imagesToShow);
+              setViewerIndex(imagesToShow.length - 1);
+              return;
+            }
+          } catch {
+            // Skip a post that cannot be opened and try the one before it.
+          }
+        }
+        const earliest = batch[0];
+        if (earliest) {
+          comicAnchor.current = {
+            service: earliest.service,
+            creatorId: earliest.user,
+            postId: earliest.id,
+          };
+        }
+        if (notify) {
+          toast(
+            "info",
+            "No images nearby",
+            "The previous visible posts have no images.",
+          );
+        }
+      } finally {
+        if (comicRequest.current === request) {
+          comicBusy.current = false;
+          setComicPreviousLoading(false);
+        }
+      }
+    },
+    [comicFirstImageOnly, detail, queryClient, toast],
+  );
 
   useEffect(() => {
     if (!comicContext || !comicMode || comicPrefetchCount <= 0) return;
@@ -849,16 +978,24 @@ function PostDetailContent({
         <ImageViewer
           images={viewerImages}
           index={viewerIndex}
-          onIndexChange={setViewerIndex}
+          onIndexChange={changeViewerIndex}
           onClose={closeViewer}
           comicMode={comicMode && comicContext}
           onToggleComicMode={
             comicContext ? () => setComicMode(!comicMode) : undefined
           }
           onNextPost={
-            comicMode && comicContext ? loadNextComicPost : undefined
+            comicMode && comicContext && hasNextComicPost
+              ? loadNextComicPost
+              : undefined
+          }
+          onPreviousPost={
+            comicMode && comicContext && hasPreviousComicPost
+              ? loadPreviousComicPost
+              : undefined
           }
           comicLoading={comicLoading}
+          comicPreviousLoading={comicPreviousLoading}
           prefetchCount={comicMode ? comicPrefetchCount : 0}
         />
       ) : null}

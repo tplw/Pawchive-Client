@@ -46,6 +46,25 @@ export function nextPostsInActiveFeed({
   return activeFeed.visible.slice(index + 1);
 }
 
+/** Posts before the current one in the active visible feed. */
+export function previousPostsInActiveFeed({
+  service,
+  creatorId,
+  postId,
+}: {
+  service: string;
+  creatorId: string;
+  postId: string;
+}): PostSummary[] {
+  if (!activeFeed) return [];
+  const index = activeFeed.visible.findIndex(
+    (post) =>
+      post.service === service && post.user === creatorId && post.id === postId,
+  );
+  if (index <= 0) return [];
+  return activeFeed.visible.slice(0, index);
+}
+
 /** Whether the active feed has unloaded pages after its visible list. */
 export function activeFeedHasMore(): boolean {
   return activeFeed?.hasMore ?? false;

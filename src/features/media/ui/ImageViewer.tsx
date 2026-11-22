@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { api } from "../../../shared/api";
 import { cn } from "../../../shared/lib/format";
 import { currentWindow } from "../../../shared/lib/window";
 import { useIsLandscape } from "../../../shared/lib/orientation";
@@ -18,8 +19,11 @@ import type { Attachment } from "../../../shared/types";
 import { IconButton, lockBodyScroll, unlockBodyScroll } from "../../../shared/ui";
 import { needsMediaResolution } from "../../player/model/queue";
 import {
+  cachedImagePrefetched,
   forgetImagePrefetched,
   markImagePrefetched,
+  pendingCachedImagePrefetch,
+  trackCachedImagePrefetch,
 } from "../model/imagePrefetch";
 import { useImageViewerSource } from "../model/useImageViewerSource";
 import { useImageViewerGestures } from "../model/useImageViewerGestures";
@@ -34,7 +38,9 @@ export function ImageViewer({
   comicMode = false,
   onToggleComicMode,
   onNextPost,
+  onPreviousPost,
   comicLoading = false,
+  comicPreviousLoading = false,
   prefetchCount = 0,
 }: {
   images: Attachment[];
@@ -44,7 +50,9 @@ export function ImageViewer({
   comicMode?: boolean;
   onToggleComicMode?: () => void;
   onNextPost?: () => void;
+  onPreviousPost?: () => void;
   comicLoading?: boolean;
+  comicPreviousLoading?: boolean;
   prefetchCount?: number;
 }) {
   const [zoom, setZoom] = useState(1);
@@ -62,18 +70,19 @@ export function ImageViewer({
     useImageViewerSource({ image, index, cacheMedia });
 
   const goNext = useCallback(() => {
-    if (comicLoading) return;
+    if (comicLoading || comicPreviousLoading) return;
     if (index < images.length - 1) {
       onIndexChange(index + 1);
       return;
     }
-    if (comicMode && onNextPost) {
-      onNextPost();
+    if (comicMode) {
+      if (onNextPost) onNextPost();
       return;
     }
     onIndexChange(0);
   }, [
     comicLoading,
+    comicPreviousLoading,
     comicMode,
     images.length,
     index,
@@ -81,18 +90,38 @@ export function ImageViewer({
     onNextPost,
   ]);
   const goPrevious = useCallback(() => {
+    if (comicLoading || comicPreviousLoading) return;
     if (index > 0) {
       onIndexChange(index - 1);
       return;
     }
-    if (comicMode) return;
-    onIndexChange(images.length - 1);
-  }, [comicMode, images.length, index, onIndexChange]);
-  const showPrevious = index > 0 || (!comicMode && images.length > 1);
+    if (comicMode && onPreviousPost) {
+      onPreviousPost();
+      return;
+    }
+    if (!comicMode) onIndexChange(images.length - 1);
+  }, [
+    comicLoading,
+    comicMode,
+    comicPreviousLoading,
+    images.length,
+    index,
+    onIndexChange,
+    onPreviousPost,
+  ]);
+  const showPrevious =
+    index > 0 ||
+    (comicMode && Boolean(onPreviousPost)) ||
+    (!comicMode && images.length > 1);
   const showNext =
     index < images.length - 1 ||
     (comicMode && Boolean(onNextPost)) ||
     (!comicMode && images.length > 1);
+  const previousIsPost = comicMode && index === 0 && Boolean(onPreviousPost);
+  const nextIsPost =
+    comicMode &&
+    index === images.length - 1 &&
+    Boolean(onNextPost);
 
   const gestures = useImageViewerGestures({
     zoom,
@@ -127,6 +156,16 @@ export function ImageViewer({
       ) {
         continue;
       }
+      if (cacheMedia) {
+        if (
+          cachedImagePrefetched(target.url) ||
+          pendingCachedImagePrefetch(target.url)
+        ) {
+          continue;
+        }
+        trackCachedImagePrefetch(target.url, api.cacheMedia(target.url));
+        continue;
+      }
       // Mark before the load so a fast reader can skip the thumbnail while
       // the prefetch is still finishing. A failed preload removes the mark.
       markImagePrefetched(target.url);
@@ -135,7 +174,7 @@ export function ImageViewer({
       preload.onerror = () => forgetImagePrefetched(target.url);
       preload.src = target.url;
     }
-  }, [comicMode, images, index, prefetchCount]);
+  }, [cacheMedia, comicMode, images, index, prefetchCount]);
 
   useEffect(() => {
     setZoom(1);
@@ -332,19 +371,24 @@ export function ImageViewer({
       {controlsVisible && showPrevious ? (
         <button
           type="button"
-          aria-label="Previous image"
+          aria-label={previousIsPost ? "Previous post" : "Previous image"}
           onClick={goPrevious}
-          className="absolute left-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-black/35 text-white/70 backdrop-blur transition hover:bg-black/65 hover:text-white"
+          disabled={comicLoading || comicPreviousLoading}
+          className="absolute left-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-black/35 text-white/70 backdrop-blur transition hover:bg-black/65 hover:text-white disabled:cursor-wait disabled:opacity-60"
         >
-          <ChevronLeft className="h-5 w-5" />
+          {comicPreviousLoading ? (
+            <LoaderCircle className="h-5 w-5 animate-spin" />
+          ) : (
+            <ChevronLeft className="h-5 w-5" />
+          )}
         </button>
       ) : null}
       {controlsVisible && showNext ? (
         <button
           type="button"
-          aria-label="Next image"
+          aria-label={nextIsPost ? "Next post" : "Next image"}
           onClick={goNext}
-          disabled={comicLoading}
+          disabled={comicLoading || comicPreviousLoading}
           className="absolute right-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-black/35 text-white/70 backdrop-blur transition hover:bg-black/65 hover:text-white disabled:cursor-wait disabled:opacity-60"
         >
           {comicLoading ? (

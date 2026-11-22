@@ -8,6 +8,12 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Comic mode prefetching now works with **Cache viewed media** enabled. Upcoming
+  images are downloaded into the media cache and open without the thumbnail
+  animation.
+- Comic mode now has a previous-post action at the first image. Starting from
+  an old post can move toward newer posts in the loaded feed instead of only
+  going older.
 - Space and K now toggle playback, M toggles mute and F toggles the player
   between minimized and expanded. Typing and open dialogs still keep their
   keys.

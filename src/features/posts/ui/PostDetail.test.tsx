@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../../shared/api";
@@ -309,6 +310,127 @@ describe("post detail", () => {
     fetchSpy.mockRestore();
     clearPostFeeds();
     window.localStorage.removeItem("pawchive-creator-filter:fanbox:7");
+    useAppStore.setState({
+      route: { name: "discover" },
+      previousRoute: null,
+      settings: DEFAULT_SETTINGS,
+    });
+  });
+
+  it("loads the previous post from the first comic image", async () => {
+    const creatorRoute = {
+      name: "creator" as const,
+      service: "fanbox",
+      creatorId: "7",
+    };
+    const postRoute = {
+      name: "post" as const,
+      service: "fanbox",
+      creatorId: "7",
+      postId: "99",
+    };
+    const tabs = structuredClone(useAppStore.getState().tabs);
+    tabs.discover = {
+      stack: [{ name: "discover" }, creatorRoute, postRoute],
+      index: 2,
+    };
+    useAppStore.setState({
+      activeTab: "discover",
+      route: postRoute,
+      previousRoute: creatorRoute,
+      tabs,
+    });
+    const summary = (id: string): PostSummary =>
+      ({
+        id,
+        service: "fanbox",
+        user: "7",
+        creatorName: "Grace Hopper",
+        title: id,
+        excerpt: "",
+        published: 1,
+        added: 1,
+        thumbnailUrl: null,
+        attachmentCount: 1,
+        mediaKinds: ["image"],
+        previewState: null,
+        hasFull: null,
+        imported: true,
+        exceedsLimit: false,
+        unavailable: false,
+      }) as PostSummary;
+    rememberPostFeed({
+      service: "fanbox",
+      creatorId: "7",
+      visible: [summary("100"), summary("99"), summary("101")],
+      all: [summary("100"), summary("99"), summary("101")],
+      hasMore: false,
+    });
+    const previousDetail = {
+      post: {
+        id: "100",
+        user: "7",
+        service: "fanbox",
+        title: "Newer post",
+        content: "",
+        embed: {},
+        shared_file: false,
+        added: 1700000000,
+        published: 1700000000,
+        edited: null,
+        file: null,
+        attachments: [],
+        next: "99",
+        prev: null,
+      },
+      attachments: [
+        {
+          name: "100.png",
+          path: "/aa/bb/100.png",
+          url: "https://file.pawchive.pw/data/aa/bb/100.png",
+          downloadUrl: "https://file.pawchive.pw/data/aa/bb/100.png",
+          thumbnailUrl:
+            "https://img.pawchive.pw/thumbnail/data/aa/bb/100.png",
+          kind: "image",
+          provider: "pawchive",
+          ext: "png",
+          previewOnly: false,
+        },
+      ],
+      creator: { id: "7", name: "Grace Hopper", service: "fanbox" },
+      next: "99",
+      prev: null,
+    } as unknown as PostDetail;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("offline"));
+
+    wrapper(<PostDetailPage service="fanbox" creatorId="7" postId="99" />);
+    const image = await screen.findByText("image.jpg");
+    fireEvent.click(image.closest("button")!);
+    const viewer = await screen.findByRole("dialog", {
+      name: "Image viewer",
+    });
+    expect(
+      within(viewer).getByRole("button", { name: "Previous post" }),
+    ).toBeInTheDocument();
+
+    vi.mocked(api.getPost).mockResolvedValueOnce(previousDetail);
+    fireEvent.click(
+      within(viewer).getByRole("button", { name: "Previous post" }),
+    );
+
+    expect(await screen.findByText("100.png")).toBeInTheDocument();
+    expect(api.getPost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        service: "fanbox",
+        creatorId: "7",
+        postId: "100",
+      }),
+    );
+
+    fetchSpy.mockRestore();
+    clearPostFeeds();
     useAppStore.setState({
       route: { name: "discover" },
       previousRoute: null,

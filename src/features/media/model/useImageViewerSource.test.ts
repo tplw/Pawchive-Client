@@ -1,9 +1,12 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { api } from "../../../shared/api";
 import type { Attachment } from "../../../shared/types";
 import {
   clearImagePrefetchCache,
+  markCachedImagePrefetched,
   markImagePrefetched,
+  trackCachedImagePrefetch,
 } from "./imagePrefetch";
 import { useImageViewerSource } from "./useImageViewerSource";
 
@@ -36,6 +39,41 @@ describe("image viewer source", () => {
 
     expect(result.current.displaySrc).toBe(image.url);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("opens a media-cache prefetched image at the cached URL", () => {
+    const cached = "http://127.0.0.1:1/media/cached.jpg";
+    markCachedImagePrefetched(image.url, cached);
+    const cacheMedia = vi.spyOn(api, "cacheMedia");
+
+    const { result } = renderHook(() =>
+      useImageViewerSource({ image, index: 0, cacheMedia: true }),
+    );
+
+    expect(result.current.displaySrc).toBe(cached);
+    expect(result.current.progress).toBeNull();
+    expect(cacheMedia).not.toHaveBeenCalled();
+    cacheMedia.mockRestore();
+  });
+
+  it("reuses an in-flight media-cache prefetch", async () => {
+    const cached = "http://127.0.0.1:1/media/cached.jpg";
+    let resolve!: (url: string) => void;
+    const pending = new Promise<string>((done) => {
+      resolve = done;
+    });
+    trackCachedImagePrefetch(image.url, pending);
+    const cacheMedia = vi.spyOn(api, "cacheMedia");
+
+    const { result } = renderHook(() =>
+      useImageViewerSource({ image, index: 0, cacheMedia: true }),
+    );
+
+    expect(result.current.displaySrc).toBe(image.thumbnailUrl);
+    act(() => resolve(cached));
+    await waitFor(() => expect(result.current.displaySrc).toBe(cached));
+    expect(cacheMedia).not.toHaveBeenCalled();
+    cacheMedia.mockRestore();
   });
 
   it("replaces the thumbnail with the fetched full image", async () => {

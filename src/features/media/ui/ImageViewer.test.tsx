@@ -1,7 +1,19 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useAppStore } from "../../../app/store";
+import { api } from "../../../shared/api";
+import { DEFAULT_SETTINGS } from "../../../shared/lib/constants";
 import type { Attachment } from "../../../shared/types";
+import { clearImagePrefetchCache } from "../model/imagePrefetch";
 import { ImageViewer } from "./ImageViewer";
+
+vi.mock("../../../shared/api", () => ({
+  api: {
+    cacheMedia: vi
+      .fn()
+      .mockResolvedValue("http://127.0.0.1:1/media/cached.jpg"),
+  },
+}));
 
 vi.mock("../model/useImageViewerSource", () => ({
   useImageViewerSource: () => ({
@@ -27,7 +39,12 @@ function image(name: string): Attachment {
 }
 
 describe("image viewer comic mode", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    useAppStore.setState({ settings: DEFAULT_SETTINGS });
+    clearImagePrefetchCache();
+  });
 
   it("prefetches the next two images when enabled", () => {
     const sources: string[] = [];
@@ -58,6 +75,28 @@ describe("image viewer comic mode", () => {
     ]);
   });
 
+  it("prefetches through the media cache when caching is enabled", () => {
+    useAppStore.setState({
+      settings: { ...DEFAULT_SETTINGS, cacheMedia: true },
+    });
+
+    render(
+      <ImageViewer
+        images={[image("one.jpg"), image("two.jpg"), image("three.jpg")]}
+        index={0}
+        onIndexChange={() => undefined}
+        onClose={() => undefined}
+        comicMode
+        onToggleComicMode={() => undefined}
+        onNextPost={() => undefined}
+        prefetchCount={2}
+      />,
+    );
+
+    expect(api.cacheMedia).toHaveBeenCalledWith("https://example.com/two.jpg");
+    expect(api.cacheMedia).toHaveBeenCalledWith("https://example.com/three.jpg");
+  });
+
   it("advances to the next post when the last image is reached", () => {
     const nextPost = vi.fn();
     const onIndexChange = vi.fn();
@@ -73,9 +112,31 @@ describe("image viewer comic mode", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Next image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next post" }));
 
     expect(nextPost).toHaveBeenCalledTimes(1);
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
+  it("moves to the previous post from the first image", () => {
+    const previousPost = vi.fn();
+    const onIndexChange = vi.fn();
+    render(
+      <ImageViewer
+        images={[image("one.jpg"), image("two.jpg")]}
+        index={0}
+        onIndexChange={onIndexChange}
+        onClose={() => undefined}
+        comicMode
+        onToggleComicMode={() => undefined}
+        onNextPost={() => undefined}
+        onPreviousPost={previousPost}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous post" }));
+
+    expect(previousPost).toHaveBeenCalledTimes(1);
     expect(onIndexChange).not.toHaveBeenCalled();
   });
 

@@ -6,6 +6,7 @@ import {
   neighborForPost,
   nextPostsInActiveFeed,
   postMayHaveImages,
+  previousPostsInActiveFeed,
   rememberActivePostFeed,
   rememberPostFeed,
 } from "./postNavigation";
@@ -112,6 +113,32 @@ describe("filtered post navigation", () => {
       }),
     ).toEqual([]);
     expect(activeFeedHasMore()).toBe(true);
+  });
+
+  it("returns the visible posts before the current post", () => {
+    rememberActivePostFeed([post("new"), post("current"), post("old")], false);
+
+    expect(
+      previousPostsInActiveFeed({
+        service: "patreon",
+        creatorId: "creator",
+        postId: "current",
+      }).map((entry) => entry.id),
+    ).toEqual(["new"]);
+    expect(
+      previousPostsInActiveFeed({
+        service: "patreon",
+        creatorId: "creator",
+        postId: "new",
+      }),
+    ).toEqual([]);
+    expect(
+      previousPostsInActiveFeed({
+        service: "patreon",
+        creatorId: "creator",
+        postId: "missing",
+      }),
+    ).toEqual([]);
   });
 
   it("skips posts that cannot contain images", () => {
