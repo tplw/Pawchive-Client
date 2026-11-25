@@ -73,6 +73,7 @@ export function queueItemFromAttachment(
     id: `${context.service}:${context.creatorId}:${context.postId}:${attachment.path}`,
     url: attachment.url,
     downloadUrl: attachment.downloadUrl ?? attachment.url,
+    localPath: attachment.localPath ?? null,
     filePath: attachment.path,
     fileName: attachment.name,
     mediaKind: attachment.kind,

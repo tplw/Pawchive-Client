@@ -26,6 +26,11 @@ project follows [Semantic Versioning](https://semver.org/).
 - Downloads no longer uses the large creator banner or colored stat cards.
   Choose creator sits next to Open folder, with a compact status line and
   search/status/media/sort filters.
+- Posts with completed downloads use the local files for their images and
+  playback, and skip provider metadata resolution for downloaded attachments.
+  Download post also skips files that are already saved.
+- The creator download scan has a Rescan button beside the Matching posts
+  heading.
 
 ### Fixed
 

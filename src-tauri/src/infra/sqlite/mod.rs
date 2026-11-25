@@ -587,6 +587,13 @@ mod tests {
             db.get_download("dl-1").unwrap().unwrap().file_path,
             "/tmp/moved/clip.mp4"
         );
+        let post_downloads = db.downloads_for_post("patreon", "1", "2").unwrap();
+        assert_eq!(post_downloads.len(), 1);
+        assert_eq!(post_downloads[0].file_path, "/tmp/moved/clip.mp4");
+        assert!(db
+            .downloads_for_post("patreon", "1", "other")
+            .unwrap()
+            .is_empty());
         let cleared = db.clear_completed_downloads().unwrap();
         assert_eq!(cleared.len(), 1);
         assert!(db.list_downloads().unwrap().is_empty());

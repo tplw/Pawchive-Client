@@ -792,6 +792,7 @@ mod tests {
             locked: false,
             resolving: true,
             unavailable: false,
+            local_path: None,
         };
         let resolved = PostService::new(state)
             .resolve_attachments(vec![attachment])

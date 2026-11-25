@@ -28,6 +28,30 @@ describe("image viewer source", () => {
     clearImagePrefetchCache();
   });
 
+  it("uses a downloaded local image without fetching the remote file", async () => {
+    const localImage: Attachment = {
+      ...image,
+      localPath: "/tmp/Downloads/Ada/full.jpeg",
+    };
+    const localMediaUrl = vi
+      .spyOn(api, "localMediaUrl")
+      .mockResolvedValue("http://127.0.0.1/media/local");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useImageViewerSource({ image: localImage, cacheMedia: false }),
+    );
+
+    expect(result.current.displaySrc).toBe(image.thumbnailUrl);
+    await waitFor(() =>
+      expect(result.current.displaySrc).toBe("http://127.0.0.1/media/local"),
+    );
+    expect(localMediaUrl).toHaveBeenCalledWith(localImage.localPath);
+    expect(fetchMock).not.toHaveBeenCalled();
+    localMediaUrl.mockRestore();
+  });
+
   it("opens a prefetched image at full resolution without the thumbnail", () => {
     markImagePrefetched(image.url);
     const fetchMock = vi.fn();

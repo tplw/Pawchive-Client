@@ -401,6 +401,9 @@ pub struct Attachment {
     /// The cloud file was removed, expired, or is no longer available.
     #[serde(default)]
     pub unavailable: bool,
+    /// Completed local download for this attachment, when one exists.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_path: Option<String>,
 }
 
 impl Attachment {
@@ -474,6 +477,7 @@ impl Attachment {
             locked: false,
             resolving,
             unavailable: false,
+            local_path: None,
         })
     }
 }

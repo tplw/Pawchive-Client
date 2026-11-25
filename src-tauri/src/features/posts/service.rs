@@ -3,9 +3,11 @@ use crate::features::posts::summary::{build_post_page, build_post_page_unfiltere
 use crate::shared::config::PAGE_SIZE;
 use crate::shared::error::{AppError, AppResult};
 use crate::shared::models::{
-    Attachment, Comment, CreatorSummary, MediaKind, PostDetail, PostPage, PostSummary, Revision,
+    Attachment, Comment, CreatorSummary, DownloadRecord, MediaKind, PostDetail, PostPage,
+    PostSummary, Revision,
 };
 use crate::shared::security::sanitize_html;
+use crate::shared::task::blocking;
 use std::sync::Arc;
 
 /// Post feeds, detail enrichment and comment/revision orchestration.
@@ -17,6 +19,45 @@ enum ProviderMedia {
 
 fn marks_attachment_unavailable(error: &AppError) -> bool {
     matches!(error, AppError::NotFound | AppError::Unavailable(_))
+}
+
+fn media_kind_from_download(value: &str) -> Option<MediaKind> {
+    match value {
+        "image" => Some(MediaKind::Image),
+        "video" => Some(MediaKind::Video),
+        "audio" => Some(MediaKind::Audio),
+        "document" => Some(MediaKind::Document),
+        "other" => Some(MediaKind::Other),
+        _ => None,
+    }
+}
+
+/// Prefer a completed local download over the remote attachment. This also
+/// clears the provider loading marker so post detail never resolves MEGA,
+/// Proton or remote-drive metadata for a file that is already on disk.
+fn apply_local_downloads(attachments: &mut [Attachment], downloads: &[DownloadRecord]) {
+    for attachment in attachments.iter_mut() {
+        let Some(record) = downloads
+            .iter()
+            .find(|record| record.url == attachment.url || record.url == attachment.download_url)
+        else {
+            continue;
+        };
+        if record.file_path.trim().is_empty() {
+            continue;
+        }
+        attachment.local_path = Some(record.file_path.clone());
+        if !record.file_name.trim().is_empty() {
+            attachment.name = record.file_name.clone();
+            attachment.ext = crate::shared::security::file_extension(&record.file_name);
+        }
+        if let Some(kind) = media_kind_from_download(&record.media_kind) {
+            attachment.kind = kind;
+        }
+        attachment.locked = false;
+        attachment.resolving = false;
+        attachment.unavailable = false;
+    }
 }
 
 pub(crate) struct PostService {
@@ -103,6 +144,15 @@ impl PostService {
             .into_iter()
             .filter_map(|file| Attachment::new(&self.state.cfg, &file))
             .collect();
+        let mut attachments = attachments;
+        let db = Arc::clone(&self.state.db);
+        let post_service = post.service.clone();
+        let post_creator = post.user.clone();
+        let post_id_value = post.id.clone();
+        let downloads =
+            blocking(move || db.downloads_for_post(&post_service, &post_creator, &post_id_value))
+                .await?;
+        apply_local_downloads(&mut attachments, &downloads);
         let creator = self
             .state
             .db
@@ -148,7 +198,7 @@ impl PostService {
         // non-fatal: the link is still visible and the player reports the error
         // on demand.
         for attachment in attachments.iter_mut() {
-            if attachment.locked {
+            if attachment.locked || attachment.local_path.is_some() {
                 continue;
             }
             if crate::infra::providers::mega::is_media_url(&attachment.url) {
@@ -210,7 +260,10 @@ impl PostService {
         let gate = Arc::new(tokio::sync::Semaphore::new(4));
         let mut jobs = tokio::task::JoinSet::new();
         for (index, attachment) in attachments.iter().enumerate() {
-            if attachment.locked || crate::infra::providers::mega::is_media_url(&attachment.url) {
+            if attachment.locked
+                || attachment.local_path.is_some()
+                || crate::infra::providers::mega::is_media_url(&attachment.url)
+            {
                 continue;
             }
             let is_proton = crate::infra::providers::proton::is_proton_url(&attachment.url);
@@ -443,8 +496,76 @@ impl PostService {
 
 #[cfg(test)]
 mod tests {
-    use super::marks_attachment_unavailable;
+    use super::{apply_local_downloads, marks_attachment_unavailable};
     use crate::shared::error::AppError;
+    use crate::shared::models::{Attachment, DownloadRecord, MediaKind};
+
+    fn attachment(url: &str, resolving: bool) -> Attachment {
+        Attachment {
+            name: "mega-handle".into(),
+            path: url.into(),
+            url: url.into(),
+            download_url: url.into(),
+            thumbnail_url: None,
+            kind: MediaKind::Other,
+            provider: crate::infra::providers::MediaProvider::Mega,
+            ext: String::new(),
+            preview_only: false,
+            locked: true,
+            resolving,
+            unavailable: true,
+            local_path: None,
+        }
+    }
+
+    fn download(url: &str) -> DownloadRecord {
+        DownloadRecord {
+            id: "dl-1".into(),
+            url: url.into(),
+            file_path: "/tmp/Downloads/Ada/clip.mp4".into(),
+            file_name: "clip.mp4".into(),
+            media_kind: "video".into(),
+            title: "Clip".into(),
+            creator_name: "Ada".into(),
+            service: "patreon".into(),
+            creator_id: "1".into(),
+            post_id: "2".into(),
+            playlist_id: None,
+            thumbnail_url: None,
+            total_bytes: Some(10),
+            downloaded_bytes: 10,
+            status: "completed".into(),
+            error: None,
+            created_at: 1,
+            updated_at: 1,
+        }
+    }
+
+    #[test]
+    fn downloaded_attachments_use_the_local_file_without_resolving() {
+        let url = "https://mega.nz/file/abc";
+        let mut attachments = vec![
+            attachment(url, true),
+            attachment("https://mega.nz/file/missing", true),
+        ];
+
+        apply_local_downloads(&mut attachments, &[download(url)]);
+
+        let local = &attachments[0];
+        assert_eq!(
+            local.local_path.as_deref(),
+            Some("/tmp/Downloads/Ada/clip.mp4")
+        );
+        assert_eq!(local.name, "clip.mp4");
+        assert_eq!(local.kind, MediaKind::Video);
+        assert_eq!(local.ext, "mp4");
+        assert!(!local.locked);
+        assert!(!local.resolving);
+        assert!(!local.unavailable);
+
+        assert!(attachments[1].local_path.is_none());
+        assert!(attachments[1].resolving);
+    }
 
     #[test]
     fn marks_only_missing_and_unavailable_provider_files() {

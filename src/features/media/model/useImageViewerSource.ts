@@ -31,10 +31,31 @@ export function useImageViewerSource({
   const triedDirect = useRef(false);
   const imageUrl = image?.url;
   const thumbnailUrl = image?.thumbnailUrl;
+  const localPath = image?.localPath;
 
   useEffect(() => {
-    if (!imageUrl) return;
     triedDirect.current = false;
+    if (localPath) {
+      let cancelled = false;
+      setProgress(null);
+      setDisplaySrc(thumbnailUrl ?? null);
+      setFailed(false);
+      void api
+        .localMediaUrl(localPath)
+        .then((url) => {
+          if (!cancelled) {
+            setDisplaySrc(url);
+            setFailed(false);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setDisplaySrc(imageUrl ?? null);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (!imageUrl) return;
     // A completed media-cache prefetch already has a loopback URL. Use it
     // directly so enabling "cache viewed media" does not reintroduce the
     // thumbnail and fetch animation.
@@ -212,7 +233,7 @@ export function useImageViewerSource({
       }
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [cacheMedia, imageUrl, thumbnailUrl]);
+  }, [cacheMedia, imageUrl, localPath, thumbnailUrl]);
 
   const handleImageError = useCallback(() => {
     // A blob can finish downloading and still fail to decode. Try the full

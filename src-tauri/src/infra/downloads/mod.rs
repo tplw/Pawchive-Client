@@ -487,6 +487,14 @@ pub async fn download_post(
         attachments,
     )
     .await;
+    let db = Arc::clone(&state.db);
+    let post_service = post.service.clone();
+    let post_creator = post.user.clone();
+    let post_id_value = post.id.clone();
+    let completed =
+        blocking(move || db.downloads_for_post(&post_service, &post_creator, &post_id_value))
+            .await?;
+    let existing: HashSet<String> = completed.into_iter().map(|record| record.url).collect();
     if let Some(locked) = attachments.iter().find(|attachment| attachment.locked) {
         return Err(map_locked_attachment(locked));
     }
@@ -503,6 +511,9 @@ pub async fn download_post(
         .iter()
         .find_map(|(attachment, _)| attachment.thumbnail_url.clone());
     for (attachment, kind) in files {
+        if existing.contains(&attachment.download_url) {
+            continue;
+        }
         let request = DownloadRequest {
             url: attachment.download_url.clone(),
             file_name: attachment.name.clone(),
@@ -843,6 +854,7 @@ mod tests {
             locked,
             resolving: false,
             unavailable: false,
+            local_path: None,
         }
     }
 

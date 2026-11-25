@@ -867,24 +867,6 @@ export function CreatorDownloadDialog({
               Locked MEGA or Proton Drive links are skipped. Unlock them on the
               post first if you want them included.
             </p>
-
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                className="flex-1"
-                loading={scanning}
-                disabled={scanning || starting}
-                onClick={() => void scanPosts()}
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                {scan ? "Rescan" : "Scan posts"}
-              </Button>
-              {scanning ? (
-                <Button variant="ghost" size="sm" onClick={cancelScan}>
-                  Stop
-                </Button>
-              ) : null}
-            </div>
           </div>
 
           <div className="min-w-0">
@@ -901,15 +883,32 @@ export function CreatorDownloadDialog({
                       : "Scan to preview the posts in this batch."}
                 </p>
               </div>
-              {scan && displayedPosts.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={toggleAll}
-                  className="text-[10px] font-medium text-accent transition hover:text-ink"
+              <div className="flex items-center gap-2">
+                {scan && displayedPosts.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={toggleAll}
+                    className="text-[10px] font-medium text-accent transition hover:text-ink"
+                  >
+                    {allSelected ? "Clear all" : "Select all"}
+                  </button>
+                ) : null}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={scanning}
+                  disabled={scanning || starting}
+                  onClick={() => void scanPosts()}
                 >
-                  {allSelected ? "Clear all" : "Select all"}
-                </button>
-              ) : null}
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {scan ? "Rescan" : "Scan posts"}
+                </Button>
+                {scanning ? (
+                  <Button variant="ghost" size="sm" onClick={cancelScan}>
+                    Stop
+                  </Button>
+                ) : null}
+              </div>
             </div>
 
             {filtersChanged ? (

@@ -95,6 +95,33 @@ impl Db {
         })
     }
 
+    pub fn downloads_for_post(
+        &self,
+        service: &str,
+        creator_id: &str,
+        post_id: &str,
+    ) -> AppResult<Vec<DownloadRecord>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT d.id, d.url, d.file_path, d.file_name, d.media_kind, d.title,
+                        d.creator_name, d.service, d.creator_id, d.post_id, d.playlist_id,
+                        COALESCE(d.thumbnail_url,
+                          (SELECT i.thumbnail_url FROM playlist_items i
+                           WHERE i.media_url = d.url AND i.thumbnail_url IS NOT NULL LIMIT 1)
+                        ) AS thumbnail_url,
+                        d.total_bytes, d.downloaded_bytes, d.status, d.error, d.created_at, d.updated_at
+                 FROM downloads d
+                 WHERE d.service = ?1 AND d.creator_id = ?2 AND d.post_id = ?3
+                   AND d.status = 'completed'
+                 ORDER BY d.created_at DESC",
+            )?;
+            let rows = stmt
+                .query_map(params![service, creator_id, post_id], map_download)?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rows)
+        })
+    }
+
     pub fn download_urls(&self) -> AppResult<HashSet<String>> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare("SELECT url FROM downloads")?;

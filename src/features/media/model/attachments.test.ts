@@ -5,6 +5,7 @@ import {
   attachmentFromPlaylistItem,
   queueItemFromDownload,
 } from "./attachments";
+import { queueItemFromAttachment } from "../../player/model/queue";
 
 const playlistItem: PlaylistItem = {
   id: 1,
@@ -95,5 +96,32 @@ describe("media attachments", () => {
       creatorId: "creator",
       postId: "post",
     });
+  });
+
+  it("keeps a downloaded local path on a post queue item", () => {
+    const item = queueItemFromAttachment(
+      {
+        name: "clip.mp4",
+        path: "/aa/bb/clip.mp4",
+        url: "https://file.pawchive.pw/data/aa/bb/clip.mp4",
+        downloadUrl: "https://file.pawchive.pw/data/aa/bb/clip.mp4",
+        thumbnailUrl: null,
+        kind: "video",
+        provider: "pawchive",
+        ext: "mp4",
+        previewOnly: false,
+        localPath: "/tmp/Downloads/Ada/clip.mp4",
+      },
+      {
+        title: "Clip",
+        creatorName: "Ada",
+        artwork: null,
+        service: "patreon",
+        creatorId: "creator",
+        postId: "post",
+      },
+    );
+
+    expect(item.localPath).toBe("/tmp/Downloads/Ada/clip.mp4");
   });
 });

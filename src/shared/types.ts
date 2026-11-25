@@ -76,6 +76,8 @@ export interface Attachment {
   resolving?: boolean;
   /** The cloud file was removed, expired, or is no longer available. */
   unavailable?: boolean;
+  /** Completed local download for this attachment, when one exists. */
+  localPath?: string | null;
 }
 
 export interface ResolvedMedia {

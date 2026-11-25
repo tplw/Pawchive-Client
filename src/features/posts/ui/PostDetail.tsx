@@ -357,6 +357,10 @@ function PostDetailContent({
 
   const downloadAttachment = async (attachment: Attachment) => {
     if (!detail) return;
+    if (attachment.localPath) {
+      toast("info", "Already downloaded", attachment.name);
+      return;
+    }
     if (attachment.unavailable) {
       unavailableToast();
       return;
@@ -398,6 +402,10 @@ function PostDetailContent({
   const downloadPost = async () => {
     try {
       const count = await startPostDownload(service, creatorId, postId);
+      if (count === 0) {
+        toast("info", "Already downloaded", "No new files to queue.");
+        return;
+      }
       toast("success", "Download started", `${count} file${count === 1 ? "" : "s"} queued.`);
     } catch (error) {
       reportError(error, "Could not download post");

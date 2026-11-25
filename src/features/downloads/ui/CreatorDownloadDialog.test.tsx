@@ -115,6 +115,9 @@ describe("creator download dialog", () => {
     expect(
       await screen.findByText("2 of 2 posts selected"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Rescan" }),
+    ).toBeInTheDocument();
 
     const firstRow = screen.getByText("First post").closest("label");
     expect(firstRow).not.toBeNull();

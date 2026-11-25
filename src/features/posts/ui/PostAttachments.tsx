@@ -14,6 +14,7 @@ import {
 import type { Attachment, MediaKind } from "../../../shared/types";
 import { cn } from "../../../shared/lib/format";
 import { Badge, IconButton, SectionHeader } from "../../../shared/ui";
+import { MediaThumbnail } from "../../media/ui/MediaThumbnail";
 import { AttachmentMeta } from "./AttachmentMeta";
 
 const KIND_ICON: Record<MediaKind, typeof ImageIcon> = {
@@ -102,24 +103,14 @@ export function PostAttachments({
                       Loading…
                     </span>
                   </span>
-                ) : attachment.thumbnailUrl ? (
-                  <img
-                    src={attachment.thumbnailUrl}
-                    alt={attachment.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                    onError={(event) => {
-                      const image = event.currentTarget;
-                      if (image.dataset.fallback === "1") return;
-                      image.dataset.fallback = "1";
-                      image.src = attachment.url;
-                    }}
-                  />
                 ) : (
-                  <span className="grid h-full w-full place-items-center">
-                    <ImageIcon className="h-7 w-7 text-accent/45" />
-                  </span>
+                  <MediaThumbnail
+                    kind="image"
+                    thumbnailUrl={attachment.thumbnailUrl}
+                    mediaUrl={attachment.url}
+                    localPath={attachment.localPath}
+                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                  />
                 )}
                 {!unavailable && attachment.locked ? (
                   <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded border border-favorite/40 bg-black/75 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-favorite">

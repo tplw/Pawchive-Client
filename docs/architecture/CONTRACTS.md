@@ -100,6 +100,10 @@ Changing any shape requires an explicit migration.
   writes, size pruning.
 - Downloads: global concurrency gate, unique destination reservation,
   cancellation tokens and partial-file cleanup.
+- `Attachment.localPath` is an optional completed local download. Post detail
+  fills it from the downloads table; matching attachments skip provider
+  resolution and use the local file for images and playback. Post downloads
+  skip files that already have a completed record.
 - Creator batch downloads scan the unfiltered creator feed so global feed
   filters cannot hide posts, then apply the dialog's own filters and
   media-kind selection.
