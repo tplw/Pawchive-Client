@@ -25,6 +25,29 @@ pub struct DownloadRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct CreatorDownloadRequest {
+    pub service: String,
+    pub creator_id: String,
+    #[serde(default)]
+    pub post_ids: Vec<String>,
+    #[serde(default)]
+    pub media_kinds: Vec<String>,
+    #[serde(default)]
+    pub skip_existing: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatorDownloadResult {
+    pub posts: u64,
+    pub queued: u64,
+    pub skipped: u64,
+    pub locked: u64,
+    pub failed: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct DownloadRequest {
     pub url: String,
     #[serde(default)]

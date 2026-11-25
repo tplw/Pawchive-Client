@@ -8,9 +8,15 @@ use crate::app::state::AppState;
 use crate::shared::error::{AppError, AppResult};
 #[cfg(test)]
 use crate::shared::models::Post;
-use crate::shared::models::{now_ts, Attachment, DownloadRecord, DownloadRequest, MediaKind};
+use crate::shared::models::{
+    now_ts, Attachment, CreatorDownloadRequest, CreatorDownloadResult, DownloadRecord,
+    DownloadRequest, MediaKind,
+};
 use crate::shared::security::safe_filename;
+use crate::shared::task::blocking;
+use std::collections::HashSet;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
@@ -230,6 +236,145 @@ pub async fn clear_all(state: &AppState) -> AppResult<u64> {
         remove_if_inside(&state.download_dir(), Path::new(&record.file_path)).await;
     }
     Ok(records.len() as u64)
+}
+
+struct SelectedDownloadAttachments {
+    files: Vec<(Attachment, MediaKind)>,
+    skipped: u64,
+    locked: u64,
+}
+
+fn select_download_attachments(
+    attachments: Vec<Attachment>,
+    media_kinds: &HashSet<String>,
+    existing: &HashSet<String>,
+    seen: &mut HashSet<String>,
+) -> SelectedDownloadAttachments {
+    let mut files = Vec::new();
+    let mut skipped = 0;
+    let mut locked = 0;
+    for attachment in attachments {
+        let kind = attachment.kind;
+        if !media_kinds.is_empty() && !media_kinds.contains(kind.as_str()) {
+            continue;
+        }
+        if attachment.locked {
+            locked += 1;
+            continue;
+        }
+        if attachment.preview_only || attachment.unavailable {
+            skipped += 1;
+            continue;
+        }
+        let url = attachment.download_url.clone();
+        if existing.contains(&url) || !seen.insert(url) {
+            skipped += 1;
+            continue;
+        }
+        files.push((attachment, kind));
+    }
+    SelectedDownloadAttachments {
+        files,
+        skipped,
+        locked,
+    }
+}
+
+/// Queue the selected posts from one creator, filtered by media kind and
+/// optionally skipping URLs that already have a download record.
+pub async fn download_creator_posts(
+    state: &AppState,
+    app: &AppHandle,
+    request: CreatorDownloadRequest,
+) -> AppResult<CreatorDownloadResult> {
+    let service = crate::shared::security::validate_service(&request.service)?;
+    let creator_id = crate::shared::security::validate_id(&request.creator_id, "creator id")?;
+    if crate::features::posts::filters::is_creator_blocked(&service, &creator_id, &state.settings())
+    {
+        return Err(AppError::Blocked);
+    }
+    let media_kinds: HashSet<String> = request
+        .media_kinds
+        .iter()
+        .map(|kind| kind.trim().to_ascii_lowercase())
+        .filter(|kind| !kind.is_empty())
+        .collect();
+    let existing = if request.skip_existing {
+        let db = Arc::clone(&state.db);
+        blocking(move || db.download_urls()).await?
+    } else {
+        HashSet::new()
+    };
+    let creator_name = state
+        .db
+        .get_creator(&service, &creator_id)?
+        .map(|creator| creator.name)
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| creator_id.clone());
+
+    let mut result = CreatorDownloadResult::default();
+    let mut seen_urls = HashSet::new();
+    let mut seen_posts = HashSet::new();
+    for post_id in request.post_ids {
+        if !seen_posts.insert(post_id.clone()) {
+            continue;
+        }
+        let post = match state.api.post(&service, &creator_id, &post_id, None).await {
+            Ok(post) => post,
+            Err(_) => {
+                result.failed += 1;
+                continue;
+            }
+        };
+        result.posts += 1;
+        let title = if post.title.trim().is_empty() {
+            "Untitled post".to_string()
+        } else {
+            post.title.clone()
+        };
+        let mut attachments: Vec<Attachment> = post
+            .all_files_including_direct()
+            .into_iter()
+            .filter_map(|file| Attachment::new(&state.cfg, &file))
+            .collect();
+        attachments = crate::infra::providers::remote::expand_folders(
+            &state.mega,
+            &state.proton,
+            &state.remote,
+            attachments,
+        )
+        .await;
+        let post_thumbnail = attachments
+            .iter()
+            .find_map(|attachment| attachment.thumbnail_url.clone());
+        let selection =
+            select_download_attachments(attachments, &media_kinds, &existing, &mut seen_urls);
+        result.skipped += selection.skipped;
+        result.locked += selection.locked;
+        for (attachment, kind) in selection.files {
+            let request = DownloadRequest {
+                url: attachment.download_url.clone(),
+                file_name: attachment.name.clone(),
+                title: title.clone(),
+                creator_name: creator_name.clone(),
+                service: post.service.clone(),
+                creator_id: post.user.clone(),
+                post_id: post.id.clone(),
+                playlist_id: None,
+                thumbnail_url: attachment
+                    .thumbnail_url
+                    .clone()
+                    .or_else(|| post_thumbnail.clone()),
+                media_kind: kind.as_str().to_string(),
+            };
+            match enqueue(state, app, request).await {
+                Ok(_) => result.queued += 1,
+                Err(AppError::PasswordRequired { .. }) => result.locked += 1,
+                Err(_) => result.failed += 1,
+            }
+        }
+    }
+    Ok(result)
 }
 
 pub async fn download_post(
@@ -505,5 +650,50 @@ mod tests {
     fn split_names_handles_extensions() {
         assert_eq!(split_name("clip.mp4"), ("clip".into(), "mp4".into()));
         assert_eq!(split_name("clip"), ("clip".into(), String::new()));
+    }
+
+    fn downloadable(name: &str, kind: MediaKind, preview_only: bool, locked: bool) -> Attachment {
+        let url = format!("https://file.pawchive.pw/data/aa/{name}");
+        Attachment {
+            name: name.into(),
+            path: format!("/aa/{name}"),
+            url: url.clone(),
+            download_url: url,
+            thumbnail_url: None,
+            kind,
+            provider: crate::infra::providers::MediaProvider::Pawchive,
+            ext: "bin".into(),
+            preview_only,
+            locked,
+            resolving: false,
+            unavailable: false,
+        }
+    }
+
+    #[test]
+    fn filters_creator_downloads_by_kind_and_existing_urls() {
+        let attachments = vec![
+            downloadable("image.jpg", MediaKind::Image, false, false),
+            downloadable("clip.mp4", MediaKind::Video, false, false),
+            downloadable("preview.jpg", MediaKind::Image, true, false),
+            downloadable("locked.jpg", MediaKind::Image, false, true),
+            downloadable("image.jpg", MediaKind::Image, false, false),
+            downloadable("track.mp3", MediaKind::Audio, false, false),
+        ];
+        let kinds: HashSet<String> = ["image", "audio"]
+            .iter()
+            .map(|kind| (*kind).to_string())
+            .collect();
+        let existing: HashSet<String> = ["https://file.pawchive.pw/data/aa/track.mp3".to_string()]
+            .into_iter()
+            .collect();
+        let mut seen = HashSet::new();
+
+        let selected = select_download_attachments(attachments, &kinds, &existing, &mut seen);
+
+        assert_eq!(selected.files.len(), 1);
+        assert_eq!(selected.files[0].0.name, "image.jpg");
+        assert_eq!(selected.skipped, 3);
+        assert_eq!(selected.locked, 1);
     }
 }

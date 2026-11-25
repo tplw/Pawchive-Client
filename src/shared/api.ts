@@ -6,6 +6,8 @@ import type {
   AppSettings,
   Comment,
   DownloadRecord,
+  CreatorDownloadRequest,
+  CreatorDownloadResult,
   CreatorIndexStatus,
   CreatorPage,
   CreatorProfile,
@@ -281,6 +283,8 @@ export const api = {
   }) => call<DownloadRecord>("start_download", { request }),
   downloadPost: (service: string, creatorId: string, postId: string) =>
     call<number>("download_post", { service, creatorId, postId }),
+  downloadCreatorPosts: (request: CreatorDownloadRequest) =>
+    call<CreatorDownloadResult>("download_creator_posts", { request }),
   downloadPlaylist: (playlistId: number) =>
     call<number>("download_playlist", { playlistId }),
   cancelDownload: (id: string) => call<void>("cancel_download", { id }),

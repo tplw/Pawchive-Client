@@ -292,6 +292,22 @@ export interface PlaylistItemInput {
   mediaKind: MediaKind;
 }
 
+export interface CreatorDownloadRequest {
+  service: string;
+  creatorId: string;
+  postIds: string[];
+  mediaKinds: MediaKind[];
+  skipExisting: boolean;
+}
+
+export interface CreatorDownloadResult {
+  posts: number;
+  queued: number;
+  skipped: number;
+  locked: number;
+  failed: number;
+}
+
 export interface DownloadRecord {
   id: string;
   url: string;

@@ -581,6 +581,7 @@ mod tests {
         db.update_download("dl-1", 100, Some(100), "completed", None)
             .unwrap();
         assert_eq!(db.list_downloads().unwrap()[0].downloaded_bytes, 100);
+        assert!(db.download_urls().unwrap().contains(&record.url));
         let cleared = db.clear_completed_downloads().unwrap();
         assert_eq!(cleared.len(), 1);
         assert!(db.list_downloads().unwrap().is_empty());

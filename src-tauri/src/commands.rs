@@ -11,9 +11,10 @@ use crate::features::updates::service::{UpdateInfo, UpdateService};
 use crate::shared::config::PawchiveConfig;
 use crate::shared::error::{AppError, AppResult};
 use crate::shared::models::{
-    AccountState, Announcement, AppSettings, Attachment, Comment, CreatorIndexStatus, CreatorPage,
-    CreatorProfile, CreatorSummary, DownloadRecord, DownloadRequest, PlaybackProgress, Playlist,
-    PlaylistItem, PostDetail, PostPage, PostSummary, Revision, SearchPage,
+    AccountState, Announcement, AppSettings, Attachment, Comment, CreatorDownloadRequest,
+    CreatorDownloadResult, CreatorIndexStatus, CreatorPage, CreatorProfile, CreatorSummary,
+    DownloadRecord, DownloadRequest, PlaybackProgress, Playlist, PlaylistItem, PostDetail,
+    PostPage, PostSummary, Revision, SearchPage,
 };
 use crate::shared::task::blocking;
 use tauri::{AppHandle, State};
@@ -455,6 +456,17 @@ pub async fn download_playlist(
 ) -> AppResult<u64> {
     DownloadService::new(st(&state))
         .download_playlist(&app, playlist_id)
+        .await
+}
+
+#[tauri::command]
+pub async fn download_creator_posts(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    request: CreatorDownloadRequest,
+) -> AppResult<CreatorDownloadResult> {
+    DownloadService::new(st(&state))
+        .download_creator_posts(&app, request)
         .await
 }
 

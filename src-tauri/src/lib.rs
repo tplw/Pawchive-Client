@@ -200,6 +200,7 @@ pub fn run() {
             commands::start_download,
             commands::download_post,
             commands::download_playlist,
+            commands::download_creator_posts,
             commands::cancel_download,
             commands::delete_download,
             commands::retry_download,

@@ -3,7 +3,9 @@ use crate::features::posts::summary::{
     mark_thumbnail_attempted, post_thumbnail, thumbnail_attempted,
 };
 use crate::shared::error::{AppError, AppResult};
-use crate::shared::models::{DownloadRecord, DownloadRequest};
+use crate::shared::models::{
+    CreatorDownloadRequest, CreatorDownloadResult, DownloadRecord, DownloadRequest,
+};
 use crate::shared::task::blocking;
 use std::sync::Arc;
 use tauri::AppHandle;
@@ -42,6 +44,14 @@ impl DownloadService {
         playlist_id: i64,
     ) -> AppResult<u64> {
         crate::infra::downloads::download_playlist(&self.state, app, playlist_id).await
+    }
+
+    pub(crate) async fn download_creator_posts(
+        &self,
+        app: &AppHandle,
+        request: CreatorDownloadRequest,
+    ) -> AppResult<CreatorDownloadResult> {
+        crate::infra::downloads::download_creator_posts(&self.state, app, request).await
     }
 
     pub(crate) async fn cancel(&self, id: &str) -> AppResult<()> {

@@ -2,6 +2,7 @@ use super::{map_download, Db};
 use crate::shared::error::AppResult;
 use crate::shared::models::{now_ts, DownloadRecord};
 use rusqlite::{params, OptionalExtension};
+use std::collections::HashSet;
 
 impl Db {
     pub fn insert_download(&self, record: &DownloadRecord) -> AppResult<()> {
@@ -91,6 +92,14 @@ impl Db {
                 .query_map([], map_download)?
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(rows)
+        })
+    }
+
+    pub fn download_urls(&self) -> AppResult<HashSet<String>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare("SELECT url FROM downloads")?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            Ok(rows.collect::<Result<HashSet<_>, _>>()?)
         })
     }
 
