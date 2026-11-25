@@ -251,10 +251,17 @@ fn download_target_dir(root: &Path, folder: Option<&str>) -> PathBuf {
 fn retry_target_dir(root: &Path, file_path: &Path) -> PathBuf {
     let parent = file_path.parent().unwrap_or(root);
     if parent != root && parent.starts_with(root) {
-        parent.to_path_buf()
-    } else {
-        root.to_path_buf()
+        return parent.to_path_buf();
     }
+    // The mobile app container can move. If the old path still names a creator
+    // folder that exists under the current root, keep using it.
+    if let Some(name) = parent.file_name() {
+        let nested = root.join(name);
+        if nested.is_dir() {
+            return nested;
+        }
+    }
+    root.to_path_buf()
 }
 
 struct SelectedDownloadAttachments {
@@ -700,6 +707,13 @@ mod tests {
         assert_eq!(
             retry_target_dir(root, Path::new("/tmp/elsewhere/clip.mp4")),
             root.to_path_buf()
+        );
+
+        let moved = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(moved.path().join("Ada")).unwrap();
+        assert_eq!(
+            retry_target_dir(moved.path(), Path::new("/old/Downloads/Ada/clip.mp4"),),
+            moved.path().join("Ada")
         );
     }
 

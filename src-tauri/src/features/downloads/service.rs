@@ -86,7 +86,9 @@ impl DownloadService {
                     continue;
                 }
                 if let Some(path) = relocated_download_path(&download_dir, original) {
-                    record.file_path = path.to_string_lossy().to_string();
+                    let path = path.to_string_lossy().to_string();
+                    let _ = db.set_download_path(&record.id, &path);
+                    record.file_path = path;
                 }
             }
             Ok(records)

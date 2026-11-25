@@ -582,6 +582,11 @@ mod tests {
             .unwrap();
         assert_eq!(db.list_downloads().unwrap()[0].downloaded_bytes, 100);
         assert!(db.download_urls().unwrap().contains(&record.url));
+        db.set_download_path("dl-1", "/tmp/moved/clip.mp4").unwrap();
+        assert_eq!(
+            db.get_download("dl-1").unwrap().unwrap().file_path,
+            "/tmp/moved/clip.mp4"
+        );
         let cleared = db.clear_completed_downloads().unwrap();
         assert_eq!(cleared.len(), 1);
         assert!(db.list_downloads().unwrap().is_empty());

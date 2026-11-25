@@ -122,6 +122,16 @@ impl Db {
         })
     }
 
+    pub fn set_download_path(&self, id: &str, file_path: &str) -> AppResult<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE downloads SET file_path = ?2 WHERE id = ?1",
+                params![id, file_path],
+            )?;
+            Ok(())
+        })
+    }
+
     pub fn delete_download(&self, id: &str) -> AppResult<()> {
         self.with_conn(|conn| {
             conn.execute("DELETE FROM downloads WHERE id = ?1", params![id])?;
