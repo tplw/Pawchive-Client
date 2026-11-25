@@ -123,7 +123,7 @@ function normalizeSchedule(value: unknown): CreatorDownloadSchedule | null {
         : [],
       mediaKinds,
       skipUnavailable: Boolean(raw.filters.skipUnavailable),
-      skipExisting: true,
+      skipExisting: raw.filters.skipExisting !== false,
       order: raw.filters.order === "oldest" ? "oldest" : "newest",
     },
     frequency: raw.frequency === "weekly" ? "weekly" : "daily",
@@ -195,7 +195,7 @@ export function createCreatorDownloadSchedule({
       ...filters,
       fromDate: "",
       toDate: "",
-      skipExisting: true,
+      skipExisting: filters.skipExisting !== false,
     },
     frequency,
     time,
@@ -216,6 +216,42 @@ export function updateSchedule(
   saveSchedules(
     loadSchedules().map((schedule) =>
       schedule.id === id ? { ...schedule, ...patch } : schedule,
+    ),
+  );
+}
+
+export function updateScheduleSettings(
+  id: string,
+  settings: {
+    frequency: CreatorScheduleFrequency;
+    time: string;
+    weekday: number;
+    filters: CreatorDownloadFilters;
+  },
+): void {
+  const now = Date.now();
+  saveSchedules(
+    loadSchedules().map((schedule) =>
+      schedule.id === id
+        ? {
+            ...schedule,
+            frequency: settings.frequency,
+            time: settings.time,
+            weekday: settings.weekday,
+            filters: {
+              ...settings.filters,
+              fromDate: "",
+              toDate: "",
+              skipExisting: settings.filters.skipExisting !== false,
+            },
+            nextRunAt: computeNextRun(
+              now,
+              settings.frequency,
+              settings.time,
+              settings.weekday,
+            ),
+          }
+        : schedule,
     ),
   );
 }
@@ -260,9 +296,9 @@ export function describeSchedule(schedule: CreatorDownloadSchedule): string {
 }
 
 /**
- * Run one scheduled creator download. Uses the newest matching posts and
- * always skips files that already have a download record, so a schedule only
- * picks up new media.
+ * Run one scheduled creator download. Uses the newest matching posts and the
+ * schedule's saved skip setting, so a schedule can either pick up only new
+ * media or force a full refresh.
  */
 export async function runCreatorDownloadSchedule(
   schedule: CreatorDownloadSchedule,
@@ -274,7 +310,6 @@ export async function runCreatorDownloadSchedule(
       ...schedule.filters,
       fromDate: "",
       toDate: "",
-      skipExisting: true,
     };
     const scan = await scanCreatorDownloadPosts({
       service: schedule.creator.service,
@@ -294,7 +329,7 @@ export async function runCreatorDownloadSchedule(
       creatorId: schedule.creator.id,
       postIds: scan.posts.map((post) => post.id),
       mediaKinds: filters.mediaKinds,
-      skipExisting: true,
+      skipExisting: filters.skipExisting,
     });
     void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
     useAppStore.getState().toast(

@@ -104,12 +104,15 @@ Changing any shape requires an explicit migration.
   filters cannot hide posts, then apply the dialog's own filters and
   media-kind selection.
 - Creator batch downloads apply media-kind filters and skip existing, locked and
-  preview-only files.
+  preview-only files. Existing means a download record or a file with the same
+  sanitized name in the creator folder.
 - Creator batch downloads save under a sanitized creator-name subfolder.
   Retries keep that folder, and list repair checks the same folder name when
   the mobile app container moves.
 - Creator download schedules are stored in localStorage, run while the app is
   open, and are managed from the Schedules button beside Choose creator.
+  Each schedule's settings can change its time, media types, limits, keywords
+  and skip-existing behavior.
 - Clearing completed or all downloads removes database records; completed
   media files stay on disk. Only partial files from non-completed records are
   removed.

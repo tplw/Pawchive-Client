@@ -12,6 +12,7 @@ import {
   markScheduleRun,
   runCreatorDownloadSchedule,
   updateSchedule,
+  updateScheduleSettings,
 } from "./downloadSchedules";
 import type { CreatorDownloadFilters } from "./creatorDownload";
 
@@ -96,6 +97,43 @@ describe("creator download schedules", () => {
     expect(window.localStorage.getItem(DOWNLOAD_SCHEDULES_KEY)).toBe("[]");
   });
 
+  it("updates schedule behavior and recalculates the next run", () => {
+    const schedule = createCreatorDownloadSchedule({
+      creator: { service: "patreon", id: "42", name: "Ada" },
+      filters,
+      frequency: "daily",
+      time: "09:00",
+      weekday: 1,
+    });
+
+    updateScheduleSettings(schedule.id, {
+      frequency: "weekly",
+      time: "18:30",
+      weekday: 5,
+      filters: {
+        ...filters,
+        maxPosts: 12,
+        keywords: ["teaser"],
+        mediaKinds: ["video"],
+        skipUnavailable: true,
+        skipExisting: false,
+      },
+    });
+
+    const updated = loadSchedules()[0];
+    expect(updated.frequency).toBe("weekly");
+    expect(updated.time).toBe("18:30");
+    expect(updated.weekday).toBe(5);
+    expect(updated.filters.maxPosts).toBe(12);
+    expect(updated.filters.keywords).toEqual(["teaser"]);
+    expect(updated.filters.mediaKinds).toEqual(["video"]);
+    expect(updated.filters.skipUnavailable).toBe(true);
+    expect(updated.filters.skipExisting).toBe(false);
+    expect(updated.filters.fromDate).toBe("");
+    expect(new Date(updated.nextRunAt).getDay()).toBe(5);
+    expect(describeSchedule(updated)).toContain("Friday at 18:30");
+  });
+
   it("runs a schedule with the saved media filters and skips existing files", async () => {
     const page: PostPage = {
       items: [post("1")],
@@ -133,6 +171,36 @@ describe("creator download schedules", () => {
     expect(loadSchedules()[0].lastRunAt).not.toBeNull();
     expect(useAppStore.getState().toasts[0]?.title).toBe(
       "Scheduled download",
+    );
+  });
+
+  it("honors a schedule that turns skip existing off", async () => {
+    vi.spyOn(api, "getCreatorDownloadPosts").mockResolvedValue({
+      items: [post("1")],
+      offset: 0,
+      hasMore: false,
+    });
+    vi.spyOn(api, "downloadCreatorPosts").mockResolvedValue({
+      posts: 1,
+      queued: 1,
+      skipped: 0,
+      locked: 0,
+      failed: 0,
+      folder: "Ada",
+    });
+
+    const schedule = createCreatorDownloadSchedule({
+      creator: { service: "patreon", id: "42", name: "Ada" },
+      filters: { ...filters, skipExisting: false },
+      frequency: "daily",
+      time: "09:00",
+      weekday: 1,
+    });
+
+    await runCreatorDownloadSchedule(schedule);
+
+    expect(api.downloadCreatorPosts).toHaveBeenCalledWith(
+      expect.objectContaining({ skipExisting: false }),
     );
   });
 });

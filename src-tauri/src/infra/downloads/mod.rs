@@ -249,6 +249,23 @@ fn download_target_dir(root: &Path, folder: Option<&str>) -> PathBuf {
         .unwrap_or_else(|| root.to_path_buf())
 }
 
+/// Names of files already present in a creator folder. Used when the download
+/// records were cleared but the media was deliberately kept on disk.
+async fn existing_creator_files(dir: &Path) -> HashSet<String> {
+    let mut names = HashSet::new();
+    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+        return names;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        if matches!(entry.file_type().await, Ok(kind) if kind.is_file()) {
+            if let Some(name) = entry.file_name().to_str() {
+                names.insert(name.to_string());
+            }
+        }
+    }
+    names
+}
+
 fn retry_target_dir(root: &Path, file_path: &Path) -> PathBuf {
     let parent = file_path.parent().unwrap_or(root);
     if parent != root && parent.starts_with(root) {
@@ -275,6 +292,7 @@ fn select_download_attachments(
     attachments: Vec<Attachment>,
     media_kinds: &HashSet<String>,
     existing: &HashSet<String>,
+    existing_files: &HashSet<String>,
     seen: &mut HashSet<String>,
 ) -> SelectedDownloadAttachments {
     let mut files = Vec::new();
@@ -294,7 +312,9 @@ fn select_download_attachments(
             continue;
         }
         let url = attachment.download_url.clone();
-        if existing.contains(&url) || !seen.insert(url) {
+        let existing_file = !attachment.name.trim().is_empty()
+            && existing_files.contains(&safe_filename(&attachment.name));
+        if existing.contains(&url) || existing_file || !seen.insert(url) {
             skipped += 1;
             continue;
         }
@@ -351,6 +371,11 @@ pub async fn download_creator_posts(
         folder: folder.clone(),
         ..Default::default()
     };
+    let existing_files = if request.skip_existing {
+        existing_creator_files(&download_target_dir(&state.download_dir(), Some(&folder))).await
+    } else {
+        HashSet::new()
+    };
     let mut seen_urls = HashSet::new();
     let mut seen_posts = HashSet::new();
     for post_id in request.post_ids {
@@ -385,8 +410,13 @@ pub async fn download_creator_posts(
         let post_thumbnail = attachments
             .iter()
             .find_map(|attachment| attachment.thumbnail_url.clone());
-        let selection =
-            select_download_attachments(attachments, &media_kinds, &existing, &mut seen_urls);
+        let selection = select_download_attachments(
+            attachments,
+            &media_kinds,
+            &existing,
+            &existing_files,
+            &mut seen_urls,
+        );
         result.skipped += selection.skipped;
         result.locked += selection.locked;
         for (attachment, kind) in selection.files {
@@ -835,11 +865,32 @@ mod tests {
             .collect();
         let mut seen = HashSet::new();
 
-        let selected = select_download_attachments(attachments, &kinds, &existing, &mut seen);
+        let existing_files: HashSet<String> = HashSet::new();
+        let selected =
+            select_download_attachments(attachments, &kinds, &existing, &existing_files, &mut seen);
 
         assert_eq!(selected.files.len(), 1);
         assert_eq!(selected.files[0].0.name, "image.jpg");
         assert_eq!(selected.skipped, 3);
         assert_eq!(selected.locked, 1);
+    }
+
+    #[test]
+    fn skips_creator_files_that_already_exist_on_disk() {
+        let attachments = vec![
+            downloadable("existing.jpg", MediaKind::Image, false, false),
+            downloadable("new.jpg", MediaKind::Image, false, false),
+        ];
+        let kinds: HashSet<String> = ["image".to_string()].into_iter().collect();
+        let existing: HashSet<String> = HashSet::new();
+        let existing_files: HashSet<String> = ["existing.jpg".to_string()].into_iter().collect();
+        let mut seen = HashSet::new();
+
+        let selected =
+            select_download_attachments(attachments, &kinds, &existing, &existing_files, &mut seen);
+
+        assert_eq!(selected.files.len(), 1);
+        assert_eq!(selected.files[0].0.name, "new.jpg");
+        assert_eq!(selected.skipped, 1);
     }
 }

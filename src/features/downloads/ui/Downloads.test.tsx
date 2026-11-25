@@ -203,6 +203,60 @@ describe("downloads page", () => {
     ).toBeInTheDocument();
   });
 
+  it("edits a scheduled creator download from its settings", async () => {
+    window.localStorage.setItem(
+      DOWNLOAD_SCHEDULES_KEY,
+      JSON.stringify([
+        {
+          id: "scheduled",
+          creator: { service: "patreon", id: "42", name: "Ada" },
+          filters: {
+            fromDate: "",
+            toDate: "",
+            maxPosts: 50,
+            keywords: [],
+            mediaKinds: ["image", "video", "audio"],
+            skipUnavailable: false,
+            skipExisting: true,
+            order: "newest",
+          },
+          frequency: "daily",
+          time: "09:00",
+          weekday: 1,
+          enabled: true,
+          createdAt: Date.now(),
+          lastRunAt: null,
+          nextRunAt: Date.now() + 3_600_000,
+        },
+      ]),
+    );
+
+    wrapper(<DownloadsPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Scheduled downloads" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Schedule settings" }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Time"), {
+      target: { value: "18:30" },
+    });
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Skip already downloaded" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      const stored = JSON.parse(
+        window.localStorage.getItem(DOWNLOAD_SCHEDULES_KEY) ?? "[]",
+      );
+      expect(stored[0].time).toBe("18:30");
+      expect(stored[0].filters.skipExisting).toBe(false);
+    });
+  });
+
   it("opens the creator download dialog", async () => {
     wrapper(<DownloadsPage />);
     await screen.findByText("Active video");

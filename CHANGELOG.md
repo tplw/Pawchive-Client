@@ -21,6 +21,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - Creator downloads can be scheduled daily or weekly. Schedules check for new
   files while Pawchive is open and are managed from a compact Schedules button
   beside Choose creator.
+- Each schedule has a settings button for its time, day, media types, maximum
+  posts, blacklist words, unavailable posts and skip-existing behavior.
 - Downloads no longer uses the large creator banner or colored stat cards.
   Choose creator sits next to Open folder, with a compact status line and
   search/status/media/sort filters.
@@ -32,6 +34,8 @@ project follows [Semantic Versioning](https://semver.org/).
   still cleaned up.
 - Reopening Pawchive no longer restores queue items that were already played
   before the current item.
+- Creator downloads now skip files that already exist in the creator folder,
+  even after the download list was cleared.
 - The creator download scan now reads the unfiltered creator feed, so global
   feed filters and the default hide-unavailable setting cannot hide every post.
   Only the dialog's own filters apply.

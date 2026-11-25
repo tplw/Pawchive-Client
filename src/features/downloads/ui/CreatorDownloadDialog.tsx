@@ -673,8 +673,7 @@ export function CreatorDownloadDialog({
                     </p>
                     <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
                       Uses the current media types, maximum, blacklist and
-                      skip settings. Scheduled runs skip files already
-                      downloaded and run while Pawchive is open.
+                      skip settings. Runs while Pawchive is open.
                     </p>
                   </div>
                   <Button
@@ -861,7 +860,7 @@ export function CreatorDownloadDialog({
                 checked={skipExisting}
                 onChange={setSkipExisting}
                 label="Skip already downloaded"
-                description="Do not queue a file that already has a download record."
+                description="Do not queue a file that already has a download record or exists in the creator folder."
               />
             </div>
             <p className="text-[10px] leading-relaxed text-muted">

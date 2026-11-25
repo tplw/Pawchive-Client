@@ -172,6 +172,9 @@ describe("creator download dialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
     expect(screen.getByText("Schedule recurring download")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Skip already downloaded" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
 
     const stored = JSON.parse(
@@ -191,6 +194,7 @@ describe("creator download dialog", () => {
       "audio",
     ]);
     expect(stored[0].filters.fromDate).toBe("");
+    expect(stored[0].filters.skipExisting).toBe(false);
   });
 
   it("puts favorite creators before the rest of the search results", async () => {
