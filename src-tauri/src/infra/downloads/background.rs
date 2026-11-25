@@ -188,7 +188,7 @@ mod ios {
 
 #[cfg(target_os = "android")]
 mod android {
-    use jni::objects::{JObject, JValue};
+    use jni::objects::{JClass, JObject, JValue};
     use jni::JavaVM;
 
     pub(super) fn set_active(active: bool) {
@@ -220,14 +220,40 @@ mod android {
         Ok((context, vm))
     }
 
+    /// Native threads use the bootstrap class loader for `FindClass`, which
+    /// does not know application classes. Load the bridge through the
+    /// application context's class loader instead.
+    fn app_class<'local>(
+        env: &mut jni::JNIEnv<'local>,
+        context: &JObject<'local>,
+    ) -> Result<JClass<'local>, String> {
+        let loader = env
+            .call_method(context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])
+            .map_err(|error| format!("could not get the Android class loader: {error:?}"))?
+            .l()
+            .map_err(|error| format!("could not read the Android class loader: {error:?}"))?;
+        let name = env
+            .new_string("pw.pawchive.client.DownloadServiceController")
+            .map_err(|error| format!("could not create the service class name: {error:?}"))?;
+        let class = env
+            .call_method(
+                &loader,
+                "loadClass",
+                "(Ljava/lang/String;)Ljava/lang/Class;",
+                &[JValue::Object(&name)],
+            )
+            .map_err(|error| format!("could not load the download service: {error:?}"))?
+            .l()
+            .map_err(|error| format!("could not read the download service class: {error:?}"))?;
+        Ok(JClass::from(class))
+    }
+
     fn call_service(active: bool) -> Result<(), String> {
         let (context, vm) = context()?;
         let mut env = vm
             .attach_current_thread()
             .map_err(|error| format!("could not attach to the Android JVM: {error:?}"))?;
-        let class = env
-            .find_class("pw/pawchive/client/DownloadServiceController")
-            .map_err(|error| format!("could not find the download service: {error:?}"))?;
+        let class = app_class(&mut env, &context)?;
         env.call_static_method(
             &class,
             if active { "start" } else { "stop" },
@@ -239,13 +265,11 @@ mod android {
     }
 
     fn call_no_args(method: &str) -> Result<(), String> {
-        let (_context, vm) = context()?;
+        let (context, vm) = context()?;
         let mut env = vm
             .attach_current_thread()
             .map_err(|error| format!("could not attach to the Android JVM: {error:?}"))?;
-        let class = env
-            .find_class("pw/pawchive/client/DownloadServiceController")
-            .map_err(|error| format!("could not find the download service: {error:?}"))?;
+        let class = app_class(&mut env, &context)?;
         env.call_static_method(&class, method, "()V", &[])
             .map_err(|error| format!("notification call failed: {error:?}"))?;
         Ok(())
@@ -256,9 +280,7 @@ mod android {
         let mut env = vm
             .attach_current_thread()
             .map_err(|error| format!("could not attach to the Android JVM: {error:?}"))?;
-        let class = env
-            .find_class("pw/pawchive/client/DownloadServiceController")
-            .map_err(|error| format!("could not find the download service: {error:?}"))?;
+        let class = app_class(&mut env, &context)?;
         env.call_static_method(
             &class,
             "notifyComplete",
