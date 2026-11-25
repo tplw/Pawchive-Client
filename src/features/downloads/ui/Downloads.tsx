@@ -455,7 +455,7 @@ export function DownloadsPage() {
                   disabled={completedItems.length === 0}
                   onClick={addAllToPlaylist}
                 >
-                  <ListPlus className="h-3.5 w-3.5" /> Add to playlist
+                  <ListPlus className="h-3.5 w-3.5" /> Add completed
                 </Button>
                 <Button
                   variant="ghost"

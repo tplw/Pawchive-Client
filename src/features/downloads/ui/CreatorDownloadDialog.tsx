@@ -257,6 +257,9 @@ export function CreatorDownloadDialog({
   );
 
   const chooseCreator = (next: SelectedCreator) => {
+    scanAbort.current?.abort();
+    scanAbort.current = null;
+    setScanning(false);
     setSelectedCreator(next);
     setCreatorSearch("");
     setScan(null);
@@ -543,7 +546,11 @@ export function CreatorDownloadDialog({
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={starting}
                 onClick={() => {
+                  scanAbort.current?.abort();
+                  scanAbort.current = null;
+                  setScanning(false);
                   setSelectedCreator(null);
                   setScan(null);
                   setScanSignature(null);
