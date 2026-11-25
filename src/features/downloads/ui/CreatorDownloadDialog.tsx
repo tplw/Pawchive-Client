@@ -348,6 +348,7 @@ export function CreatorDownloadDialog({
 
   const startDownload = async () => {
     if (!selectedCreator || !canDownload) return;
+    const chosenCount = selectedPosts.size;
     setStarting(true);
     try {
       const result = await downloadCreatorPosts({
@@ -371,8 +372,8 @@ export function CreatorDownloadDialog({
           "success",
           "Creator downloads queued",
           `${result.queued} file${result.queued === 1 ? "" : "s"} from ${
-            result.posts
-          } post${result.posts === 1 ? "" : "s"}${
+            chosenCount
+          } selected post${chosenCount === 1 ? "" : "s"}${
             details ? ` · ${details}` : ""
           }.`,
         );
@@ -680,13 +681,17 @@ export function CreatorDownloadDialog({
                 description="Do not queue a file that already has a download record."
               />
             </div>
+            <p className="text-[10px] leading-relaxed text-muted">
+              Locked MEGA or Proton Drive links are skipped. Unlock them on the
+              post first if you want them included.
+            </p>
 
             <div className="flex gap-2">
               <Button
                 variant="secondary"
                 className="flex-1"
                 loading={scanning}
-                disabled={scanning}
+                disabled={scanning || starting}
                 onClick={() => void scanPosts()}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
@@ -805,6 +810,7 @@ export function CreatorDownloadDialog({
                       <input
                         type="checkbox"
                         checked={checked}
+                        disabled={starting}
                         onChange={() => togglePost(post.id)}
                         className="mt-1 h-3.5 w-3.5 shrink-0 accent-[rgb(var(--accent))]"
                       />
