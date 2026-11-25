@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Ban,
   CalendarDays,
+  Download,
   Filter,
   Info,
   LoaderCircle,
@@ -47,6 +48,7 @@ import { rememberPostFeed } from "../../posts/model/postNavigation";
 import { CreatorAbout } from "./CreatorAbout";
 import { CreatorAnnouncements } from "./CreatorAnnouncements";
 import { CreatorFilterModal } from "./CreatorFilterModal";
+import { CreatorDownloadDialog } from "../../downloads/ui/CreatorDownloadDialog";
 import { useCreatorFilterState } from "../model/useCreatorFilterState";
 import { useCreatorTab, type CreatorTab } from "../model/useCreatorTab";
 import { SiteIcon } from "../../../shared/SiteIcon";
@@ -84,6 +86,7 @@ function CreatorProfileContent({
 }) {
   const [tab, setTab] = useCreatorTab(service, creatorId);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [postSearch, setPostSearch] = useState("");
   const debouncedPostSearch = useDebouncedValue(postSearch.trim(), 300);
@@ -369,6 +372,11 @@ function CreatorProfileContent({
                 active={creatorFilterActive(effectiveFilter)}
                 onClick={() => setFilterOpen(true)}
               />
+              <IconButton
+                label="Download creator media"
+                icon={Download}
+                onClick={() => setDownloadOpen(true)}
+              />
             </div>
           </div>
 
@@ -598,6 +606,12 @@ function CreatorProfileContent({
         onUpdateFilter={updateFilter}
         onClear={clearFilter}
         onKeywordsChange={changeKeywords}
+      />
+
+      <CreatorDownloadDialog
+        open={downloadOpen}
+        onClose={() => setDownloadOpen(false)}
+        creator={{ service, id: creatorId, name }}
       />
 
       <ConfirmDialog

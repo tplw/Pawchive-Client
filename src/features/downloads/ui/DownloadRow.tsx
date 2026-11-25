@@ -3,13 +3,16 @@ import {
   AlertCircle,
   CheckCircle2,
   Download,
+  Image as ImageIcon,
   LoaderCircle,
+  Play,
   RefreshCw,
   Trash2,
   X,
 } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
 import { api } from "../../../shared/api";
+import { serviceLabel } from "../../../shared/lib/constants";
 import { cn, formatBytes, formatRelative } from "../../../shared/lib/format";
 import { queryKeys } from "../../../shared/query/keys";
 import { useAppStore } from "../../../app/store";
@@ -30,6 +33,22 @@ const STATUS_LABEL: Record<DownloadRecord["status"], string> = {
   completed: "Completed",
   failed: "Failed",
   cancelled: "Cancelled",
+};
+
+const STATUS_TONE: Record<DownloadRecord["status"], string> = {
+  queued: "border-accent/25 bg-accent/10 text-accent",
+  downloading: "border-accent/25 bg-accent/10 text-accent",
+  completed: "border-success/25 bg-success/10 text-success",
+  failed: "border-danger/25 bg-danger/10 text-danger",
+  cancelled: "border-favorite/25 bg-favorite/10 text-favorite",
+};
+
+const KIND_LABEL: Record<string, string> = {
+  image: "Image",
+  video: "Video",
+  audio: "Audio",
+  document: "Document",
+  other: "File",
 };
 
 export const DownloadRow = memo(function DownloadRow({
@@ -124,7 +143,7 @@ export const DownloadRow = memo(function DownloadRow({
   };
 
   return (
-    <article className="content-row rounded-lg border border-line/70 bg-card p-3.5 transition hover:border-accent/35">
+    <article className="content-row group rounded-xl2 border border-line/65 bg-card/60 p-3 transition hover:border-accent/30 hover:bg-card">
       <div className="flex items-start gap-3">
         <button
           type="button"
@@ -137,7 +156,7 @@ export const DownloadRow = memo(function DownloadRow({
                 : `Play ${record.title || record.fileName}`
               : `${record.title || record.fileName} ${STATUS_LABEL[record.status].toLowerCase()}`
           }
-          className="flex min-w-0 flex-1 items-start gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/70 disabled:cursor-default"
+          className="flex min-w-0 flex-1 items-start gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/70 disabled:cursor-default"
         >
           <div className="relative shrink-0">
             <MediaThumbnail
@@ -145,7 +164,7 @@ export const DownloadRow = memo(function DownloadRow({
               thumbnailUrl={record.thumbnailUrl}
               mediaUrl={record.url}
               localPath={record.filePath}
-              className="h-12 w-12"
+              className="h-14 w-14 rounded-lg"
             />
             <span
               className={cn(
@@ -154,14 +173,18 @@ export const DownloadRow = memo(function DownloadRow({
                   ? "bg-success text-base"
                   : record.status === "failed"
                     ? "bg-danger text-white"
-                    : "bg-accent text-base",
+                    : record.status === "cancelled"
+                      ? "bg-favorite text-base"
+                      : "bg-accent text-base",
               )}
             >
               {record.status === "completed" ? (
                 <CheckCircle2 className="h-3 w-3" />
               ) : record.status === "failed" ? (
                 <AlertCircle className="h-3 w-3" />
-              ) : active ? (
+              ) : record.status === "cancelled" ? (
+                <X className="h-3 w-3" />
+              ) : record.status === "downloading" ? (
                 <LoaderCircle className="h-3 w-3 animate-spin" />
               ) : (
                 <Download className="h-3 w-3" />
@@ -176,11 +199,7 @@ export const DownloadRow = memo(function DownloadRow({
               <span
                 className={cn(
                   "rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider",
-                  record.status === "completed"
-                    ? "border-success/25 bg-success/10 text-success"
-                    : record.status === "failed"
-                      ? "border-danger/25 bg-danger/10 text-danger"
-                      : "border-accent/25 bg-accent/10 text-accent",
+                  STATUS_TONE[record.status],
                 )}
               >
                 {STATUS_LABEL[record.status]}
@@ -188,26 +207,71 @@ export const DownloadRow = memo(function DownloadRow({
             </div>
             <p className="mt-0.5 truncate text-[10px] text-muted">
               {record.creatorName ? `${record.creatorName} · ` : ""}
-              {record.fileName} · {formatRelative(record.updatedAt)}
+              {serviceLabel(record.service)} · {record.fileName}
             </p>
-            {percent !== null && active ? (
-              <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[9px] text-dim">
+              <span className="uppercase tracking-[0.12em]">
+                {KIND_LABEL[record.mediaKind] ?? record.mediaKind}
+              </span>
+              <span>·</span>
+              <span>{formatRelative(record.updatedAt)}</span>
+            </p>
+            {active ? (
+              <div className="mt-2">
                 <div
-                  className="h-full rounded-full bg-accent transition-[width]"
-                  style={{ width: `${percent}%` }}
-                />
+                  role="progressbar"
+                  aria-label="Download progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={percent === null ? 0 : Math.round(percent)}
+                  className="h-1.5 overflow-hidden rounded-full bg-white/10"
+                >
+                  <div
+                    className={cn(
+                      "h-full rounded-full bg-accent transition-[width]",
+                      record.status === "queued" && "w-[12%] animate-pulse",
+                    )}
+                    style={
+                      percent === null ? undefined : { width: `${percent}%` }
+                    }
+                  />
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-2 text-[9px] tabular-nums text-dim">
+                  <span>
+                    {formatBytes(record.downloadedBytes)}
+                    {record.totalBytes
+                      ? ` / ${formatBytes(record.totalBytes)}`
+                      : ""}
+                  </span>
+                  <span>
+                    {percent === null ? "Queued" : `${Math.round(percent)}%`}
+                  </span>
+                </div>
               </div>
-            ) : null}
+            ) : (
+              <p className="mt-1 text-[9px] tabular-nums text-dim">
+                {formatBytes(record.downloadedBytes)}
+                {record.totalBytes
+                  ? ` / ${formatBytes(record.totalBytes)}`
+                  : ""}
+              </p>
+            )}
             {record.error ? (
-              <p className="mt-1 text-[10px] text-danger">{record.error}</p>
+              <p className="mt-1 text-[10px] leading-relaxed text-danger">
+                {record.error}
+              </p>
             ) : null}
-            <p className="mt-1 text-[9px] tabular-nums text-dim">
-              {formatBytes(record.downloadedBytes)}
-              {record.totalBytes ? ` / ${formatBytes(record.totalBytes)}` : ""}
-            </p>
           </div>
         </button>
         <div className="flex shrink-0 items-center gap-0.5">
+          {canOpen ? (
+            <IconButton
+              label={record.mediaKind === "image" ? "View image" : "Play"}
+              icon={record.mediaKind === "image" ? ImageIcon : Play}
+              size="sm"
+              onClick={open}
+            />
+          ) : null}
           {active ? (
             <IconButton
               label="Cancel download"

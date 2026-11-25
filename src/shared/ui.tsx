@@ -341,6 +341,7 @@ export function Modal({
   children,
   footer,
   wide,
+  extraWide,
 }: {
   open: boolean;
   onClose: () => void;
@@ -349,6 +350,7 @@ export function Modal({
   children?: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  extraWide?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -429,7 +431,7 @@ export function Modal({
         aria-label={title}
         className={cn(
           "max-h-[88vh] w-full overflow-hidden rounded-2xl border border-line bg-surface shadow-lift outline-none animate-slide-up",
-          wide ? "max-w-2xl" : "max-w-md",
+          extraWide ? "max-w-4xl" : wide ? "max-w-2xl" : "max-w-md",
         )}
       >
         <div className="flex items-start justify-between gap-4 border-b border-line/70 px-5 py-4">

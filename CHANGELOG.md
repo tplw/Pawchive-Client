@@ -4,6 +4,18 @@ All notable changes to Pawchive Client are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- A **Download from creator** flow on Downloads and the creator profile. It
+  scans a creator's posts with a date range, maximum post count, blacklist
+  words, media-type filters and a preview list, then queues the selected posts.
+- Downloads now shows active, completed, failed and library totals, with
+  search, status, media-type and sort filters.
+- Creator batch downloads skip existing files and locked or preview-only
+  attachments by default, and report skipped, locked and failed counts.
+
 ## 1.0.7 - 2026-11-22
 
 This release adds adaptive Comic mode prefetching and previous-post navigation,

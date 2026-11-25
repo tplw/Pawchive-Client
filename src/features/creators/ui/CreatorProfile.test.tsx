@@ -258,6 +258,19 @@ describe("creator profile", () => {
     });
   });
 
+  it("opens the creator download dialog", async () => {
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Download creator media" }),
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "Download from creator" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Scan posts" })).toBeInTheDocument();
+  });
+
   it("persists auto-detected ASMR for creator previews", async () => {
     window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
     vi.mocked(api.getCreatorPosts).mockResolvedValue({

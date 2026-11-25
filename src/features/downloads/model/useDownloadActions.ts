@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../../../shared/api";
 import { queryKeys } from "../../../shared/query/keys";
 import { withProviderPassword } from "../../../shared/lib/providerPasswords";
+import type { CreatorDownloadRequest } from "../../../shared/types";
 type DownloadRequest = Parameters<typeof api.startDownload>[0];
 
 /**
@@ -48,10 +49,20 @@ export function useDownloadActions() {
     [invalidateDownloads],
   );
 
+  const downloadCreatorPosts = useCallback(
+    async (request: CreatorDownloadRequest) => {
+      const result = await api.downloadCreatorPosts(request);
+      invalidateDownloads();
+      return result;
+    },
+    [invalidateDownloads],
+  );
+
   return {
     startDownload,
     downloadPost,
     downloadPlaylist,
+    downloadCreatorPosts,
     invalidateDownloads,
   };
 }

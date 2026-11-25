@@ -1,0 +1,852 @@
+import {
+  AlertCircle,
+  CalendarDays,
+  Check,
+  Download,
+  FileText,
+  Film,
+  Image as ImageIcon,
+  LoaderCircle,
+  Music2,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../../shared/api";
+import { useAppStore } from "../../../app/store";
+import { errorMessage } from "../../../shared/lib/constants";
+import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
+import { useDebouncedValue } from "../../../shared/lib/useDebouncedValue";
+import { cn, formatDate } from "../../../shared/lib/format";
+import { queryKeys } from "../../../shared/query/keys";
+import {
+  Button,
+  Field,
+  Modal,
+  Spinner,
+  TextInput,
+  Toggle,
+} from "../../../shared/ui";
+import { CreatorAvatar, ServiceBadge } from "../../creators/ui/CreatorVisuals";
+import type { MediaKind, PostSummary, Service } from "../../../shared/types";
+import {
+  parseBlacklistKeywords,
+  scanCreatorDownloadPosts,
+  sortCreatorDownloadPosts,
+  type CreatorDownloadFilters,
+  type CreatorDownloadOrder,
+  type CreatorDownloadScanResult,
+} from "../model/creatorDownload";
+import { useDownloadActions } from "../model/useDownloadActions";
+
+const PAGE_SIZE = 50;
+const MAX_POSTS = 500;
+
+const MEDIA_OPTIONS: Array<{
+  kind: MediaKind;
+  label: string;
+  icon: typeof ImageIcon;
+}> = [
+  { kind: "image", label: "Images", icon: ImageIcon },
+  { kind: "video", label: "Video", icon: Film },
+  { kind: "audio", label: "Audio", icon: Music2 },
+  { kind: "document", label: "Documents", icon: FileText },
+  { kind: "other", label: "Other files", icon: FileText },
+];
+
+const KIND_ICON: Record<MediaKind, typeof ImageIcon> = {
+  image: ImageIcon,
+  video: Film,
+  audio: Music2,
+  document: FileText,
+  other: FileText,
+};
+
+interface SelectedCreator {
+  service: string;
+  id: string;
+  name: string;
+}
+
+function localDateInput(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function daysAgo(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return localDateInput(date);
+}
+
+function PostThumb({ post }: { post: PostSummary }) {
+  const [failed, setFailed] = useState(false);
+  const kind = post.mediaKinds[0] ?? "other";
+  const Icon = KIND_ICON[kind];
+  return (
+    <div className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-md border border-line/60 bg-elevated">
+      {post.thumbnailUrl && !failed ? (
+        <img
+          src={post.thumbnailUrl}
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <Icon className="h-5 w-5 text-accent/60" />
+      )}
+    </div>
+  );
+}
+
+export function CreatorDownloadDialog({
+  open,
+  onClose,
+  creator,
+}: {
+  open: boolean;
+  onClose: () => void;
+  creator?: { service: string; id: string; name: string };
+}) {
+  const toast = useAppStore((state) => state.toast);
+  const reportError = useAppStore((state) => state.reportError);
+  const blockedCreators = useAppStore(
+    (state) => state.settings.blockedCreators ?? [],
+  );
+  const { downloadCreatorPosts } = useDownloadActions();
+
+  const creatorService = creator?.service;
+  const creatorId = creator?.id;
+  const creatorName = creator?.name;
+  const [selectedCreator, setSelectedCreator] =
+    useState<SelectedCreator | null>(
+      creatorService && creatorId
+        ? { service: creatorService, id: creatorId, name: creatorName ?? creatorId }
+        : null,
+    );
+  const [creatorSearch, setCreatorSearch] = useState("");
+  const debouncedCreatorSearch = useDebouncedValue(creatorSearch.trim(), 250);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [maxPosts, setMaxPosts] = useState("50");
+  const [blacklistText, setBlacklistText] = useState("");
+  const [mediaKinds, setMediaKinds] = useState<MediaKind[]>([
+    "image",
+    "video",
+    "audio",
+  ]);
+  const [skipUnavailable, setSkipUnavailable] = useState(true);
+  const [skipExisting, setSkipExisting] = useState(true);
+  const [order, setOrder] = useState<CreatorDownloadOrder>("newest");
+  const [scan, setScan] = useState<CreatorDownloadScanResult | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanProgress, setScanProgress] = useState({ scanned: 0, matched: 0 });
+  const [scanSignature, setScanSignature] = useState<string | null>(null);
+  const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
+  const [starting, setStarting] = useState(false);
+  const scanAbort = useRef<AbortController | null>(null);
+  const lastOpenKey = useRef<string | null>(null);
+
+  const keywords = useMemo(
+    () => parseBlacklistKeywords(blacklistText),
+    [blacklistText],
+  );
+  const parsedMaxPosts = Number(maxPosts);
+  const clampedMaxPosts = Number.isFinite(parsedMaxPosts)
+    ? Math.min(MAX_POSTS, Math.max(1, Math.floor(parsedMaxPosts)))
+    : 50;
+  const filters: CreatorDownloadFilters = {
+    fromDate,
+    toDate,
+    maxPosts: clampedMaxPosts,
+    keywords,
+    mediaKinds,
+    skipUnavailable,
+    skipExisting,
+    order,
+  };
+  const filterSignature = JSON.stringify({
+    fromDate,
+    toDate,
+    maxPosts: clampedMaxPosts,
+    keywords,
+    mediaKinds: [...mediaKinds].sort(),
+    skipUnavailable,
+  });
+  const filtersChanged =
+    scan !== null && scanSignature !== null && scanSignature !== filterSignature;
+  const displayedPosts = useMemo(
+    () => (scan ? sortCreatorDownloadPosts(scan.posts, order) : []),
+    [order, scan],
+  );
+  const allSelected =
+    scan !== null &&
+    displayedPosts.length > 0 &&
+    displayedPosts.every((post) => selectedPosts.has(post.id));
+  const canDownload =
+    Boolean(selectedCreator) &&
+    Boolean(scan) &&
+    !filtersChanged &&
+    selectedPosts.size > 0 &&
+    !scanning &&
+    !starting;
+
+  const creators = useQuery({
+    queryKey: queryKeys.creatorsDirectory(debouncedCreatorSearch, "", "name"),
+    queryFn: () =>
+      api.listCreators({
+        query: debouncedCreatorSearch || undefined,
+        sort: "name",
+        offset: 0,
+        limit: 20,
+      }),
+    enabled: open && !selectedCreator,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!open) {
+      lastOpenKey.current = null;
+      scanAbort.current?.abort();
+      scanAbort.current = null;
+      return;
+    }
+    const key = `${creatorService ?? ""}:${creatorId ?? ""}`;
+    if (lastOpenKey.current === key) {
+      if (creatorService && creatorId && creatorName) {
+        setSelectedCreator((current) =>
+          current &&
+          current.service === creatorService &&
+          current.id === creatorId
+            ? { ...current, name: creatorName }
+            : current,
+        );
+      }
+      return;
+    }
+    lastOpenKey.current = key;
+    scanAbort.current?.abort();
+    scanAbort.current = null;
+    setSelectedCreator(
+      creatorService && creatorId
+        ? {
+            service: creatorService,
+            id: creatorId,
+            name: creatorName ?? creatorId,
+          }
+        : null,
+    );
+    setCreatorSearch("");
+    setScan(null);
+    setScanError(null);
+    setScanning(false);
+    setScanSignature(null);
+    setSelectedPosts(new Set());
+    setScanProgress({ scanned: 0, matched: 0 });
+  }, [open, creatorService, creatorId, creatorName]);
+
+  useEffect(
+    () => () => {
+      scanAbort.current?.abort();
+    },
+    [],
+  );
+
+  const chooseCreator = (next: SelectedCreator) => {
+    setSelectedCreator(next);
+    setCreatorSearch("");
+    setScan(null);
+    setScanError(null);
+    setScanSignature(null);
+    setSelectedPosts(new Set());
+  };
+
+  const toggleMediaKind = (kind: MediaKind) => {
+    setMediaKinds((current) =>
+      current.includes(kind)
+        ? current.filter((entry) => entry !== kind)
+        : [...current, kind],
+    );
+  };
+
+  const togglePost = (id: string) => {
+    setSelectedPosts((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (!scan) return;
+    setSelectedPosts(
+      allSelected
+        ? new Set()
+        : new Set(displayedPosts.map((post) => post.id)),
+    );
+  };
+
+  const cancelScan = () => {
+    scanAbort.current?.abort();
+    scanAbort.current = null;
+    setScanning(false);
+  };
+
+  const scanPosts = async () => {
+    if (!selectedCreator) return;
+    if (mediaKinds.length === 0) {
+      toast("info", "Choose media types", "Select at least one type to scan.");
+      return;
+    }
+    scanAbort.current?.abort();
+    const controller = new AbortController();
+    scanAbort.current = controller;
+    const currentSignature = filterSignature;
+    setScanning(true);
+    setScanError(null);
+    setScan(null);
+    setScanSignature(null);
+    setSelectedPosts(new Set());
+    setScanProgress({ scanned: 0, matched: 0 });
+    try {
+      const result = await scanCreatorDownloadPosts({
+        service: selectedCreator.service,
+        creatorId: selectedCreator.id,
+        filters,
+        signal: controller.signal,
+        onProgress: (scanned, matched) => {
+          if (!controller.signal.aborted) {
+            setScanProgress({ scanned, matched });
+          }
+        },
+        pageSize: PAGE_SIZE,
+      });
+      if (controller.signal.aborted) return;
+      setScan(result);
+      setScanSignature(currentSignature);
+      setSelectedPosts(new Set(result.posts.map((post) => post.id)));
+      if (result.posts.length === 0) {
+        toast(
+          "info",
+          "No matching posts",
+          "Try a wider date range or remove a blacklist word.",
+        );
+      }
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setScanError(errorMessage(error));
+    } finally {
+      if (!controller.signal.aborted) setScanning(false);
+      if (scanAbort.current === controller) scanAbort.current = null;
+    }
+  };
+
+  const startDownload = async () => {
+    if (!selectedCreator || !canDownload) return;
+    setStarting(true);
+    try {
+      const result = await downloadCreatorPosts({
+        service: selectedCreator.service,
+        creatorId: selectedCreator.id,
+        postIds: displayedPosts
+          .filter((post) => selectedPosts.has(post.id))
+          .map((post) => post.id),
+        mediaKinds,
+        skipExisting,
+      });
+      const details = [
+        result.skipped > 0 ? `${result.skipped} skipped` : "",
+        result.locked > 0 ? `${result.locked} locked` : "",
+        result.failed > 0 ? `${result.failed} failed` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      if (result.queued > 0) {
+        toast(
+          "success",
+          "Creator downloads queued",
+          `${result.queued} file${result.queued === 1 ? "" : "s"} from ${
+            result.posts
+          } post${result.posts === 1 ? "" : "s"}${
+            details ? ` · ${details}` : ""
+          }.`,
+        );
+      } else {
+        toast(
+          "info",
+          "No files queued",
+          details || "Everything matched was already downloaded or filtered out.",
+        );
+      }
+      onClose();
+    } catch (error) {
+      reportError(error, "Could not queue creator downloads");
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const close = () => {
+    scanAbort.current?.abort();
+    scanAbort.current = null;
+    onClose();
+  };
+
+  const setPreset = (preset: "all" | "30d" | "90d" | "year") => {
+    if (preset === "all") {
+      setFromDate("");
+    } else if (preset === "30d") {
+      setFromDate(daysAgo(30));
+    } else if (preset === "90d") {
+      setFromDate(daysAgo(90));
+    } else {
+      setFromDate(`${new Date().getFullYear()}-01-01`);
+    }
+    setToDate("");
+  };
+
+  const creatorResults = (creators.data?.items ?? []).filter(
+    (entry) => !isCreatorBlocked(blockedCreators, entry.service, entry.id),
+  );
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      title="Download from creator"
+      description="Scan a creator's posts, choose what to include, then queue the matching media."
+      extraWide
+      footer={
+        <>
+          <span className="mr-auto self-center text-[10px] text-muted">
+            {selectedCreator
+              ? scan
+                ? filtersChanged
+                  ? "Rescan to apply the new filters."
+                  : `${selectedPosts.size} of ${displayedPosts.length} posts selected`
+                : scanning
+                  ? "Scanning posts…"
+                  : "Scan posts to preview the batch."
+              : "Choose a creator to begin."}
+          </span>
+          <Button variant="ghost" onClick={close}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            loading={starting}
+            disabled={!canDownload}
+            onClick={() => void startDownload()}
+          >
+            <Download className="h-3.5 w-3.5" />
+            {selectedPosts.size > 0
+              ? `Download ${selectedPosts.size} post${
+                  selectedPosts.size === 1 ? "" : "s"
+                }`
+              : "Download posts"}
+          </Button>
+        </>
+      }
+    >
+      {!selectedCreator ? (
+        <div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <TextInput
+              value={creatorSearch}
+              onChange={(event) => setCreatorSearch(event.target.value)}
+              placeholder="Search creators by name…"
+              className="pl-9"
+              autoFocus
+            />
+          </div>
+          <div className="mt-3 max-h-[52vh] space-y-1.5 overflow-y-auto">
+            {creators.isLoading ? (
+              <div className="flex justify-center py-10">
+                <Spinner />
+              </div>
+            ) : creators.isError ? (
+              <div className="rounded-lg border border-danger/25 bg-danger/5 p-3 text-xs text-danger">
+                {errorMessage(creators.error)}
+              </div>
+            ) : creatorResults.length === 0 ? (
+              <div className="rounded-lg border border-line/60 bg-base/40 p-6 text-center text-xs text-muted">
+                No creators match this search.
+              </div>
+            ) : (
+              creatorResults.map((entry) => (
+                <button
+                  key={`${entry.service}:${entry.id}`}
+                  type="button"
+                  onClick={() =>
+                    chooseCreator({
+                      service: entry.service,
+                      id: entry.id,
+                      name: entry.name || entry.id,
+                    })
+                  }
+                  className="flex w-full items-center gap-3 rounded-lg border border-line/60 bg-card/50 p-2.5 text-left transition hover:border-accent/35 hover:bg-card"
+                >
+                  <CreatorAvatar
+                    service={entry.service}
+                    id={entry.id}
+                    name={entry.name || entry.id}
+                    size="md"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-xs font-semibold text-ink">
+                        {entry.name || entry.id}
+                      </span>
+                      <ServiceBadge service={entry.service} />
+                    </span>
+                    <span className="mt-0.5 block truncate text-[10px] text-muted">
+                      @{entry.public_id || entry.id}
+                      {entry.favorited
+                        ? ` · ${entry.favorited.toLocaleString()} favorites`
+                        : ""}
+                    </span>
+                  </span>
+                  <Check className="h-4 w-4 shrink-0 text-accent" />
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 rounded-lg border border-line/60 bg-card/50 p-2.5">
+              <CreatorAvatar
+                service={selectedCreator.service as Service}
+                id={selectedCreator.id}
+                name={selectedCreator.name}
+                size="md"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-semibold text-ink">
+                  {selectedCreator.name}
+                </p>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <ServiceBadge service={selectedCreator.service} />
+                  <span className="truncate text-[10px] text-muted">
+                    @{selectedCreator.id}
+                  </span>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedCreator(null);
+                  setScan(null);
+                  setScanSignature(null);
+                  setSelectedPosts(new Set());
+                  setScanError(null);
+                }}
+              >
+                Change
+              </Button>
+            </div>
+
+            <Field label="Date range">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(event) => setFromDate(event.target.value)}
+                  aria-label="From date"
+                  className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+                />
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(event) => setToDate(event.target.value)}
+                  aria-label="To date"
+                  className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {(
+                  [
+                    ["all", "All time"],
+                    ["30d", "Last 30 days"],
+                    ["90d", "Last 90 days"],
+                    ["year", "This year"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPreset(value)}
+                    className="rounded px-1.5 py-0.5 text-[10px] text-muted transition hover:bg-elevated hover:text-ink"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Maximum posts">
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_POSTS}
+                  value={maxPosts}
+                  onChange={(event) => setMaxPosts(event.target.value)}
+                  onBlur={() => setMaxPosts(String(clampedMaxPosts))}
+                  className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+                />
+              </Field>
+              <Field label="Queue order">
+                <select
+                  value={order}
+                  onChange={(event) =>
+                    setOrder(event.target.value as CreatorDownloadOrder)
+                  }
+                  className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
+              </Field>
+            </div>
+            <p className="-mt-2 text-[10px] leading-relaxed text-muted">
+              Scans the newest posts first and keeps the newest matches up to
+              the maximum.
+            </p>
+
+            <Field
+              label="Media types"
+              hint="The backend only queues attachments that match the selected types."
+            >
+              <div className="flex flex-wrap gap-1.5">
+                {MEDIA_OPTIONS.map(({ kind, label, icon: Icon }) => {
+                  const active = mediaKinds.includes(kind);
+                  return (
+                    <button
+                      key={kind}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => toggleMediaKind(kind)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] transition",
+                        active
+                          ? "border-accent/40 bg-accent/10 text-accent"
+                          : "border-line/70 text-muted hover:border-line hover:text-ink",
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {label}
+                      {active ? <Check className="h-3 w-3" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+
+            <Field
+              label="Skip posts containing"
+              hint="Comma or newline separated. Matches the post title and excerpt."
+            >
+              <textarea
+                value={blacklistText}
+                onChange={(event) => setBlacklistText(event.target.value)}
+                rows={2}
+                placeholder="spoiler, commission, teaser"
+                className="w-full resize-y rounded-lg border border-line bg-base px-2.5 py-2 text-xs text-ink outline-none transition placeholder:text-dim focus:border-accent/70"
+              />
+            </Field>
+
+            <div className="space-y-1.5">
+              <Toggle
+                compact
+                checked={skipUnavailable}
+                onChange={setSkipUnavailable}
+                label="Skip unavailable posts"
+                description="Skip previews that have no downloadable files."
+              />
+              <Toggle
+                compact
+                checked={skipExisting}
+                onChange={setSkipExisting}
+                label="Skip already downloaded"
+                description="Do not queue a file that already has a download record."
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                loading={scanning}
+                disabled={scanning}
+                onClick={() => void scanPosts()}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                {scan ? "Rescan" : "Scan posts"}
+              </Button>
+              {scanning ? (
+                <Button variant="ghost" size="sm" onClick={cancelScan}>
+                  Stop
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold text-ink">Matching posts</p>
+                <p className="mt-0.5 text-[10px] text-muted">
+                  {scanning
+                    ? `Scanned ${scanProgress.scanned} · ${scanProgress.matched} matched`
+                    : scan
+                      ? `${displayedPosts.length} selected by filters · ${scan.scanned} scanned${
+                          scan.truncated ? " · limited" : ""
+                        }`
+                      : "Scan to preview the posts in this batch."}
+                </p>
+              </div>
+              {scan && displayedPosts.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={toggleAll}
+                  className="text-[10px] font-medium text-accent transition hover:text-ink"
+                >
+                  {allSelected ? "Clear all" : "Select all"}
+                </button>
+              ) : null}
+            </div>
+
+            {filtersChanged ? (
+              <div className="mb-2 rounded-lg border border-favorite/25 bg-favorite/5 px-3 py-2 text-[10px] text-favorite">
+                Filters changed. Rescan to update this list before downloading.
+              </div>
+            ) : null}
+            {scan?.truncated ? (
+              <div className="mb-2 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-[10px] text-accent">
+                The scan stopped at the maximum number of posts or the scan cap.
+                Narrow the date range or blacklist to change the selection.
+              </div>
+            ) : null}
+            {scanError ? (
+              <div className="rounded-lg border border-danger/25 bg-danger/5 p-4 text-center">
+                <AlertCircle className="mx-auto h-5 w-5 text-danger" />
+                <p className="mt-2 text-xs font-medium text-danger">
+                  Could not scan this creator
+                </p>
+                <p className="mt-1 text-[10px] text-muted">{scanError}</p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => void scanPosts()}
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : scanning ? (
+              <div className="grid place-items-center rounded-lg border border-line/60 bg-base/30 py-12">
+                <LoaderCircle className="h-5 w-5 animate-spin text-accent" />
+                <p className="mt-2 text-[10px] text-muted">
+                  Scanning creator posts…
+                </p>
+              </div>
+            ) : !scan ? (
+              <div className="grid place-items-center rounded-lg border border-dashed border-line/70 bg-base/20 px-5 py-12 text-center">
+                <SlidersHorizontal className="h-6 w-6 text-accent/60" />
+                <p className="mt-2 text-xs font-medium text-ink">
+                  Set your filters and scan
+                </p>
+                <p className="mt-1 max-w-xs text-[10px] leading-relaxed text-muted">
+                  The scan only reads post summaries. Media type filtering is
+                  applied again to each attachment when the download starts.
+                </p>
+              </div>
+            ) : displayedPosts.length === 0 ? (
+              <div className="grid place-items-center rounded-lg border border-dashed border-line/70 bg-base/20 px-5 py-12 text-center">
+                <AlertCircle className="h-6 w-6 text-muted" />
+                <p className="mt-2 text-xs font-medium text-ink">
+                  No posts match these filters
+                </p>
+                <p className="mt-1 max-w-xs text-[10px] text-muted">
+                  Try a wider date range, fewer blacklist words, or more media
+                  types.
+                </p>
+              </div>
+            ) : (
+              <div className="max-h-[48vh] space-y-1.5 overflow-y-auto pr-1">
+                {displayedPosts.map((post) => {
+                  const checked = selectedPosts.has(post.id);
+                  const media = [
+                    ...new Set(
+                      (post.mediaKinds.length > 0
+                        ? post.mediaKinds
+                        : ["other"]) as MediaKind[],
+                    ),
+                  ];
+                  return (
+                    <label
+                      key={`${post.service}:${post.user}:${post.id}`}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-2.5 rounded-lg border p-2 transition",
+                        checked
+                          ? "border-accent/35 bg-accent/[0.07]"
+                          : "border-line/60 bg-card/35 hover:border-line",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePost(post.id)}
+                        className="mt-1 h-3.5 w-3.5 shrink-0 accent-[rgb(var(--accent))]"
+                      />
+                      <PostThumb post={post} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[11px] font-medium text-ink">
+                          {post.title || "Untitled post"}
+                        </span>
+                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[9px] text-muted">
+                          <CalendarDays className="h-3 w-3" />
+                          {formatDate(post.published ?? post.added)}
+                          <span>·</span>
+                          {post.attachmentCount} file
+                          {post.attachmentCount === 1 ? "" : "s"}
+                          {post.unavailable ? (
+                            <span className="text-favorite">· unavailable</span>
+                          ) : null}
+                        </span>
+                        <span className="mt-1 flex flex-wrap items-center gap-1">
+                          {media.map((kind) => {
+                            const Icon = KIND_ICON[kind] ?? FileText;
+                            return (
+                              <span
+                                key={kind}
+                                title={kind}
+                                className="inline-flex items-center gap-0.5 rounded border border-line/60 px-1 py-0.5 text-[8px] uppercase tracking-wider text-muted"
+                              >
+                                <Icon className="h-2.5 w-2.5" />
+                                {kind}
+                              </span>
+                            );
+                          })}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
