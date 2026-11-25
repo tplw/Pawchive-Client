@@ -40,6 +40,7 @@ export const MediaThumbnail = memo(function MediaThumbnail({
   const [videoFrameFailed, setVideoFrameFailed] = useState(false);
   const [videoInView, setVideoInView] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +92,12 @@ export const MediaThumbnail = memo(function MediaThumbnail({
   useEffect(() => {
     setImageIndex(0);
     setImageLoaded(false);
+  }, [imageKey]);
+
+  useEffect(() => {
+    // A cached image can finish before React attaches onLoad. Without this
+    // check it stays at opacity 0 and the card looks empty.
+    if (imageRef.current?.complete) setImageLoaded(true);
   }, [imageKey]);
 
   useEffect(() => {
@@ -152,6 +159,7 @@ export const MediaThumbnail = memo(function MediaThumbnail({
   if (imageSrc) {
     return (
       <img
+        ref={imageRef}
         src={imageSrc}
         alt=""
         loading="lazy"
