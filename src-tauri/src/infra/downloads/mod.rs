@@ -202,10 +202,9 @@ pub async fn delete(state: &AppState, id: &str) -> AppResult<()> {
 }
 
 pub async fn clear_completed(state: &AppState) -> AppResult<u64> {
+    // Clearing the download list must not remove media the user already kept
+    // offline. Only the database records go away.
     let records = state.db.clear_completed_downloads()?;
-    for record in &records {
-        remove_if_inside(&state.download_dir(), Path::new(&record.file_path)).await;
-    }
     Ok(records.len() as u64)
 }
 
@@ -234,7 +233,9 @@ pub async fn clear_all(state: &AppState) -> AppResult<u64> {
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
     let records = state.db.clear_all_downloads()?;
-    for record in &records {
+    // Completed media is the user's offline library and must survive a list
+    // clear. Only incomplete leftovers are removed so they cannot be orphaned.
+    for record in records.iter().filter(|record| record.status != "completed") {
         remove_if_inside(&state.download_dir(), Path::new(&record.file_path)).await;
     }
     Ok(records.len() as u64)
@@ -715,6 +716,86 @@ mod tests {
             retry_target_dir(moved.path(), Path::new("/old/Downloads/Ada/clip.mp4"),),
             moved.path().join("Ada")
         );
+    }
+
+    #[tokio::test]
+    async fn clearing_downloads_keeps_completed_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = PawchiveConfig::default();
+        let state = AppState {
+            db: Arc::new(Db::open_in_memory().unwrap()),
+            api: ApiClient::new(cfg.clone(), NetworkSettings::default()).unwrap(),
+            cfg,
+            settings: Arc::new(RwLock::new(Default::default())),
+            cancellations: Arc::new(Mutex::new(Default::default())),
+            downloads: Arc::new(Mutex::new(Default::default())),
+            download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
+            http: reqwest::Client::new(),
+            mega: crate::infra::providers::mega::MegaResolver::new(reqwest::Client::new()),
+            proton: std::sync::Arc::new(crate::infra::providers::proton::ProtonResolver::new()),
+            passwords: std::sync::Arc::new(
+                crate::infra::provider_passwords::ProviderPasswords::in_memory(),
+            ),
+            remote: std::sync::Arc::new(crate::infra::providers::remote::RemoteResolver::new(
+                reqwest::Client::new(),
+            )),
+            app_data_dir: dir.path().to_path_buf(),
+            default_download_dir: dir.path().to_path_buf(),
+            media_server: crate::infra::local_http::LocalMediaServer::test_instance(),
+            account: Arc::new(RwLock::new(None)),
+        };
+        let record = |id: &str, path: &Path, status: &str| DownloadRecord {
+            id: id.into(),
+            url: format!("https://example.test/{id}.mp4"),
+            file_path: path.to_string_lossy().to_string(),
+            file_name: path
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default(),
+            media_kind: "video".into(),
+            title: id.into(),
+            creator_name: "Ada".into(),
+            service: "patreon".into(),
+            creator_id: "1".into(),
+            post_id: "2".into(),
+            playlist_id: None,
+            thumbnail_url: None,
+            total_bytes: Some(4),
+            downloaded_bytes: 4,
+            status: status.into(),
+            error: None,
+            created_at: 0,
+            updated_at: 0,
+        };
+
+        let completed_path = dir.path().join("keep.mp4");
+        std::fs::write(&completed_path, b"media").unwrap();
+        state
+            .db
+            .insert_download(&record("keep", &completed_path, "completed"))
+            .unwrap();
+
+        assert_eq!(clear_completed(&state).await.unwrap(), 1);
+        assert!(completed_path.exists());
+        assert!(state.db.list_downloads().unwrap().is_empty());
+
+        let second_path = dir.path().join("keep-two.mp4");
+        let partial_path = dir.path().join("partial.mp4.part");
+        std::fs::write(&second_path, b"media").unwrap();
+        std::fs::write(&partial_path, b"partial").unwrap();
+        state
+            .db
+            .insert_download(&record("keep-two", &second_path, "completed"))
+            .unwrap();
+        state
+            .db
+            .insert_download(&record("partial", &partial_path, "downloading"))
+            .unwrap();
+
+        assert_eq!(clear_all(&state).await.unwrap(), 2);
+        assert!(second_path.exists());
+        assert!(!partial_path.exists());
+        assert!(state.db.list_downloads().unwrap().is_empty());
     }
 
     fn downloadable(name: &str, kind: MediaKind, preview_only: bool, locked: bool) -> Attachment {

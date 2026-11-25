@@ -132,6 +132,33 @@ describe("player queue", () => {
     expect(state.playing).toBe(false);
   });
 
+  it("drops played items from the persisted queue", () => {
+    const queue = [item("a"), item("b"), item("c")];
+    usePlayerStore.setState({ queue, currentId: "b" });
+
+    const partialize = usePlayerStore.persist.getOptions().partialize;
+    expect(partialize).toBeTypeOf("function");
+    const persisted = partialize?.(usePlayerStore.getState()) as
+      | { queue: QueueItem[]; currentId: string | null }
+      | undefined;
+
+    expect(persisted?.queue.map((entry) => entry.id)).toEqual(["b", "c"]);
+    expect(persisted?.currentId).toBe("b");
+  });
+
+  it("drops played items when hydrating an older saved queue", () => {
+    const merge = usePlayerStore.persist.getOptions().merge;
+    expect(merge).toBeTypeOf("function");
+
+    const hydrated = merge?.(
+      { queue: [item("a"), item("b"), item("c")], currentId: "b" },
+      usePlayerStore.getState(),
+    );
+
+    expect(hydrated?.queue.map((entry) => entry.id)).toEqual(["b", "c"]);
+    expect(hydrated?.currentId).toBe("b");
+  });
+
   it("drops incomplete persisted queue entries", () => {
     const merge = usePlayerStore.persist.getOptions().merge;
     expect(merge).toBeTypeOf("function");

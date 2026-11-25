@@ -212,7 +212,8 @@ Frontend rules:
 - Tab stacks, `previousRoute`, keyed post remounts, scroll restoration and the
   mobile back/edge-swipe behavior.
 - Browser storage:
-  - `localStorage["pawchive-player"]`: queue and current id only.
+  - `localStorage["pawchive-player"]`: queue and current id only. Played items
+    before the current item are dropped on save and hydration.
   - `localStorage["pawchive-creator-filter:<service>:<creatorId>"]`:
     per-creator filters.
   - `localStorage["pawchive-creator-download-schedules"]`: recurring creator

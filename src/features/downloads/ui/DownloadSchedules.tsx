@@ -1,7 +1,14 @@
 import { useState } from "react";
-import { CalendarClock, Play, Trash2 } from "lucide-react";
-import { Button, ConfirmDialog, IconButton, Toggle } from "../../../shared/ui";
-import { formatDateTime } from "../../../shared/lib/format";
+import {
+  CalendarClock,
+  LoaderCircle,
+  Play,
+  Power,
+  PowerOff,
+  Trash2,
+} from "lucide-react";
+import { Button, IconButton, Modal } from "../../../shared/ui";
+import { formatDate } from "../../../shared/lib/format";
 import { CreatorAvatar, ServiceBadge } from "../../creators/ui/CreatorVisuals";
 import type { Service } from "../../../shared/types";
 import {
@@ -13,48 +20,83 @@ import {
   type CreatorDownloadSchedule,
 } from "../model/downloadSchedules";
 
-export function DownloadSchedules() {
+export function DownloadSchedules({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   const schedules = useDownloadSchedules();
   const [confirmDelete, setConfirmDelete] =
     useState<CreatorDownloadSchedule | null>(null);
 
-  if (schedules.length === 0) return null;
+  const close = () => {
+    setConfirmDelete(null);
+    onClose();
+  };
 
   return (
-    <section className="mb-4 rounded-xl2 border border-line/70 bg-card/40 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-accent">
-          <CalendarClock className="h-3.5 w-3.5" />
-          <span className="text-[9px] font-bold uppercase tracking-[0.16em]">
-            Scheduled downloads
-          </span>
-        </div>
-        <p className="text-[10px] text-muted">Runs while Pawchive is open.</p>
-      </div>
-      <div className="mt-2 space-y-1.5">
-        {schedules.map((schedule) => (
-          <ScheduleRow
-            key={schedule.id}
-            schedule={schedule}
-            onDelete={() => setConfirmDelete(schedule)}
-          />
-        ))}
-      </div>
-      <ConfirmDialog
-        open={Boolean(confirmDelete)}
-        title="Delete download schedule?"
-        message={`Stop scheduled downloads for ${
-          confirmDelete?.creator.name ?? "this creator"
-        }? Files already downloaded will stay.`}
-        confirmLabel="Delete schedule"
-        danger
-        onConfirm={() => {
-          if (confirmDelete) deleteSchedule(confirmDelete.id);
-          setConfirmDelete(null);
-        }}
-        onClose={() => setConfirmDelete(null)}
-      />
-    </section>
+    <>
+      <Modal
+        open={open}
+        onClose={close}
+        title="Scheduled downloads"
+        description="Creator downloads run while Pawchive is open."
+      >
+        {schedules.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-line/70 px-4 py-8 text-center">
+            <CalendarClock className="mx-auto h-5 w-5 text-accent/70" />
+            <p className="mt-2 text-xs font-semibold text-ink">
+              No schedules yet
+            </p>
+            <p className="mx-auto mt-1 max-w-64 text-[10px] leading-relaxed text-muted">
+              Choose a creator, set the filters you want, then use Schedule in
+              the download dialog.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {schedules.map((schedule) => (
+              <ScheduleRow
+                key={schedule.id}
+                schedule={schedule}
+                onDelete={() => setConfirmDelete(schedule)}
+              />
+            ))}
+          </div>
+        )}
+        {confirmDelete ? (
+          <div className="mt-3 rounded-lg border border-danger/30 bg-danger/[0.06] p-2.5">
+            <p className="text-[11px] font-semibold text-ink">
+              Delete the schedule for {confirmDelete.creator.name}?
+            </p>
+            <p className="mt-0.5 text-[9px] text-muted">
+              Files already downloaded will stay on disk.
+            </p>
+            <div className="mt-2 flex justify-end gap-1.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmDelete(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  deleteSchedule(confirmDelete.id);
+                  setConfirmDelete(null);
+                }}
+              >
+                Delete schedule
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+    </>
   );
 }
 
@@ -77,55 +119,55 @@ function ScheduleRow({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line/60 bg-base/20 p-2">
+    <div className="flex items-center gap-2 rounded-lg border border-line/60 bg-base/20 px-2 py-1.5">
       <CreatorAvatar
         service={schedule.creator.service as Service}
         id={schedule.creator.id}
         name={schedule.creator.name}
-        size="sm"
+        size="xs"
       />
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
           <p className="truncate text-[11px] font-semibold text-ink">
             {schedule.creator.name}
           </p>
           <ServiceBadge service={schedule.creator.service} />
+          {!schedule.enabled ? (
+            <span className="text-[8px] font-semibold uppercase tracking-wider text-muted">
+              Paused
+            </span>
+          ) : null}
         </div>
-        <p className="mt-0.5 text-[9px] text-muted">
+        <p className="mt-0.5 truncate text-[9px] text-muted">
           {describeSchedule(schedule)} · Next{" "}
-          {formatDateTime(Math.floor(schedule.nextRunAt / 1000))}
-        </p>
-        <p className="mt-0.5 text-[9px] text-dim">
-          {schedule.filters.mediaKinds.length} media type
-          {schedule.filters.mediaKinds.length === 1 ? "" : "s"} · up to{" "}
-          {schedule.filters.maxPosts} posts
-          {schedule.lastRunAt
-            ? ` · last run ${formatDateTime(
-                Math.floor(schedule.lastRunAt / 1000),
-              )}`
-            : ""}
+          {formatDate(Math.floor(schedule.nextRunAt / 1000))}
         </p>
       </div>
-      <Toggle
-        compact
-        checked={schedule.enabled}
-        onChange={(checked) => updateSchedule(schedule.id, { enabled: checked })}
-        label="Enabled"
-      />
-      <Button
-        variant="secondary"
-        size="sm"
-        loading={running}
-        onClick={() => void runNow()}
-      >
-        <Play className="h-3.5 w-3.5" /> Run now
-      </Button>
-      <IconButton
-        label="Delete schedule"
-        icon={Trash2}
-        size="sm"
-        onClick={onDelete}
-      />
+      <div className="flex shrink-0 items-center gap-0.5">
+        <IconButton
+          label={running ? "Running schedule" : "Run now"}
+          icon={running ? LoaderCircle : Play}
+          iconClassName={running ? "animate-spin" : undefined}
+          size="sm"
+          disabled={running}
+          onClick={() => void runNow()}
+        />
+        <IconButton
+          label={schedule.enabled ? "Pause schedule" : "Resume schedule"}
+          icon={schedule.enabled ? Power : PowerOff}
+          active={schedule.enabled}
+          size="sm"
+          onClick={() =>
+            updateSchedule(schedule.id, { enabled: !schedule.enabled })
+          }
+        />
+        <IconButton
+          label="Delete schedule"
+          icon={Trash2}
+          size="sm"
+          onClick={onDelete}
+        />
+      </div>
     </div>
   );
 }

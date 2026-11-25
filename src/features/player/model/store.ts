@@ -85,6 +85,19 @@ function isStoredQueueItem(entry: unknown): entry is QueueItem {
   );
 }
 
+/**
+ * Items before the current item are already played. Drop them when saving and
+ * hydrating so reopening Pawchive resumes at the current item instead of
+ * restoring the whole history.
+ */
+export function trimPlayedQueue(
+  queue: QueueItem[],
+  currentId: string | null,
+): QueueItem[] {
+  const index = queue.findIndex((item) => item.id === currentId);
+  return index > 0 ? queue.slice(index) : queue;
+}
+
 export const usePlayerStore = create<PlayerStore>()(
   persist(
     (set, get) => ({
@@ -307,7 +320,7 @@ export const usePlayerStore = create<PlayerStore>()(
       name: "pawchive-player",
       storage: createJSONStorage(playerStorage),
       partialize: (state) => ({
-        queue: state.queue,
+        queue: trimPlayedQueue(state.queue, state.currentId),
         currentId: state.currentId,
       }),
       merge: (persisted, current) => {
@@ -315,7 +328,10 @@ export const usePlayerStore = create<PlayerStore>()(
         const savedQueue: unknown[] = Array.isArray(saved.queue)
           ? saved.queue
           : [];
-        const queue = savedQueue.filter(isStoredQueueItem);
+        const queue = trimPlayedQueue(
+          savedQueue.filter(isStoredQueueItem),
+          saved.currentId ?? null,
+        );
         const currentId = queue.some((entry) => entry.id === saved.currentId)
           ? saved.currentId ?? null
           : queue[0]?.id ?? null;

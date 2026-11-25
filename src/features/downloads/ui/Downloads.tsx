@@ -1,14 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
+  CalendarClock,
   CheckCircle2,
   Download,
   FolderOpen,
   HardDrive,
   ListPlus,
+  ListX,
   LoaderCircle,
   Search,
-  Trash2,
   Users,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -19,6 +20,7 @@ import { cn, formatBytes } from "../../../shared/lib/format";
 import { DownloadRow } from "./DownloadRow";
 import { CreatorDownloadDialog } from "./CreatorDownloadDialog";
 import { DownloadSchedules } from "./DownloadSchedules";
+import { useDownloadSchedules } from "../model/downloadSchedules";
 import { queryKeys } from "../../../shared/query/keys";
 import { useAppStore } from "../../../app/store";
 import { isMobile } from "../../../shared/lib/platform";
@@ -48,6 +50,7 @@ export function DownloadsPage() {
     (state) => state.settings.blockedCreators ?? [],
   );
   const [creatorDownloadOpen, setCreatorDownloadOpen] = useState(false);
+  const [schedulesOpen, setSchedulesOpen] = useState(false);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
   const [playlistItems, setPlaylistItems] = useState<PlaylistItemInput[]>([]);
   const [playlistOpen, setPlaylistOpen] = useState(false);
@@ -57,6 +60,7 @@ export function DownloadsPage() {
   const [sort, setSort] = useState<DownloadSort>("newest");
   const [visibleCount, setVisibleCount] = useState(savedDownloadsVisible);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const schedules = useDownloadSchedules();
 
   useEffect(() => {
     savedDownloadsVisible = visibleCount;
@@ -82,7 +86,7 @@ export function DownloadsPage() {
       toast(
         "success",
         "Downloads cleared",
-        `${count} completed item${count === 1 ? "" : "s"}.`,
+        `${count} completed item${count === 1 ? "" : "s"} removed from the list. Files stay on disk.`,
       );
       void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.playlistItems() });
@@ -95,8 +99,8 @@ export function DownloadsPage() {
     onSuccess: (count) => {
       toast(
         "success",
-        "All downloads cleared",
-        `${count} item${count === 1 ? "" : "s"} removed.`,
+        "Download list cleared",
+        `${count} item${count === 1 ? "" : "s"} removed. Files stay on disk.`,
       );
       void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.playlistItems() });
@@ -307,6 +311,19 @@ export function DownloadsPage() {
           >
             <Users className="h-3.5 w-3.5" /> Choose creator
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label="Scheduled downloads"
+            onClick={() => setSchedulesOpen(true)}
+          >
+            <CalendarClock className="h-3.5 w-3.5" /> Schedules
+            {schedules.length > 0 ? (
+              <span className="rounded-full bg-accent/12 px-1.5 py-0.5 text-[9px] font-semibold text-accent">
+                {schedules.length}
+              </span>
+            ) : null}
+          </Button>
           {!isMobile ? (
             <Button
               variant="secondary"
@@ -320,7 +337,10 @@ export function DownloadsPage() {
         </div>
       </div>
 
-      <DownloadSchedules />
+      <DownloadSchedules
+        open={schedulesOpen}
+        onClose={() => setSchedulesOpen(false)}
+      />
 
       {downloads.isLoading ? (
         <div className="flex justify-center py-12">
@@ -436,7 +456,7 @@ export function DownloadsPage() {
                   loading={clearAll.isPending}
                   onClick={() => setConfirmClearAll(true)}
                 >
-                  <Trash2 className="h-3.5 w-3.5" /> Clear all
+                  <ListX className="h-3.5 w-3.5" /> Clear all
                 </Button>
               </div>
             </div>
@@ -486,7 +506,6 @@ export function DownloadsPage() {
         open={creatorDownloadOpen}
         onClose={() => setCreatorDownloadOpen(false)}
       />
-
       <PlaylistPicker
         open={playlistOpen}
         items={playlistItems}
@@ -496,7 +515,7 @@ export function DownloadsPage() {
       <ConfirmDialog
         open={confirmClearAll}
         title="Clear all downloads?"
-        message="Every download record and its local file will be deleted. This cannot be undone."
+        message="This removes every download record from Pawchive. Files already downloaded stay on disk, and in-progress downloads are cancelled. This cannot be undone."
         confirmLabel="Clear all"
         danger
         onConfirm={() => clearAll.mutate()}

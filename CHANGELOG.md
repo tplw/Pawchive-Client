@@ -19,14 +19,19 @@ project follows [Semantic Versioning](https://semver.org/).
   creator. Retries and mobile path repair keep the same folder.
 - Favorite creators appear first in the creator download picker.
 - Creator downloads can be scheduled daily or weekly. Schedules check for new
-  files while Pawchive is open and can be run, paused or deleted from
-  Downloads.
+  files while Pawchive is open and are managed from a compact Schedules button
+  beside Choose creator.
 - Downloads no longer uses the large creator banner or colored stat cards.
   Choose creator sits next to Open folder, with a compact status line and
   search/status/media/sort filters.
 
 ### Fixed
 
+- Clearing completed or all downloads now removes the list records instead of
+  deleting the downloaded media. Partial files from cancelled transfers are
+  still cleaned up.
+- Reopening Pawchive no longer restores queue items that were already played
+  before the current item.
 - The creator download scan now reads the unfiltered creator feed, so global
   feed filters and the default hide-unavailable setting cannot hide every post.
   Only the dialog's own filters apply.

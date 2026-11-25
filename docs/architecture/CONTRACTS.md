@@ -69,6 +69,7 @@ remounts, the fixed search route key and scroll restoration.
 ## Browser storage
 
 - `localStorage["pawchive-player"]` — persisted queue and current id only.
+  Items before the current item are dropped when saving and hydrating.
 - `localStorage["pawchive-creator-filter:<service>:<creatorId>"]` — per-creator
   filter overrides.
 - `localStorage["pawchive-creator-download-schedules"]` — recurring creator
@@ -107,7 +108,10 @@ Changing any shape requires an explicit migration.
 - Creator batch downloads save under a sanitized creator-name subfolder.
   Retries keep that folder, and list repair checks the same folder name when
   the mobile app container moves.
-- Creator download schedules are stored in localStorage and run while the app
-  is open.
+- Creator download schedules are stored in localStorage, run while the app is
+  open, and are managed from the Schedules button beside Choose creator.
+- Clearing completed or all downloads removes database records; completed
+  media files stay on disk. Only partial files from non-completed records are
+  removed.
 - DB writes stay on `spawn_blocking`; migrations are append-only.
 - Pagination remains 50 posts / 60 creators until a deliberate behavior change.
