@@ -521,17 +521,6 @@ export function CreatorDownloadDialog({
       extraWide
       footer={
         <>
-          <span className="mr-auto self-center text-[10px] text-muted">
-            {selectedCreator
-              ? scan
-                ? filtersChanged
-                  ? "Rescan to apply the new filters."
-                  : `${selectedPosts.size} of ${displayedPosts.length} posts selected`
-                : scanning
-                  ? "Scanning posts…"
-                  : "Scan posts to preview the batch."
-              : "Choose a creator to begin."}
-          </span>
           <Button variant="ghost" onClick={close}>
             Cancel
           </Button>
@@ -622,7 +611,6 @@ export function CreatorDownloadDialog({
                         : ""}
                     </span>
                   </span>
-                  <Check className="h-4 w-4 shrink-0 text-accent" />
                 </button>
               ))
             )}
@@ -881,7 +869,7 @@ export function CreatorDownloadDialog({
                   {scanning
                     ? `Scanned ${scanProgress.scanned} · ${scanProgress.matched} matched`
                     : scan
-                      ? `${displayedPosts.length} selected by filters · ${scan.scanned} scanned${
+                      ? `${selectedPosts.size} of ${displayedPosts.length} posts selected · ${scan.scanned} scanned${
                           scan.truncated ? " · limited" : ""
                         }`
                       : "Scan to preview the posts in this batch."}

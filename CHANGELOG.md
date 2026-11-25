@@ -41,6 +41,13 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Mobile Downloads places Choose creator and Schedules first and right
+  aligned, with the stats below them. Button labels no longer wrap or overlap
+  in the creator download footer.
+- The creator download dialog keeps the selected count in the Matching posts
+  header and no longer shows footer status text or picker check marks.
+- Creator avatars show initials while loading and no longer stay blank when a
+  cached image finishes before its load handler.
 - Links in post content now open in the system browser on mobile as well as
   desktop.
 - Creator download date presets now fill both ends of the range, and All time

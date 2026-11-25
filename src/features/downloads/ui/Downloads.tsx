@@ -269,7 +269,7 @@ export function DownloadsPage() {
     <div className="mx-auto max-w-5xl pb-10">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         {allItems.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 rounded-lg border border-line/60 bg-card/30 px-3 py-2 text-[10px] text-muted">
+          <div className="order-2 flex w-full flex-wrap items-center gap-x-3.5 gap-y-1 rounded-lg border border-line/60 bg-card/30 px-3 py-2 text-[10px] text-muted sm:order-1 sm:w-auto">
             <span className="inline-flex items-center gap-1.5">
               <Download className="h-3 w-3 text-accent" />
               <strong className="font-semibold text-ink">
@@ -303,7 +303,7 @@ export function DownloadsPage() {
         ) : (
           <div />
         )}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="order-1 ml-auto flex flex-wrap items-center gap-2 sm:order-2">
           <Button
             variant="primary"
             size="sm"

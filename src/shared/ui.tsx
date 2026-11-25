@@ -56,7 +56,7 @@ export function Button({
       {...props}
       disabled={props.disabled || loading}
       className={cn(
-        "inline-flex items-center rounded-xl transition duration-150 outline-none focus-visible:ring-2 focus-visible:ring-accent/70 disabled:pointer-events-none disabled:opacity-45",
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-xl transition duration-150 outline-none focus-visible:ring-2 focus-visible:ring-accent/70 disabled:pointer-events-none disabled:opacity-45",
         VARIANTS[variant],
         SIZES[size],
         className,
@@ -443,7 +443,7 @@ export function Modal({
         </div>
         <div className="max-h-[64vh] overflow-y-auto px-5 py-4">{children}</div>
         {footer ? (
-          <div className="flex justify-end gap-2 border-t border-line/70 px-5 py-3.5">{footer}</div>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-line/70 px-5 py-3.5">{footer}</div>
         ) : null}
       </div>
     </div>,

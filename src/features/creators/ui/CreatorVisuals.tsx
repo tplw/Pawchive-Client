@@ -1,5 +1,5 @@
 import { AlertTriangle, Radio } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   creatorAvatar,
   creatorBanner,
@@ -31,6 +31,7 @@ export function CreatorAvatar({
   const config = useAppStore((state) => state.config);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const imageRef = useRef<HTMLImageElement>(null);
   const sizes = {
     xs: "h-6 w-6 text-[9px]",
     sm: "h-9 w-9 text-xs",
@@ -50,6 +51,10 @@ export function CreatorAvatar({
     setFailed(false);
   }, [id, service]);
 
+  useEffect(() => {
+    if (imageRef.current?.complete) setLoaded(true);
+  }, [id, service]);
+
   return (
     <div
       className={cn(
@@ -58,24 +63,29 @@ export function CreatorAvatar({
         className,
       )}
     >
+      <span
+        className={cn(
+          "grid h-full w-full place-items-center font-semibold text-accent",
+          loaded && !failed ? "invisible" : "visible",
+        )}
+      >
+        {initials || <Radio className="h-4 w-4" />}
+      </span>
       {!failed ? (
         <img
+          ref={imageRef}
           src={creatorAvatar(config, service, id)}
           alt=""
           loading="lazy"
           decoding="async"
           className={cn(
-            "h-full w-full object-cover transition-opacity duration-300",
+            "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
             loaded ? "opacity-100" : "opacity-0",
           )}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
         />
-      ) : (
-        <span className="grid h-full w-full place-items-center font-semibold text-accent">
-          {initials || <Radio className="h-4 w-4" />}
-        </span>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -92,9 +102,13 @@ export function CreatorBanner({
   const config = useAppStore((state) => state.config);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const bannerRef = useRef<HTMLImageElement>(null);
   useEffect(() => {
     setLoaded(false);
     setFailed(false);
+  }, [id, service]);
+  useEffect(() => {
+    if (bannerRef.current?.complete) setLoaded(true);
   }, [id, service]);
   if (failed) {
     return (
@@ -103,6 +117,7 @@ export function CreatorBanner({
   }
   return (
     <img
+      ref={bannerRef}
       src={creatorBanner(config, service, id)}
       alt={`${name} banner`}
       loading="lazy"

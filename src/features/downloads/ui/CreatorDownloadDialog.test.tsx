@@ -113,7 +113,7 @@ describe("creator download dialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Scan posts" }));
     expect(
-      await screen.findByText("2 of 2 posts selected"),
+      await screen.findByText(/2 of 2 posts selected/),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Rescan" }),
@@ -122,7 +122,7 @@ describe("creator download dialog", () => {
     const firstRow = screen.getByText("First post").closest("label");
     expect(firstRow).not.toBeNull();
     fireEvent.click(firstRow!);
-    expect(screen.getByText("1 of 2 posts selected")).toBeInTheDocument();
+    expect(screen.getByText(/1 of 2 posts selected/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Download 1 post" }));
 
@@ -156,7 +156,7 @@ describe("creator download dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Scan posts" }));
 
     expect(
-      await screen.findByText("1 of 1 posts selected"),
+      await screen.findByText(/1 of 1 posts selected/),
     ).toBeInTheDocument();
     expect(screen.queryByText("Spoiler page")).not.toBeInTheDocument();
   });
