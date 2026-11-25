@@ -306,6 +306,7 @@ export interface CreatorDownloadResult {
   skipped: number;
   locked: number;
   failed: number;
+  folder: string;
 }
 
 export interface DownloadRecord {

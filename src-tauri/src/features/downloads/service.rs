@@ -7,6 +7,7 @@ use crate::shared::models::{
     CreatorDownloadRequest, CreatorDownloadResult, DownloadRecord, DownloadRequest,
 };
 use crate::shared::task::blocking;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::AppHandle;
 
@@ -84,11 +85,8 @@ impl DownloadService {
                 if original.exists() {
                     continue;
                 }
-                if let Some(name) = original.file_name() {
-                    let candidate = download_dir.join(name);
-                    if candidate.exists() {
-                        record.file_path = candidate.to_string_lossy().to_string();
-                    }
+                if let Some(path) = relocated_download_path(&download_dir, original) {
+                    record.file_path = path.to_string_lossy().to_string();
                 }
             }
             Ok(records)
@@ -129,5 +127,54 @@ impl DownloadService {
         std::fs::create_dir_all(&dir)?;
         tauri_plugin_opener::open_path(dir, None::<&str>)
             .map_err(|e| AppError::Io(format!("could not open downloads folder: {e}")))
+    }
+}
+
+/// Locate a downloaded file under the current download root after the app
+/// container moved. Creator batches keep the creator folder name, so try both
+/// the flat name and the same one-level subfolder.
+fn relocated_download_path(download_dir: &Path, file_path: &Path) -> Option<PathBuf> {
+    let name = file_path.file_name()?;
+    let direct = download_dir.join(name);
+    if direct.exists() {
+        return Some(direct);
+    }
+    let parent = file_path.parent().and_then(|path| path.file_name())?;
+    let nested = download_dir.join(parent).join(name);
+    nested.exists().then_some(nested)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::relocated_download_path;
+    use std::fs;
+
+    #[test]
+    fn relocates_flat_and_creator_folder_downloads() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("flat.mp4"), b"x").unwrap();
+        assert_eq!(
+            relocated_download_path(root.path(), std::path::Path::new("/old/Downloads/flat.mp4")),
+            Some(root.path().join("flat.mp4"))
+        );
+
+        let creator = root.path().join("Ada");
+        fs::create_dir_all(&creator).unwrap();
+        fs::write(creator.join("clip.mp4"), b"x").unwrap();
+        assert_eq!(
+            relocated_download_path(
+                root.path(),
+                std::path::Path::new("/old/Downloads/Ada/clip.mp4"),
+            ),
+            Some(creator.join("clip.mp4"))
+        );
+
+        assert_eq!(
+            relocated_download_path(
+                root.path(),
+                std::path::Path::new("/old/Downloads/missing.mp4")
+            ),
+            None
+        );
     }
 }

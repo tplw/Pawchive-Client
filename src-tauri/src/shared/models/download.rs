@@ -44,6 +44,7 @@ pub struct CreatorDownloadResult {
     pub skipped: u64,
     pub locked: u64,
     pub failed: u64,
+    pub folder: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -68,4 +69,8 @@ pub struct DownloadRequest {
     pub thumbnail_url: Option<String>,
     #[serde(default)]
     pub media_kind: String,
+    /// Optional subdirectory below the download root. Creator batches use a
+    /// sanitized creator name here.
+    #[serde(default)]
+    pub folder: Option<String>,
 }

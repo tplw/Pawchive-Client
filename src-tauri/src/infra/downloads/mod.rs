@@ -15,7 +15,7 @@ use crate::shared::models::{
 use crate::shared::security::safe_filename;
 use crate::shared::task::blocking;
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::AppHandle;
@@ -71,7 +71,8 @@ pub async fn enqueue(
         request.file_name = media.name.clone();
         request.media_kind = media.kind.as_str().to_string();
     }
-    let dir = state.download_dir();
+    let root = state.download_dir();
+    let dir = download_target_dir(&root, request.folder.as_deref());
     tokio::fs::create_dir_all(&dir)
         .await
         .map_err(|e| AppError::Io(format!("could not create download folder: {e}")))?;
@@ -139,14 +140,15 @@ pub async fn retry(state: &AppState, app: &AppHandle, id: &str) -> AppResult<Dow
         ));
     }
     let url = crate::infra::media::validate_media_url(&state.cfg, &record.url)?;
-    let dir = state.download_dir();
+    let root = state.download_dir();
+    let dir = retry_target_dir(&root, Path::new(&record.file_path));
     tokio::fs::create_dir_all(&dir)
         .await
         .map_err(|e| AppError::Io(format!("could not create download folder: {e}")))?;
     // A failed attempt may have left a partial file behind. Remove it before
     // reusing the name, and fall back to a suffixed name if it cannot be
     // deleted (for example because another process still holds it).
-    remove_if_inside(&dir, Path::new(&record.file_path)).await;
+    remove_if_inside(&root, Path::new(&record.file_path)).await;
     let (file_name, file_path) =
         reserve_unique_path(&dir, &safe_filename(&record.file_name)).await?;
 
@@ -238,6 +240,23 @@ pub async fn clear_all(state: &AppState) -> AppResult<u64> {
     Ok(records.len() as u64)
 }
 
+fn download_target_dir(root: &Path, folder: Option<&str>) -> PathBuf {
+    folder
+        .map(safe_filename)
+        .filter(|name| !name.trim().is_empty())
+        .map(|name| root.join(name))
+        .unwrap_or_else(|| root.to_path_buf())
+}
+
+fn retry_target_dir(root: &Path, file_path: &Path) -> PathBuf {
+    let parent = file_path.parent().unwrap_or(root);
+    if parent != root && parent.starts_with(root) {
+        parent.to_path_buf()
+    } else {
+        root.to_path_buf()
+    }
+}
+
 struct SelectedDownloadAttachments {
     files: Vec<(Attachment, MediaKind)>,
     skipped: u64,
@@ -311,8 +330,19 @@ pub async fn download_creator_posts(
         .map(|creator| creator.name)
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(|| creator_id.clone());
+    let folder = {
+        let sanitized = safe_filename(&creator_name);
+        if sanitized.trim().is_empty() {
+            creator_id.clone()
+        } else {
+            sanitized
+        }
+    };
 
-    let mut result = CreatorDownloadResult::default();
+    let mut result = CreatorDownloadResult {
+        folder: folder.clone(),
+        ..Default::default()
+    };
     let mut seen_urls = HashSet::new();
     let mut seen_posts = HashSet::new();
     for post_id in request.post_ids {
@@ -366,6 +396,7 @@ pub async fn download_creator_posts(
                     .clone()
                     .or_else(|| post_thumbnail.clone()),
                 media_kind: kind.as_str().to_string(),
+                folder: Some(folder.clone()),
             };
             match enqueue(state, app, request).await {
                 Ok(_) => result.queued += 1,
@@ -448,6 +479,7 @@ pub async fn download_post(
                 .clone()
                 .or_else(|| post_thumbnail.clone()),
             media_kind: kind.as_str().to_string(),
+            folder: None,
         };
         if let Err(error) = enqueue(state, app, request).await {
             if matches!(error, AppError::PasswordRequired { .. }) {
@@ -494,6 +526,7 @@ pub async fn download_playlist(
             playlist_id: Some(playlist_id),
             thumbnail_url: item.thumbnail_url,
             media_kind: item.media_kind,
+            folder: None,
         };
         if let Err(error) = enqueue(state, app, request).await {
             if matches!(error, AppError::PasswordRequired { .. }) {
@@ -650,6 +683,24 @@ mod tests {
     fn split_names_handles_extensions() {
         assert_eq!(split_name("clip.mp4"), ("clip".into(), "mp4".into()));
         assert_eq!(split_name("clip"), ("clip".into(), String::new()));
+    }
+
+    #[test]
+    fn creator_downloads_use_name_folders_and_retry_there() {
+        let root = Path::new("/tmp/Downloads");
+        assert_eq!(download_target_dir(root, None), root.to_path_buf());
+        assert_eq!(download_target_dir(root, Some("Ada")), root.join("Ada"));
+
+        let nested = root.join("Ada").join("clip.mp4");
+        assert_eq!(retry_target_dir(root, &nested), root.join("Ada"));
+        assert_eq!(
+            retry_target_dir(root, &root.join("clip.mp4")),
+            root.to_path_buf()
+        );
+        assert_eq!(
+            retry_target_dir(root, Path::new("/tmp/elsewhere/clip.mp4")),
+            root.to_path_buf()
+        );
     }
 
     fn downloadable(name: &str, kind: MediaKind, preview_only: bool, locked: bool) -> Attachment {

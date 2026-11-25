@@ -294,6 +294,7 @@ export const api = {
     playlistId?: number | null;
     thumbnailUrl?: string | null;
     mediaKind?: string;
+    folder?: string | null;
   }) => call<DownloadRecord>("start_download", { request }),
   downloadPost: (service: string, creatorId: string, postId: string) =>
     call<number>("download_post", { service, creatorId, postId }),
