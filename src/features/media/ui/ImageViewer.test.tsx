@@ -46,8 +46,22 @@ describe("image viewer comic mode", () => {
     clearImagePrefetchCache();
   });
 
-  it("prefetches the next two images when enabled", () => {
-    const sources: string[] = [];
+  it("shows a loading overlay until the image decodes", () => {
+    render(
+      <ImageViewer
+        images={[image("one.jpg")]}
+        index={0}
+        onIndexChange={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("Loading image…")).toBeInTheDocument();
+    fireEvent.load(screen.getByAltText("one.jpg"));
+    expect(screen.queryByText("Loading image…")).not.toBeInTheDocument();
+  });
+
+  it("prefetches the next two images when enabled", () => {    const sources: string[] = [];
     class FakeImage {
       decoding = "";
       set src(value: string) {

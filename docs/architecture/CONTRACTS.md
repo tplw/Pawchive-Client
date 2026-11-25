@@ -110,6 +110,10 @@ Changing any shape requires an explicit migration.
 - Creator batch downloads apply media-kind filters and skip existing, locked and
   preview-only files. Existing means a download record or a file with the same
   sanitized name in the creator folder.
+- `get_creator_posts` accepts `sort: "newest" | "oldest"`. Oldest uses offset
+  `-1` for the first request, probes the newest-first feed for its last page,
+  and returns 50-post pages backwards. The frontend keeps the order and stops at
+  offset 0.
 - Creator batch downloads save under a sanitized creator-name subfolder.
   Retries keep that folder, and list repair checks the same folder name when
   the mobile app container moves.

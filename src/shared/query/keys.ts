@@ -44,8 +44,10 @@ export const queryKeys = {
   creatorSimilar: (service: string, creatorId: string) =>
     ["creator-similar", service, creatorId] as const,
   creatorSimilarAll: () => ["creator-similar"] as const,
-  creatorPosts: (service: string, creatorId: string, query: string) =>
-    ["creator-posts", service, creatorId, query] as const,
+  creatorPosts: (service: string, creatorId: string, query: string, sort: "newest" | "oldest" = "newest") =>
+    sort === "newest"
+      ? (["creator-posts", service, creatorId, query] as const)
+      : (["creator-posts", service, creatorId, query, sort] as const),
   creatorPostsAll: () => ["creator-posts"] as const,
   creators: () => ["creators"] as const,
   creatorsDiscover: (service: string, sort: string) =>

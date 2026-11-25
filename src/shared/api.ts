@@ -10,6 +10,7 @@ import type {
   CreatorDownloadResult,
   CreatorIndexStatus,
   CreatorPage,
+  CreatorPostSort,
   CreatorProfile,
   CreatorSummary,
   PawchiveConfig,
@@ -133,6 +134,7 @@ export const api = {
     creatorId: string;
     offset?: number;
     query?: string;
+    sort?: CreatorPostSort;
     signal?: AbortSignal;
   }) =>
     cancellable(params.signal, (requestId) =>
@@ -141,6 +143,7 @@ export const api = {
         creatorId: params.creatorId,
         offset: params.offset,
         query: params.query,
+        sort: params.sort,
         requestId,
       }),
     ),

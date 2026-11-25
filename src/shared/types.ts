@@ -125,6 +125,8 @@ export interface PostPage {
   hasMore: boolean;
 }
 
+export type CreatorPostSort = "newest" | "oldest";
+
 export interface CreatorPage {
   items: CreatorSummary[];
   offset: number;

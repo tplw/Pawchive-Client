@@ -61,15 +61,26 @@ export function ImageViewer({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const isLandscape = useIsLandscape();
   const cacheMedia = useAppStore((state) => state.settings.cacheMedia);
   const previousAutoHide = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const image = images[index];
   const autoHideControls = isLandscape && (isMobile || fullscreen);
   const { displaySrc, progress, failed, handleImageError } =
     useImageViewerSource({ image, cacheMedia });
+
+  useEffect(() => {
+    setImageLoaded(false);
+  }, [displaySrc, index]);
+
+  useEffect(() => {
+    // Cached images can finish before React attaches onLoad.
+    if (imageRef.current?.complete) setImageLoaded(true);
+  }, [displaySrc, index]);
 
   const goNext = useCallback(() => {
     if (comicLoading || comicPreviousLoading) return;
@@ -300,6 +311,7 @@ export function ImageViewer({
         {displaySrc && !failed ? (
           <img
             key={displaySrc}
+            ref={imageRef}
             src={displaySrc}
             alt={image.name}
             className="max-h-full max-w-full select-none object-contain"
@@ -307,6 +319,7 @@ export function ImageViewer({
               transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
             }}
             draggable={false}
+            onLoad={() => setImageLoaded(true)}
             onError={handleImageError}
           />
         ) : failed ? (
@@ -322,6 +335,20 @@ export function ImageViewer({
             <span className="text-[10px]">Fetching image…</span>
           </div>
         )}
+        {displaySrc && !failed && !imageLoaded ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-black/45 px-4 py-3 text-white/70 backdrop-blur-sm">
+              <LoaderCircle className="h-5 w-5 animate-spin" />
+              <span className="text-[10px]">
+                {progress !== null
+                  ? `${progress}%`
+                  : comicMode
+                    ? "Loading page…"
+                    : "Loading image…"}
+              </span>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {controlsVisible ? (

@@ -31,9 +31,13 @@ project follows [Semantic Versioning](https://semver.org/).
   Download post also skips files that are already saved.
 - The creator download scan has a Rescan button beside the Matching posts
   heading.
+- Creator pages can sort posts Newest first or Oldest first. Oldest loads the
+  last page first and pages backwards, so the order covers the whole feed.
 
 ### Fixed
 
+- Comic mode now shows a loading spinner and page progress until the next
+  prefetched image decodes, instead of a plain black screen.
 - Clearing completed or all downloads now removes the list records instead of
   deleting the downloaded media. Partial files from cancelled transfers are
   still cleaned up.

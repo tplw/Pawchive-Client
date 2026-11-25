@@ -52,6 +52,7 @@ import { CreatorDownloadDialog } from "../../downloads/ui/CreatorDownloadDialog"
 import { useCreatorFilterState } from "../model/useCreatorFilterState";
 import { useCreatorTab, type CreatorTab } from "../model/useCreatorTab";
 import { SiteIcon } from "../../../shared/SiteIcon";
+import type { CreatorPostSort } from "../../../shared/types";
 import {
   Badge,
   Button,
@@ -89,6 +90,7 @@ function CreatorProfileContent({
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [postSearch, setPostSearch] = useState("");
+  const [postSort, setPostSort] = useState<CreatorPostSort>("newest");
   const debouncedPostSearch = useDebouncedValue(postSearch.trim(), 300);
   const postQuery = debouncedPostSearch.length >= 3 ? debouncedPostSearch : "";
   const postCardSize = useAppStore((state) => state.settings.postCardSize);
@@ -168,17 +170,23 @@ function CreatorProfileContent({
     enabled: tab === "similar",
   });
   const posts = useInfiniteQuery({
-    queryKey: queryKeys.creatorPosts(service, creatorId, postQuery),
+    queryKey: queryKeys.creatorPosts(service, creatorId, postQuery, postSort),
     queryFn: ({ pageParam, signal }) =>
       api.getCreatorPosts({
         service,
         creatorId,
         offset: pageParam,
         query: postQuery || undefined,
+        sort: postSort,
         signal,
       }),
-    initialPageParam: 0,
-    getNextPageParam: (last) => nextOffset(last, 50),
+    initialPageParam: postSort === "oldest" ? -1 : 0,
+    getNextPageParam: (last) =>
+      postSort === "oldest"
+        ? last.offset >= 50
+          ? last.offset - 50
+          : undefined
+        : nextOffset(last, 50),
     staleTime: 60_000,
   });
 
@@ -430,26 +438,55 @@ function CreatorProfileContent({
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.22em] text-accent/80">
             Posts
           </p>
-          <div className="relative mb-4 max-w-xl">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            <input
-              value={postSearch}
-              onChange={(event) => setPostSearch(event.target.value)}
-              placeholder="Search this creator's posts…"
-              spellCheck={false}
-              aria-label="Search this creator's posts"
-              className="h-10 w-full rounded-xl border border-line/70 bg-surface/55 pl-9 pr-9 text-sm text-ink outline-none placeholder:text-muted/60 focus:border-accent/45 focus:ring-2 focus:ring-accent/10"
-            />
-            {postSearch ? (
-              <button
-                type="button"
-                aria-label="Clear post search"
-                onClick={() => setPostSearch("")}
-                className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-muted transition hover:bg-white/8 hover:text-ink"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
+          <div className="mb-4 flex max-w-2xl flex-wrap items-center gap-2">
+            <div className="relative min-w-52 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input
+                value={postSearch}
+                onChange={(event) => setPostSearch(event.target.value)}
+                placeholder="Search this creator's posts…"
+                spellCheck={false}
+                aria-label="Search this creator's posts"
+                className="h-10 w-full rounded-xl border border-line/70 bg-surface/55 pl-9 pr-9 text-sm text-ink outline-none placeholder:text-muted/60 focus:border-accent/45 focus:ring-2 focus:ring-accent/10"
+              />
+              {postSearch ? (
+                <button
+                  type="button"
+                  aria-label="Clear post search"
+                  onClick={() => setPostSearch("")}
+                  className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-muted transition hover:bg-white/8 hover:text-ink"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+            <div
+              role="group"
+              aria-label="Sort creator posts"
+              className="flex items-center gap-0.5 rounded-xl border border-line/70 bg-surface/55 p-1"
+            >
+              {(
+                [
+                  ["newest", "Newest"],
+                  ["oldest", "Oldest"],
+                ] as Array<[CreatorPostSort, string]>
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={postSort === value}
+                  onClick={() => setPostSort(value)}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition",
+                    postSort === value
+                      ? "bg-accent/12 text-accent"
+                      : "text-muted hover:bg-elevated hover:text-ink",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           {postSearch.trim().length > 0 && postQuery === "" ? (
             <p className="mb-3 text-[10px] text-muted">

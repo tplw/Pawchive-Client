@@ -175,6 +175,7 @@ pub async fn get_creator_posts(
     creator_id: String,
     offset: Option<i64>,
     query: Option<String>,
+    sort: Option<String>,
     request_id: Option<String>,
 ) -> AppResult<PostPage> {
     let query = query.filter(|value| !value.trim().is_empty());
@@ -184,6 +185,7 @@ pub async fn get_creator_posts(
             &creator_id,
             offset.unwrap_or(0),
             query.as_deref(),
+            sort.as_deref(),
             request_id.as_deref(),
         )
         .await

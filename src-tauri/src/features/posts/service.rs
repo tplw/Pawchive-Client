@@ -3,12 +3,13 @@ use crate::features::posts::summary::{build_post_page, build_post_page_unfiltere
 use crate::shared::config::PAGE_SIZE;
 use crate::shared::error::{AppError, AppResult};
 use crate::shared::models::{
-    Attachment, Comment, CreatorSummary, DownloadRecord, MediaKind, PostDetail, PostPage,
+    Attachment, Comment, CreatorSummary, DownloadRecord, MediaKind, Post, PostDetail, PostPage,
     PostSummary, Revision,
 };
 use crate::shared::security::sanitize_html;
 use crate::shared::task::blocking;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 /// Post feeds, detail enrichment and comment/revision orchestration.
 /// Tauri commands stay thin wrappers around this service.
@@ -30,6 +31,16 @@ fn media_kind_from_download(value: &str) -> Option<MediaKind> {
         "other" => Some(MediaKind::Other),
         _ => None,
     }
+}
+
+fn sort_post_summaries_oldest(posts: &mut [PostSummary]) {
+    posts.sort_by(|left, right| {
+        let left_time = left.published.or(left.added).unwrap_or(0);
+        let right_time = right.published.or(right.added).unwrap_or(0);
+        left_time
+            .cmp(&right_time)
+            .then_with(|| left.id.cmp(&right.id))
+    });
 }
 
 /// Prefer a completed local download over the remote attachment. This also
@@ -409,6 +420,7 @@ impl PostService {
         creator_id: &str,
         offset: i64,
         query: Option<&str>,
+        sort: Option<&str>,
         request_id: Option<&str>,
     ) -> AppResult<PostPage> {
         if crate::features::posts::filters::is_creator_blocked(
@@ -418,16 +430,103 @@ impl PostService {
         ) {
             return Err(AppError::Blocked);
         }
+        let oldest = matches!(sort, Some("oldest"));
         let token = request_id.map(|id| self.state.register_cancel(id));
-        let result = self
-            .state
-            .api
-            .creator_posts(service, creator_id, offset, query, token.as_ref())
-            .await;
+        let result = async {
+            if oldest && offset == -1 {
+                self.oldest_creator_posts_page(service, creator_id, query, token.as_ref())
+                    .await
+            } else {
+                if offset < 0 {
+                    return Err(AppError::Validation("offset must not be negative".into()));
+                }
+                let posts = self
+                    .state
+                    .api
+                    .creator_posts(service, creator_id, offset, query, token.as_ref())
+                    .await?;
+                Ok((offset, posts))
+            }
+        }
+        .await;
         if let Some(id) = request_id {
             self.state.finish_cancel(id);
         }
-        build_post_page(&self.state, result?, offset, true)
+        let (page_offset, posts) = result?;
+        let mut page = build_post_page(&self.state, posts, page_offset, true)?;
+        if oldest {
+            sort_post_summaries_oldest(&mut page.items);
+        }
+        Ok(page)
+    }
+
+    /// Walk the newest-first creator feed to its last page. The frontend can
+    /// then page backwards with the normal 50-post offsets to show the true
+    /// oldest posts first without downloading the whole feed in one response.
+    async fn oldest_creator_posts_page(
+        &self,
+        service: &str,
+        creator_id: &str,
+        query: Option<&str>,
+        cancel: Option<&CancellationToken>,
+    ) -> AppResult<(i64, Vec<Post>)> {
+        let mut low = 0i64;
+        let mut low_page = self
+            .state
+            .api
+            .creator_posts(service, creator_id, 0, query, cancel)
+            .await?;
+        if (low_page.len() as i64) < PAGE_SIZE {
+            return Ok((0, low_page));
+        }
+
+        let mut high: Option<i64> = None;
+        let mut step = PAGE_SIZE;
+        while step <= 1_000_000 {
+            let page = self
+                .state
+                .api
+                .creator_posts(service, creator_id, step, query, cancel)
+                .await?;
+            if page.is_empty() {
+                high = Some(step);
+                break;
+            }
+            low = step;
+            low_page = page;
+            if (low_page.len() as i64) < PAGE_SIZE {
+                return Ok((low, low_page));
+            }
+            let Some(next) = step.checked_mul(2) else {
+                break;
+            };
+            step = next;
+        }
+
+        let Some(mut high) = high else {
+            return Ok((low, low_page));
+        };
+        while high - low > PAGE_SIZE {
+            let mid = low + ((high - low) / (PAGE_SIZE * 2)) * PAGE_SIZE;
+            if mid <= low {
+                break;
+            }
+            let page = self
+                .state
+                .api
+                .creator_posts(service, creator_id, mid, query, cancel)
+                .await?;
+            if page.is_empty() {
+                high = mid;
+            } else {
+                low = mid;
+                low_page = page;
+                if (low_page.len() as i64) < PAGE_SIZE {
+                    break;
+                }
+            }
+        }
+        Ok((low, low_page))
     }
 
     /// Creator post feed without the global content filters. The creator
@@ -496,9 +595,9 @@ impl PostService {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_local_downloads, marks_attachment_unavailable};
+    use super::{apply_local_downloads, marks_attachment_unavailable, sort_post_summaries_oldest};
     use crate::shared::error::AppError;
-    use crate::shared::models::{Attachment, DownloadRecord, MediaKind};
+    use crate::shared::models::{Attachment, DownloadRecord, MediaKind, PostSummary};
 
     fn attachment(url: &str, resolving: bool) -> Attachment {
         Attachment {
@@ -565,6 +664,32 @@ mod tests {
 
         assert!(attachments[1].local_path.is_none());
         assert!(attachments[1].resolving);
+    }
+
+    #[test]
+    fn sorts_creator_posts_oldest_first() {
+        let post = |id: &str, published: Option<i64>, added: Option<i64>| PostSummary {
+            id: id.into(),
+            published,
+            added,
+            ..Default::default()
+        };
+        let mut posts = vec![
+            post("new", Some(300), None),
+            post("undated", None, None),
+            post("old-added", None, Some(100)),
+            post("old-published", Some(100), Some(200)),
+        ];
+
+        sort_post_summaries_oldest(&mut posts);
+
+        assert_eq!(
+            posts
+                .iter()
+                .map(|post| post.id.as_str())
+                .collect::<Vec<_>>(),
+            ["undated", "old-added", "old-published", "new"]
+        );
     }
 
     #[test]

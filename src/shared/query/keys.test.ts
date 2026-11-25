@@ -20,6 +20,13 @@ describe("query keys", () => {
       "1",
       "cat",
     ]);
+    expect(queryKeys.creatorPosts("patreon", "1", "cat", "oldest")).toEqual([
+      "creator-posts",
+      "patreon",
+      "1",
+      "cat",
+      "oldest",
+    ]);
     expect(queryKeys.search("cat", "patreon", ["image"], "relevance")).toEqual([
       "search",
       "cat",

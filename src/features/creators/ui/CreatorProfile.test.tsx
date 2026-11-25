@@ -395,6 +395,28 @@ describe("creator profile", () => {
     );
   });
 
+  it("sorts this creator's posts oldest first", async () => {
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    expect(await screen.findByText("First post")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Oldest" }));
+
+    await waitFor(() =>
+      expect(api.getCreatorPosts).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          service: "patreon",
+          creatorId: "42",
+          offset: -1,
+          sort: "oldest",
+        }),
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Oldest" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
   it("keeps the selected tab when leaving and returning", async () => {
     const first = wrapper(
       <CreatorProfilePage service="patreon" creatorId="42" />,
