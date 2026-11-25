@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  CalendarClock,
   CalendarDays,
   Check,
   Download,
@@ -11,6 +12,7 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
+  Star,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -31,6 +33,11 @@ import {
 } from "../../../shared/ui";
 import { CreatorAvatar, ServiceBadge } from "../../creators/ui/CreatorVisuals";
 import type { MediaKind, PostSummary, Service } from "../../../shared/types";
+import {
+  createCreatorDownloadSchedule,
+  describeSchedule,
+  type CreatorScheduleFrequency,
+} from "../model/downloadSchedules";
 import {
   parseBlacklistKeywords,
   scanCreatorDownloadPosts,
@@ -63,6 +70,16 @@ const KIND_ICON: Record<MediaKind, typeof ImageIcon> = {
   document: FileText,
   other: FileText,
 };
+
+const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 
 interface SelectedCreator {
   service: string;
@@ -148,6 +165,12 @@ export function CreatorDownloadDialog({
   const [scanSignature, setScanSignature] = useState<string | null>(null);
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
   const [starting, setStarting] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleFrequency, setScheduleFrequency] =
+    useState<CreatorScheduleFrequency>("daily");
+  const [scheduleTime, setScheduleTime] = useState("09:00");
+  const [scheduleWeekday, setScheduleWeekday] = useState(1);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
   const scanAbort = useRef<AbortController | null>(null);
   const lastOpenKey = useRef<string | null>(null);
 
@@ -207,6 +230,12 @@ export function CreatorDownloadDialog({
     enabled: open && !selectedCreator,
     staleTime: 60_000,
   });
+  const favorites = useQuery({
+    queryKey: queryKeys.favoritesCreators(),
+    queryFn: () => api.listFavoriteCreators(),
+    enabled: open && !selectedCreator,
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
     if (!open) {
@@ -249,6 +278,10 @@ export function CreatorDownloadDialog({
     setSkipUnavailable(false);
     setSkipExisting(true);
     setOrder("newest");
+    setScheduleOpen(false);
+    setScheduleFrequency("daily");
+    setScheduleTime("09:00");
+    setScheduleWeekday(1);
     setScan(null);
     setScanError(null);
     setScanning(false);
@@ -386,7 +419,7 @@ export function CreatorDownloadDialog({
             chosenCount
           } selected post${chosenCount === 1 ? "" : "s"}${
             details ? ` · ${details}` : ""
-          }.`,
+          }.${result.folder ? ` Saved in ${result.folder}.` : ""}`,
         );
       } else {
         toast(
@@ -400,6 +433,32 @@ export function CreatorDownloadDialog({
       reportError(error, "Could not queue creator downloads");
     } finally {
       setStarting(false);
+    }
+  };
+
+  const saveSchedule = () => {
+    if (!selectedCreator || mediaKinds.length === 0) return;
+    setScheduleSaving(true);
+    try {
+      const schedule = createCreatorDownloadSchedule({
+        creator: selectedCreator,
+        filters,
+        frequency: scheduleFrequency,
+        time: scheduleTime,
+        weekday: scheduleWeekday,
+      });
+      toast(
+        "success",
+        "Download scheduled",
+        `${selectedCreator.name}: ${describeSchedule(
+          schedule,
+        )}. Runs while Pawchive is open.`,
+      );
+      setScheduleOpen(false);
+    } catch (error) {
+      reportError(error, "Could not save download schedule");
+    } finally {
+      setScheduleSaving(false);
     }
   };
 
@@ -422,9 +481,32 @@ export function CreatorDownloadDialog({
     setToDate("");
   };
 
-  const creatorResults = (creators.data?.items ?? []).filter(
-    (entry) => !isCreatorBlocked(blockedCreators, entry.service, entry.id),
+  const creatorSearchText = debouncedCreatorSearch.toLowerCase();
+  const matchesCreatorSearch = (entry: {
+    name: string;
+    public_id?: string | null;
+    id: string;
+  }) =>
+    !creatorSearchText ||
+    `${entry.name} ${entry.public_id ?? ""} ${entry.id}`
+      .toLowerCase()
+      .includes(creatorSearchText);
+  const favoriteItems = (favorites.data ?? []).filter(
+    (entry) =>
+      !isCreatorBlocked(blockedCreators, entry.service, entry.id) &&
+      matchesCreatorSearch(entry),
   );
+  const favoriteKeys = new Set(
+    favoriteItems.map((entry) => `${entry.service}:${entry.id}`),
+  );
+  const creatorResults = [
+    ...favoriteItems,
+    ...(creators.data?.items ?? []).filter(
+      (entry) =>
+        !isCreatorBlocked(blockedCreators, entry.service, entry.id) &&
+        !favoriteKeys.has(`${entry.service}:${entry.id}`),
+    ),
+  ];
 
   return (
     <Modal
@@ -448,6 +530,14 @@ export function CreatorDownloadDialog({
           </span>
           <Button variant="ghost" onClick={close}>
             Cancel
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!selectedCreator || mediaKinds.length === 0 || starting}
+            onClick={() => setScheduleOpen((current) => !current)}
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
+            Schedule
           </Button>
           <Button
             variant="primary"
@@ -515,6 +605,10 @@ export function CreatorDownloadDialog({
                       <span className="truncate text-xs font-semibold text-ink">
                         {entry.name || entry.id}
                       </span>
+                      {entry.is_favorite ||
+                      favoriteKeys.has(`${entry.service}:${entry.id}`) ? (
+                        <Star className="h-3 w-3 shrink-0 fill-favorite text-favorite" />
+                      ) : null}
                       <ServiceBadge service={entry.service} />
                     </span>
                     <span className="mt-0.5 block truncate text-[10px] text-muted">
@@ -569,6 +663,80 @@ export function CreatorDownloadDialog({
                 Change
               </Button>
             </div>
+
+            {scheduleOpen ? (
+              <div className="rounded-lg border border-accent/25 bg-accent/[0.04] p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold text-ink">
+                      Schedule recurring download
+                    </p>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
+                      Uses the current media types, maximum, blacklist and
+                      skip settings. Scheduled runs skip files already
+                      downloaded and run while Pawchive is open.
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setScheduleOpen(false)}
+                  >
+                    Close
+                  </Button>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Field label="Repeat">
+                    <select
+                      value={scheduleFrequency}
+                      onChange={(event) =>
+                        setScheduleFrequency(
+                          event.target.value as CreatorScheduleFrequency,
+                        )
+                      }
+                      className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                    </select>
+                  </Field>
+                  <Field label="Time">
+                    <input
+                      type="time"
+                      value={scheduleTime}
+                      onChange={(event) => setScheduleTime(event.target.value)}
+                      className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+                    />
+                  </Field>
+                  {scheduleFrequency === "weekly" ? (
+                    <Field label="Day" className="col-span-2">
+                      <select
+                        value={scheduleWeekday}
+                        onChange={(event) =>
+                          setScheduleWeekday(Number(event.target.value))
+                        }
+                        className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+                      >
+                        {WEEKDAYS.map((day, index) => (
+                          <option key={day} value={index}>
+                            {day}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  ) : null}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2"
+                  loading={scheduleSaving}
+                  onClick={saveSchedule}
+                >
+                  <CalendarClock className="h-3.5 w-3.5" /> Save schedule
+                </Button>
+              </div>
+            ) : null}
 
             <Field label="Date range">
               <div className="grid grid-cols-2 gap-2">

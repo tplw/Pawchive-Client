@@ -19,6 +19,7 @@ import { useMobileEdgeSwipe } from "./navigation/useMobileEdgeSwipe";
 import { useAndroidBack } from "./navigation/useAndroidBack";
 import { useGlobalShortcuts } from "./navigation/useGlobalShortcuts";
 import { useBrowserNavigation } from "./navigation/useBrowserNavigation";
+import { useDownloadScheduler } from "../features/downloads/model/downloadSchedules";
 
 export default function App() {
   const ready = useAppStore((state) => state.ready);
@@ -33,6 +34,7 @@ export default function App() {
   useAndroidBack();
   useGlobalShortcuts();
   useBrowserNavigation();
+  useDownloadScheduler();
 
   if (!ready) return <LoadingScreen />;
 

@@ -11,11 +11,13 @@ import type {
   PostPage,
   PostSummary,
 } from "../../../shared/types";
+import { DOWNLOAD_SCHEDULES_KEY } from "../model/downloadSchedules";
 import { CreatorDownloadDialog } from "./CreatorDownloadDialog";
 
 vi.mock("../../../shared/api", () => ({
   api: {
     listCreators: vi.fn(),
+    listFavoriteCreators: vi.fn(),
     getCreatorDownloadPosts: vi.fn(),
     downloadCreatorPosts: vi.fn(),
   },
@@ -76,6 +78,7 @@ function page(items: PostSummary[]): PostPage {
 describe("creator download dialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.removeItem(DOWNLOAD_SCHEDULES_KEY);
     useAppStore.setState({ settings: DEFAULT_SETTINGS, toasts: [] });
     vi.mocked(api.listCreators).mockResolvedValue({
       items: [creatorSummary],
@@ -84,6 +87,7 @@ describe("creator download dialog", () => {
       hasMore: false,
       synced: true,
     } satisfies CreatorPage);
+    vi.mocked(api.listFavoriteCreators).mockResolvedValue([]);
     vi.mocked(api.getCreatorDownloadPosts).mockResolvedValue(
       page([post("1", "First post"), post("2", "Second post", "video")]),
     );
@@ -93,6 +97,7 @@ describe("creator download dialog", () => {
       skipped: 0,
       locked: 0,
       failed: 0,
+      folder: "Ada",
     });
   });
 
@@ -158,5 +163,54 @@ describe("creator download dialog", () => {
 
     fireEvent.click(await screen.findByText("Ada"));
     expect(screen.getByText("Scan posts")).toBeInTheDocument();
+  });
+
+  it("saves a daily schedule with the current creator and filters", () => {
+    wrapper(
+      <CreatorDownloadDialog open onClose={() => undefined} creator={creator} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
+    expect(screen.getByText("Schedule recurring download")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
+
+    const stored = JSON.parse(
+      window.localStorage.getItem(DOWNLOAD_SCHEDULES_KEY) ?? "[]",
+    );
+    expect(stored).toHaveLength(1);
+    expect(stored[0].creator).toMatchObject({
+      service: "patreon",
+      id: "42",
+      name: "Ada",
+    });
+    expect(stored[0].frequency).toBe("daily");
+    expect(stored[0].time).toBe("09:00");
+    expect(stored[0].filters.mediaKinds).toEqual([
+      "image",
+      "video",
+      "audio",
+    ]);
+    expect(stored[0].filters.fromDate).toBe("");
+  });
+
+  it("puts favorite creators before the rest of the search results", async () => {
+    vi.mocked(api.listFavoriteCreators).mockResolvedValue([
+      {
+        ...creatorSummary,
+        id: "1",
+        name: "Favorite creator",
+        public_id: "favorite",
+        is_favorite: true,
+      },
+    ]);
+
+    wrapper(<CreatorDownloadDialog open onClose={() => undefined} />);
+
+    const favorite = await screen.findByText("Favorite creator");
+    const other = await screen.findByText("Ada");
+    expect(
+      favorite.compareDocumentPosition(other) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

@@ -15,6 +15,15 @@ project follows [Semantic Versioning](https://semver.org/).
   search, status, media-type and sort filters.
 - Creator batch downloads skip existing files and locked or preview-only
   attachments by default, and report skipped, locked and failed counts.
+- Batch downloads from a creator are saved in a folder named after the
+  creator. Retries and mobile path repair keep the same folder.
+- Favorite creators appear first in the creator download picker.
+- Creator downloads can be scheduled daily or weekly. Schedules check for new
+  files while Pawchive is open and can be run, paused or deleted from
+  Downloads.
+- Downloads no longer uses the large creator banner or colored stat cards.
+  Choose creator sits next to Open folder, with a compact status line and
+  search/status/media/sort filters.
 
 ### Fixed
 

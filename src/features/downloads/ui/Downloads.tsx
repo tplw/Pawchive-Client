@@ -18,6 +18,7 @@ import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
 import { cn, formatBytes } from "../../../shared/lib/format";
 import { DownloadRow } from "./DownloadRow";
 import { CreatorDownloadDialog } from "./CreatorDownloadDialog";
+import { DownloadSchedules } from "./DownloadSchedules";
 import { queryKeys } from "../../../shared/query/keys";
 import { useAppStore } from "../../../app/store";
 import { isMobile } from "../../../shared/lib/platform";
@@ -262,23 +263,50 @@ export function DownloadsPage() {
 
   return (
     <div className="mx-auto max-w-5xl pb-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-accent">
-            <Download className="h-4 w-4" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">
-              Offline library
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        {allItems.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 rounded-lg border border-line/60 bg-card/30 px-3 py-2 text-[10px] text-muted">
+            <span className="inline-flex items-center gap-1.5">
+              <Download className="h-3 w-3 text-accent" />
+              <strong className="font-semibold text-ink">
+                {activeItems.length}
+              </strong>
+              active
+              {queuedItems.length > 0 ? ` · ${queuedItems.length} queued` : ""}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <CheckCircle2 className="h-3 w-3 text-success/80" />
+              <strong className="font-semibold text-ink">
+                {completedItems.length}
+              </strong>
+              completed
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <AlertCircle className="h-3 w-3 text-muted" />
+              <strong className="font-semibold text-ink">
+                {failedItems.length}
+              </strong>
+              failed
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <HardDrive className="h-3 w-3 text-muted" />
+              <strong className="font-semibold text-ink">
+                {formatBytes(completedBytes)}
+              </strong>
+              saved
             </span>
           </div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
-            Downloads
-          </h1>
-          <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted">
-            Queue posts, playlists or a whole creator's matching media for
-            offline use.
-          </p>
-        </div>
+        ) : (
+          <div />
+        )}
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setCreatorDownloadOpen(true)}
+          >
+            <Users className="h-3.5 w-3.5" /> Choose creator
+          </Button>
           {!isMobile ? (
             <Button
               variant="secondary"
@@ -292,31 +320,7 @@ export function DownloadsPage() {
         </div>
       </div>
 
-      <section className="mt-5 overflow-hidden rounded-xl2 border border-accent/20 bg-[radial-gradient(circle_at_8%_0%,rgb(var(--accent)/0.12),transparent_45%)] p-4 sm:p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accent">
-              <Users className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-ink">
-                Download a whole creator
-              </p>
-              <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted">
-                Pick a creator, filter by date, media type or blacklist words,
-                preview the matches, then queue them all at once.
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="primary"
-            className="shrink-0 self-start sm:self-center"
-            onClick={() => setCreatorDownloadOpen(true)}
-          >
-            <Download className="h-4 w-4" /> Choose creator
-          </Button>
-        </div>
-      </section>
+      <DownloadSchedules />
 
       {downloads.isLoading ? (
         <div className="flex justify-center py-12">
@@ -334,55 +338,14 @@ export function DownloadsPage() {
           }
         />
       ) : allItems.length === 0 ? (
-        <div className="mt-5">
-          <EmptyState
-            icon={Download}
-            title="No downloads yet"
-            message="Download a post, a playlist, or a whole creator's matching media and it will appear here."
-            action={
-              <Button
-                variant="primary"
-                onClick={() => setCreatorDownloadOpen(true)}
-              >
-                <Users className="h-4 w-4" /> Download from creator
-              </Button>
-            }
-          />
-        </div>
+        <EmptyState
+          icon={Download}
+          title="No downloads yet"
+          message="Choose a creator or download a post or playlist to build your offline library."
+        />
       ) : (
         <>
-          <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-            <StatCard
-              icon={Download}
-              label="Active"
-              value={activeItems.length}
-              detail={`${queuedItems.length} queued`}
-              tone="accent"
-            />
-            <StatCard
-              icon={CheckCircle2}
-              label="Completed"
-              value={completedItems.length}
-              detail={formatBytes(completedBytes)}
-              tone="success"
-            />
-            <StatCard
-              icon={AlertCircle}
-              label="Failed"
-              value={failedItems.length}
-              detail={failedItems.length > 0 ? "Needs attention" : "All clear"}
-              tone={failedItems.length > 0 ? "danger" : "muted"}
-            />
-            <StatCard
-              icon={HardDrive}
-              label="Library"
-              value={allItems.length}
-              detail={`${formatBytes(completedBytes)} saved`}
-              tone="muted"
-            />
-          </div>
-
-          <section className="mt-4 rounded-xl2 border border-line/70 bg-card/40 p-3">
+          <section className="rounded-xl2 border border-line/70 bg-card/40 p-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative min-w-52 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
@@ -543,37 +506,4 @@ export function DownloadsPage() {
   );
 }
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  detail,
-  tone,
-}: {
-  icon: typeof Download;
-  label: string;
-  value: string | number;
-  detail: string;
-  tone: "accent" | "success" | "danger" | "muted";
-}) {
-  const tones = {
-    accent: "border-accent/25 bg-accent/[0.06] text-accent",
-    success: "border-success/20 bg-success/[0.05] text-success",
-    danger: "border-danger/20 bg-danger/[0.05] text-danger",
-    muted: "border-line/70 bg-card/50 text-muted",
-  };
-  return (
-    <div className={cn("rounded-xl2 border p-3", tones[tone])}>
-      <div className="flex items-center gap-2">
-        <Icon className="h-3.5 w-3.5" />
-        <span className="text-[9px] font-bold uppercase tracking-[0.16em]">
-          {label}
-        </span>
-      </div>
-      <p className="mt-1.5 text-xl font-semibold tabular-nums text-ink">
-        {value}
-      </p>
-      <p className="mt-0.5 truncate text-[10px] text-muted">{detail}</p>
-    </div>
-  );
-}
+

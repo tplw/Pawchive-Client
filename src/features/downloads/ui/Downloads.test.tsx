@@ -5,6 +5,7 @@ import { useAppStore } from "../../../app/store";
 import { api } from "../../../shared/api";
 import { DEFAULT_SETTINGS } from "../../../shared/lib/constants";
 import type { DownloadRecord } from "../../../shared/types";
+import { DOWNLOAD_SCHEDULES_KEY } from "../model/downloadSchedules";
 import { DownloadsPage } from "./Downloads";
 
 vi.mock("../../../shared/api", () => ({
@@ -15,6 +16,7 @@ vi.mock("../../../shared/api", () => ({
     clearCompletedDownloads: vi.fn(),
     clearAllDownloads: vi.fn(),
     listCreators: vi.fn(),
+    listFavoriteCreators: vi.fn(),
     getCreatorDownloadPosts: vi.fn(),
     downloadCreatorPosts: vi.fn(),
   },
@@ -56,6 +58,7 @@ function wrapper(ui: React.ReactNode) {
 describe("downloads page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     useAppStore.setState({
       settings: DEFAULT_SETTINGS,
       toasts: [],
@@ -104,6 +107,7 @@ describe("downloads page", () => {
       hasMore: false,
       synced: true,
     });
+    vi.mocked(api.listFavoriteCreators).mockResolvedValue([]);
     vi.mocked(api.getCreatorDownloadPosts).mockResolvedValue({
       items: [],
       offset: 0,
@@ -115,6 +119,7 @@ describe("downloads page", () => {
       skipped: 0,
       locked: 0,
       failed: 0,
+      folder: "Ada",
     });
   });
 
@@ -124,9 +129,6 @@ describe("downloads page", () => {
     expect(await screen.findByText("Active video")).toBeInTheDocument();
     expect(screen.getByText("Done audio")).toBeInTheDocument();
     expect(screen.getByText("Failed file")).toBeInTheDocument();
-    expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Failed").length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByPlaceholderText("Search downloads…"), {
       target: { value: "done" },
@@ -142,6 +144,41 @@ describe("downloads page", () => {
     expect(screen.getByText("Done audio")).toBeInTheDocument();
     expect(screen.queryByText("Active video")).not.toBeInTheDocument();
     expect(screen.queryByText("Failed file")).not.toBeInTheDocument();
+  });
+
+  it("shows scheduled creator downloads", async () => {
+    window.localStorage.setItem(
+      DOWNLOAD_SCHEDULES_KEY,
+      JSON.stringify([
+        {
+          id: "scheduled",
+          creator: { service: "patreon", id: "42", name: "Ada" },
+          filters: {
+            fromDate: "",
+            toDate: "",
+            maxPosts: 50,
+            keywords: [],
+            mediaKinds: ["image", "video", "audio"],
+            skipUnavailable: false,
+            skipExisting: true,
+            order: "newest",
+          },
+          frequency: "daily",
+          time: "09:00",
+          weekday: 1,
+          enabled: true,
+          createdAt: Date.now(),
+          lastRunAt: null,
+          nextRunAt: Date.now() + 3_600_000,
+        },
+      ]),
+    );
+
+    wrapper(<DownloadsPage />);
+
+    expect(await screen.findByText("Scheduled downloads")).toBeInTheDocument();
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.getByText(/Daily at 09:00/)).toBeInTheDocument();
   });
 
   it("opens the creator download dialog", async () => {

@@ -215,6 +215,8 @@ Frontend rules:
   - `localStorage["pawchive-player"]`: queue and current id only.
   - `localStorage["pawchive-creator-filter:<service>:<creatorId>"]`:
     per-creator filters.
+  - `localStorage["pawchive-creator-download-schedules"]`: recurring creator
+    download schedules.
   - `sessionStorage["pawchive-creator-tab:<service>:<creatorId>"]`: selected
     creator profile tab.
   - `sessionStorage["pawchive-scroll-positions"]`: scroll offsets.
