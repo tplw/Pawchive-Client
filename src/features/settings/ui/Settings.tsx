@@ -565,6 +565,42 @@ export function SettingsPage() {
                 </Button>
               ) : null}
             </div>
+            {isMobile ? (
+              <div className="space-y-1.5 border-t border-line/60 pt-2">
+                <Toggle
+                  compact
+                  checked={settings.backgroundDownloads}
+                  onChange={(checked) =>
+                    void saveSettings({ backgroundDownloads: checked })
+                  }
+                  label="Download in background"
+                  description="Keep queued downloads running when you leave the app. iOS limits how long a transfer can continue in the background."
+                />
+                <Toggle
+                  compact
+                  checked={settings.notifyDownloadsComplete}
+                  onChange={(checked) => {
+                    void (async () => {
+                      try {
+                        await saveSettings({
+                          notifyDownloadsComplete: checked,
+                        });
+                        if (checked) {
+                          await api.requestNotificationPermission();
+                        }
+                      } catch (error) {
+                        reportError(
+                          error,
+                          "Could not update download notifications",
+                        );
+                      }
+                    })();
+                  }}
+                  label="Notify when downloads finish"
+                  description="Show a system notification when the last queued download finishes."
+                />
+              </div>
+            ) : null}
           </div>
         </SettingsSection>
 

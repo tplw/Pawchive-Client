@@ -30,11 +30,13 @@ pub(super) async fn run(
             if let Ok(mut map) = state.downloads.lock() {
                 map.remove(&record.id);
             }
+            super::background::download_finished(&state, &app, false);
             return;
         }
         _ = tokio::time::sleep(Duration::from_millis(350)) => {}
     }
     let result = download_file(&state, &app, &mut record, &token).await;
+    let succeeded = result.is_ok();
     let record_id = record.id.clone();
     match result {
         Ok(()) => {
@@ -71,6 +73,7 @@ pub(super) async fn run(
     if let Ok(mut map) = state.downloads.lock() {
         map.remove(&record_id);
     }
+    super::background::download_finished(&state, &app, succeeded);
 }
 
 /// Only remove the partial file while the download record still exists. If the

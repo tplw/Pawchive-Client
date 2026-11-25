@@ -201,6 +201,8 @@ export interface AppSettings {
   volume: number;
   playbackSpeed: number;
   downloadDir: string;
+  backgroundDownloads: boolean;
+  notifyDownloadsComplete: boolean;
   hiddenKeywords: string[];
   hideAiPosts: boolean;
   postCardSize: PostCardSize;

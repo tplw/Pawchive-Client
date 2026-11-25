@@ -18,6 +18,7 @@ use crate::shared::models::{
 };
 use crate::shared::task::blocking;
 use tauri::{AppHandle, State};
+use tauri_plugin_opener::OpenerExt;
 
 fn st(state: &State<'_, AppState>) -> AppState {
     state.inner().clone()
@@ -32,10 +33,16 @@ pub fn get_settings(state: State<'_, AppState>) -> AppResult<AppSettings> {
 
 #[tauri::command]
 pub async fn save_settings(
+    app: AppHandle,
     state: State<'_, AppState>,
     settings: AppSettings,
 ) -> AppResult<AppSettings> {
-    SettingsService::new(st(&state)).save(settings).await
+    let app_state = st(&state);
+    let saved = SettingsService::new(app_state.clone())
+        .save(settings)
+        .await?;
+    crate::infra::downloads::refresh_background(&app_state, &app);
+    Ok(saved)
 }
 
 #[tauri::command]
@@ -50,10 +57,16 @@ pub async fn check_for_update(state: State<'_, AppState>) -> AppResult<UpdateInf
 }
 
 #[tauri::command]
-pub fn open_external(url: String) -> AppResult<()> {
+pub fn open_external(app: AppHandle, url: String) -> AppResult<()> {
     let url = crate::shared::security::validate_external_url(&url)?;
-    tauri_plugin_opener::open_url(url.as_str(), None::<&str>)
+    app.opener()
+        .open_url(url.as_str(), None::<&str>)
         .map_err(|e| AppError::Io(format!("could not open the link: {e}")))
+}
+
+#[tauri::command]
+pub fn request_notification_permission(app: AppHandle) {
+    crate::infra::downloads::request_notification_permission(&app);
 }
 
 /// Hide or restore the iOS status bar while the player is immersive.

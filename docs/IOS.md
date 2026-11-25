@@ -204,6 +204,11 @@ Platform-specific behavior:
 - Download completion is shown in the Downloads page. Per-file completion
   toasts are suppressed so a 25-file post does not cover the screen; at most
   three compact toasts are visible at once.
+- Downloads keep running while iOS grants background execution time. iOS may
+  suspend long transfers after that window; interrupted downloads are marked
+  failed on the next launch. The background option can be disabled in Settings.
+- Completion notifications ask for system notification permission when enabled
+  in Settings.
 - “Open downloads folder” is hidden because iOS has no user-visible filesystem
   location for the app sandbox.
 - Window dragging/fullscreen is a desktop concern; mobile uses the system

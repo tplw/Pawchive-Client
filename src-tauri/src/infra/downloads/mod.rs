@@ -1,3 +1,4 @@
+mod background;
 mod paths;
 mod worker;
 
@@ -20,6 +21,14 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
+
+pub(crate) fn request_notification_permission(app: &AppHandle) {
+    background::request_notification_permission(app);
+}
+
+pub(crate) fn refresh_background(state: &AppState, app: &AppHandle) {
+    background::downloads_changed(state, app);
+}
 
 /// Start a single media download and return the queued record immediately.
 pub async fn enqueue(
@@ -118,6 +127,7 @@ pub async fn enqueue(
     if let Ok(mut map) = state.downloads.lock() {
         map.insert(id.clone(), token.clone());
     }
+    background::downloads_changed(state, app);
     let task_state = state.clone();
     let task_app = app.clone();
     let task_record = record.clone();
@@ -169,6 +179,7 @@ pub async fn retry(state: &AppState, app: &AppHandle, id: &str) -> AppResult<Dow
     if let Ok(mut map) = state.downloads.lock() {
         map.insert(record.id.clone(), token.clone());
     }
+    background::downloads_changed(state, app);
     let task_state = state.clone();
     let task_app = app.clone();
     let task_record = record.clone();

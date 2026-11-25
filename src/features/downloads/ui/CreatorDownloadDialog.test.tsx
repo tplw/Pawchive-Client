@@ -168,6 +168,25 @@ describe("creator download dialog", () => {
     expect(screen.getByText("Scan posts")).toBeInTheDocument();
   });
 
+  it("fills both ends of preset date ranges", () => {
+    wrapper(
+      <CreatorDownloadDialog open onClose={() => undefined} creator={creator} />,
+    );
+    const from = screen.getByLabelText("From date") as HTMLInputElement;
+    const to = screen.getByLabelText("To date") as HTMLInputElement;
+
+    fireEvent.click(screen.getByRole("button", { name: "Last 30 days" }));
+    expect(from.value).not.toBe("");
+    expect(to.value).not.toBe("");
+    expect(new Date(from.value).getTime()).toBeLessThan(
+      new Date(to.value).getTime(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "All time" }));
+    expect(from.value).toBe("");
+    expect(to.value).toBe("");
+  });
+
   it("saves a daily schedule with the current creator and filters", () => {
     wrapper(
       <CreatorDownloadDialog open onClose={() => undefined} creator={creator} />,

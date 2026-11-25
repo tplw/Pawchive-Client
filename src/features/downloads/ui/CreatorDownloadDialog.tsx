@@ -471,14 +471,18 @@ export function CreatorDownloadDialog({
   const setPreset = (preset: "all" | "30d" | "90d" | "year") => {
     if (preset === "all") {
       setFromDate("");
-    } else if (preset === "30d") {
+      setToDate("");
+      return;
+    }
+    const today = localDateInput(new Date());
+    if (preset === "30d") {
       setFromDate(daysAgo(30));
     } else if (preset === "90d") {
       setFromDate(daysAgo(90));
     } else {
       setFromDate(`${new Date().getFullYear()}-01-01`);
     }
-    setToDate("");
+    setToDate(today);
   };
 
   const creatorSearchText = debouncedCreatorSearch.toLowerCase();

@@ -26,7 +26,7 @@ Playlists: `list_playlists`, `get_playlist`, `create_playlist`, `rename_playlist
 Downloads: `start_download`, `download_post`, `download_playlist`,
 `download_creator_posts`, `cancel_download`, `delete_download`, `retry_download`,
 `clear_completed_downloads`, `clear_all_downloads`, `list_downloads`,
-`open_downloads_folder`.
+`open_downloads_folder`, `request_notification_permission`.
 
 Account: `login`, `get_account_state`, `logout`, `sync_account_favorites`.
 
@@ -100,6 +100,13 @@ Changing any shape requires an explicit migration.
   writes, size pruning.
 - Downloads: global concurrency gate, unique destination reservation,
   cancellation tokens and partial-file cleanup.
+- Mobile background downloads: while the download map is non-empty, Android
+  runs a `dataSync` foreground service with a quiet notification and iOS holds
+  a `UIApplication` background task. iOS still limits total background time.
+  `backgroundDownloads` and `notifyDownloadsComplete` control this behavior.
+  Completion notifications require system notification permission on mobile.
+- `open_external` routes through the opener plugin, which uses the system
+  browser on mobile and the default URL handler on desktop.
 - `Attachment.localPath` is an optional completed local download. Post detail
   fills it from the downloads table; matching attachments skip provider
   resolution and use the local file for images and playback. Post downloads

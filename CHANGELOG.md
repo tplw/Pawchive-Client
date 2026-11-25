@@ -33,9 +33,18 @@ project follows [Semantic Versioning](https://semver.org/).
   heading.
 - Creator pages can sort posts Newest first or Oldest first. Oldest loads the
   last page first and pages backwards, so the order covers the whole feed.
+- Mobile downloads keep running while the app is backgrounded. Android uses a
+  foreground service; iOS uses the background execution window that the system
+  grants.
+- Mobile settings can turn background downloading off and enable a system
+  notification when the last queued download finishes.
 
 ### Fixed
 
+- Links in post content now open in the system browser on mobile as well as
+  desktop.
+- Creator download date presets now fill both ends of the range, and All time
+  clears both date fields.
 - Comic mode now shows a loading spinner and page progress until the next
   prefetched image decodes, instead of a plain black screen.
 - Clearing completed or all downloads now removes the list records instead of

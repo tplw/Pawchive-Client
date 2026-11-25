@@ -17,6 +17,10 @@ pub struct AppSettings {
     pub volume: f64,
     pub playback_speed: f64,
     pub download_dir: String,
+    /// Keep downloads running while the mobile app is backgrounded.
+    pub background_downloads: bool,
+    /// Post a system notification when the last queued download finishes.
+    pub notify_downloads_complete: bool,
     pub hidden_keywords: Vec<String>,
     pub hide_ai_posts: bool,
     pub post_card_size: String,
@@ -65,6 +69,8 @@ impl Default for AppSettings {
             volume: 1.0,
             playback_speed: 1.0,
             download_dir: String::new(),
+            background_downloads: true,
+            notify_downloads_complete: false,
             hidden_keywords: Vec::new(),
             hide_ai_posts: false,
             post_card_size: if cfg!(any(target_os = "ios", target_os = "android")) {

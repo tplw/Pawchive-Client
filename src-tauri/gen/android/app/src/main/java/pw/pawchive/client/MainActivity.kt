@@ -17,6 +17,10 @@ import androidx.activity.enableEdgeToEdge
 class MainActivity : TauriActivity() {
   private var splashOverlay: View? = null
 
+  companion object {
+    var current: MainActivity? = null
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge(
       statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -25,8 +29,17 @@ class MainActivity : TauriActivity() {
     super.onCreate(savedInstanceState)
   }
 
-  override fun onWebViewCreate(webView: WebView) {
-    webView.setBackgroundColor(Color.TRANSPARENT)
+  override fun onResume() {
+    super.onResume()
+    current = this
+  }
+
+  override fun onPause() {
+    if (current === this) current = null
+    super.onPause()
+  }
+
+  override fun onWebViewCreate(webView: WebView) {    webView.setBackgroundColor(Color.TRANSPARENT)
     showSplashOverlay()
     webView.addJavascriptInterface(
       object {

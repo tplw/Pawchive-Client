@@ -167,6 +167,7 @@ pub fn run() {
             commands::get_config,
             commands::check_for_update,
             commands::open_external,
+            commands::request_notification_permission,
             commands::set_status_bar_hidden,
             commands::sync_creators,
             commands::get_creator_count,

@@ -238,6 +238,11 @@ adb uninstall pw.pawchive.client
   exposed through the system Files app on all devices.
 - Background playback and picture-in-picture are not implemented; watch
   progress is saved when the app is backgrounded.
+- Active downloads run in a foreground service with a quiet notification, so
+  they continue while the app is backgrounded. The background option can be
+  disabled in Settings.
+- Completion notifications request the Android 13+ notification permission
+  when enabled in Settings.
 - The R8/minification issue above must be resolved before publishing a
   production release.
 

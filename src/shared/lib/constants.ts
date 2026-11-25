@@ -21,6 +21,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   volume: 1,
   playbackSpeed: 1,
   downloadDir: "",
+  backgroundDownloads: true,
+  notifyDownloadsComplete: false,
   hiddenKeywords: [],
   hideAiPosts: false,
   postCardSize: isMobile ? "small" : "medium",
