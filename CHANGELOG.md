@@ -16,6 +16,12 @@ project follows [Semantic Versioning](https://semver.org/).
 - Creator batch downloads skip existing files and locked or preview-only
   attachments by default, and report skipped, locked and failed counts.
 
+### Fixed
+
+- The creator download scan now reads the unfiltered creator feed, so global
+  feed filters and the default hide-unavailable setting cannot hide every post.
+  Only the dialog's own filters apply.
+
 ## 1.0.7 - 2026-11-22
 
 This release adds adaptive Comic mode prefetching and previous-post navigation,

@@ -144,6 +144,20 @@ export const api = {
         requestId,
       }),
     ),
+  getCreatorDownloadPosts: (params: {
+    service: string;
+    creatorId: string;
+    offset?: number;
+    signal?: AbortSignal;
+  }) =>
+    cancellable(params.signal, (requestId) =>
+      call<PostPage>("get_creator_download_posts", {
+        service: params.service,
+        creatorId: params.creatorId,
+        offset: params.offset,
+        requestId,
+      }),
+    ),
   getSimilarCreators: (
     service: string,
     creatorId: string,

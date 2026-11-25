@@ -177,6 +177,7 @@ pub fn run() {
             commands::get_creator_links,
             commands::get_creator_announcements,
             commands::get_creator_posts,
+            commands::get_creator_download_posts,
             commands::get_similar_creators,
             commands::get_recent_posts,
             commands::get_popular_posts,

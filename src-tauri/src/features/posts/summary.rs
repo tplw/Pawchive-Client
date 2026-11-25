@@ -43,6 +43,32 @@ pub(crate) fn post_thumbnail(st: &AppState, post: &Post) -> Option<String> {
         .find_map(|file| thumbnail_for_file(st, file))
 }
 
+pub(crate) fn build_post_page_unfiltered(
+    st: &AppState,
+    posts: Vec<Post>,
+    offset: i64,
+) -> AppResult<PostPage> {
+    let has_more = posts.len() as i64 >= PAGE_SIZE;
+    let names = creator_lookup(st, &posts);
+    let items = posts
+        .iter()
+        .map(|post| {
+            PostSummary::from_post(
+                &st.cfg,
+                post,
+                names
+                    .get(&(post.service.clone(), post.user.clone()))
+                    .cloned(),
+            )
+        })
+        .collect();
+    Ok(PostPage {
+        items,
+        offset,
+        has_more,
+    })
+}
+
 pub(crate) fn build_post_page(
     st: &AppState,
     posts: Vec<Post>,

@@ -109,7 +109,7 @@ export async function scanCreatorDownloadPosts({
   filters,
   signal,
   onProgress,
-  fetchPage = api.getCreatorPosts,
+  fetchPage = api.getCreatorDownloadPosts,
   pageSize = DEFAULT_PAGE_SIZE,
   maxScanned = DEFAULT_MAX_SCANNED,
 }: {

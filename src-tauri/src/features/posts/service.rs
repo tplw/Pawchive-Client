@@ -1,5 +1,5 @@
 use crate::app::state::AppState;
-use crate::features::posts::summary::build_post_page;
+use crate::features::posts::summary::{build_post_page, build_post_page_unfiltered};
 use crate::shared::config::PAGE_SIZE;
 use crate::shared::error::{AppError, AppResult};
 use crate::shared::models::{
@@ -375,6 +375,34 @@ impl PostService {
             self.state.finish_cancel(id);
         }
         build_post_page(&self.state, result?, offset, true)
+    }
+
+    /// Creator post feed without the global content filters. The creator
+    /// download dialog applies its own date, keyword and media filters.
+    pub(crate) async fn creator_download_posts(
+        &self,
+        service: &str,
+        creator_id: &str,
+        offset: i64,
+        request_id: Option<&str>,
+    ) -> AppResult<PostPage> {
+        if crate::features::posts::filters::is_creator_blocked(
+            service,
+            creator_id,
+            &self.state.settings(),
+        ) {
+            return Err(AppError::Blocked);
+        }
+        let token = request_id.map(|id| self.state.register_cancel(id));
+        let result = self
+            .state
+            .api
+            .creator_posts(service, creator_id, offset, None, token.as_ref())
+            .await;
+        if let Some(id) = request_id {
+            self.state.finish_cancel(id);
+        }
+        build_post_page_unfiltered(&self.state, result?, offset)
     }
 
     pub(crate) async fn popular(

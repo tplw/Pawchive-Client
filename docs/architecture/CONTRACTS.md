@@ -3,14 +3,15 @@
 Phase 0 of the rebuild freezes these contracts. They must not change while code
 moves between modules.
 
-## Tauri commands (62)
+## Tauri commands (63)
 
 Settings/system: `get_settings`, `save_settings`, `get_config`,
 `check_for_update`, `open_external`, `set_status_bar_hidden`.
 
 Creators: `sync_creators`, `get_creator_count`, `get_creator_index_status`,
 `list_creators`, `get_creator`, `get_creator_profile`, `get_creator_links`,
-`get_creator_announcements`, `get_creator_posts`, `get_similar_creators`.
+`get_creator_announcements`, `get_creator_posts`,
+`get_creator_download_posts`, `get_similar_creators`.
 
 Posts/search: `get_recent_posts`, `get_popular_posts`, `get_post_summary`,
 `get_post`, `get_post_comments`, `get_post_revisions`, `search_all`,
@@ -96,6 +97,9 @@ Changing any shape requires an explicit migration.
   writes, size pruning.
 - Downloads: global concurrency gate, unique destination reservation,
   cancellation tokens and partial-file cleanup.
+- Creator batch downloads scan the unfiltered creator feed so global feed
+  filters cannot hide posts, then apply the dialog's own filters and
+  media-kind selection.
 - Creator batch downloads apply media-kind filters and skip existing, locked and
   preview-only files.
 - DB writes stay on `spawn_blocking`; migrations are append-only.

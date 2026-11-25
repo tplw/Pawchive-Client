@@ -16,7 +16,7 @@ import { CreatorDownloadDialog } from "./CreatorDownloadDialog";
 vi.mock("../../../shared/api", () => ({
   api: {
     listCreators: vi.fn(),
-    getCreatorPosts: vi.fn(),
+    getCreatorDownloadPosts: vi.fn(),
     downloadCreatorPosts: vi.fn(),
   },
 }));
@@ -84,7 +84,7 @@ describe("creator download dialog", () => {
       hasMore: false,
       synced: true,
     } satisfies CreatorPage);
-    vi.mocked(api.getCreatorPosts).mockResolvedValue(
+    vi.mocked(api.getCreatorDownloadPosts).mockResolvedValue(
       page([post("1", "First post"), post("2", "Second post", "video")]),
     );
     vi.mocked(api.downloadCreatorPosts).mockResolvedValue({
@@ -131,7 +131,7 @@ describe("creator download dialog", () => {
   });
 
   it("applies blacklist words before selecting posts", async () => {
-    vi.mocked(api.getCreatorPosts).mockResolvedValue(
+    vi.mocked(api.getCreatorDownloadPosts).mockResolvedValue(
       page([
         post("1", "First post"),
         post("2", "Spoiler page", "video"),

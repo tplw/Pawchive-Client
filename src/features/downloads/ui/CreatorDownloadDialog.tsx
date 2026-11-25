@@ -138,7 +138,7 @@ export function CreatorDownloadDialog({
     "video",
     "audio",
   ]);
-  const [skipUnavailable, setSkipUnavailable] = useState(true);
+  const [skipUnavailable, setSkipUnavailable] = useState(false);
   const [skipExisting, setSkipExisting] = useState(true);
   const [order, setOrder] = useState<CreatorDownloadOrder>("newest");
   const [scan, setScan] = useState<CreatorDownloadScanResult | null>(null);
@@ -241,6 +241,14 @@ export function CreatorDownloadDialog({
         : null,
     );
     setCreatorSearch("");
+    setFromDate("");
+    setToDate("");
+    setMaxPosts("50");
+    setBlacklistText("");
+    setMediaKinds(["image", "video", "audio"]);
+    setSkipUnavailable(false);
+    setSkipExisting(true);
+    setOrder("newest");
     setScan(null);
     setScanError(null);
     setScanning(false);

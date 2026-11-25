@@ -190,6 +190,24 @@ pub async fn get_creator_posts(
 }
 
 #[tauri::command]
+pub async fn get_creator_download_posts(
+    state: State<'_, AppState>,
+    service: String,
+    creator_id: String,
+    offset: Option<i64>,
+    request_id: Option<String>,
+) -> AppResult<PostPage> {
+    PostService::new(st(&state))
+        .creator_download_posts(
+            &service,
+            &creator_id,
+            offset.unwrap_or(0),
+            request_id.as_deref(),
+        )
+        .await
+}
+
+#[tauri::command]
 pub async fn get_similar_creators(
     state: State<'_, AppState>,
     service: String,

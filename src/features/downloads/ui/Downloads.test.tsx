@@ -15,7 +15,7 @@ vi.mock("../../../shared/api", () => ({
     clearCompletedDownloads: vi.fn(),
     clearAllDownloads: vi.fn(),
     listCreators: vi.fn(),
-    getCreatorPosts: vi.fn(),
+    getCreatorDownloadPosts: vi.fn(),
     downloadCreatorPosts: vi.fn(),
   },
 }));
@@ -104,7 +104,7 @@ describe("downloads page", () => {
       hasMore: false,
       synced: true,
     });
-    vi.mocked(api.getCreatorPosts).mockResolvedValue({
+    vi.mocked(api.getCreatorDownloadPosts).mockResolvedValue({
       items: [],
       offset: 0,
       hasMore: false,
