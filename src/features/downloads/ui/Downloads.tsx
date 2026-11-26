@@ -9,6 +9,7 @@ import {
   ListPlus,
   ListX,
   LoaderCircle,
+  RefreshCw,
   Search,
   Users,
 } from "lucide-react";
@@ -80,20 +81,6 @@ export function DownloadsPage() {
     staleTime: 15_000,
   });
 
-  const clear = useMutation({
-    mutationFn: () => api.clearCompletedDownloads(),
-    onSuccess: (count) => {
-      toast(
-        "success",
-        "Downloads cleared",
-        `${count} completed item${count === 1 ? "" : "s"} removed from the list. Files stay on disk.`,
-      );
-      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.playlistItems() });
-    },
-    onError: (error) => reportError(error, "Could not clear downloads"),
-  });
-
   const clearAll = useMutation({
     mutationFn: () => api.clearAllDownloads(),
     onSuccess: (count) => {
@@ -139,6 +126,37 @@ export function DownloadsPage() {
       ),
     [allItems],
   );
+
+  const retryFailed = useMutation({
+    mutationFn: async () => {
+      const items = [...failedItems];
+      let retried = 0;
+      let failed = 0;
+      for (const item of items) {
+        try {
+          await api.retryDownload(item.id);
+          retried += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      return { retried, failed };
+    },
+    onSuccess: ({ retried, failed }) => {
+      toast(
+        retried > 0 ? "success" : "error",
+        retried > 0 ? "Retrying downloads" : "Could not retry downloads",
+        retried > 0
+          ? `${retried} failed download${retried === 1 ? "" : "s"} requeued${
+              failed > 0 ? ` · ${failed} could not be retried` : ""
+            }.`
+          : "None of the failed downloads could be requeued.",
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.downloads() });
+    },
+    onError: (error) =>
+      reportError(error, "Could not retry failed downloads"),
+  });
   const queuedItems = useMemo(
     () => allItems.filter((item) => item.status === "queued"),
     [allItems],
@@ -441,13 +459,13 @@ export function DownloadsPage() {
                   <ListPlus className="h-3.5 w-3.5" /> Add completed
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
-                  disabled={completedItems.length === 0}
-                  loading={clear.isPending}
-                  onClick={() => clear.mutate()}
+                  disabled={failedItems.length === 0}
+                  loading={retryFailed.isPending}
+                  onClick={() => retryFailed.mutate()}
                 >
-                  Clear completed
+                  <RefreshCw className="h-3.5 w-3.5" /> Retry failed
                 </Button>
                 <Button
                   variant="danger"

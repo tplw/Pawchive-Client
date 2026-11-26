@@ -35,14 +35,6 @@ const STATUS_LABEL: Record<DownloadRecord["status"], string> = {
   cancelled: "Cancelled",
 };
 
-const STATUS_TONE: Record<DownloadRecord["status"], string> = {
-  queued: "border-accent/25 bg-accent/10 text-accent",
-  downloading: "border-accent/25 bg-accent/10 text-accent",
-  completed: "border-success/25 bg-success/10 text-success",
-  failed: "border-danger/25 bg-danger/10 text-danger",
-  cancelled: "border-favorite/25 bg-favorite/10 text-favorite",
-};
-
 const KIND_LABEL: Record<string, string> = {
   image: "Image",
   video: "Video",
@@ -196,14 +188,6 @@ export const DownloadRow = memo(function DownloadRow({
               <p className="min-w-0 truncate text-xs font-bold text-ink">
                 {record.title || record.fileName}
               </p>
-              <span
-                className={cn(
-                  "rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider",
-                  STATUS_TONE[record.status],
-                )}
-              >
-                {STATUS_LABEL[record.status]}
-              </span>
             </div>
             <p className="mt-0.5 truncate text-[10px] text-muted">
               {record.creatorName ? `${record.creatorName} · ` : ""}

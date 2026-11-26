@@ -21,6 +21,7 @@ vi.mock("../../../shared/api", () => ({
     openDownloadsFolder: vi.fn(),
     clearCompletedDownloads: vi.fn(),
     clearAllDownloads: vi.fn(),
+    retryDownload: vi.fn(),
     listCreators: vi.fn(),
     listFavoriteCreators: vi.fn(),
     getCreatorDownloadPosts: vi.fn(),
@@ -94,6 +95,7 @@ describe("downloads page", () => {
     vi.mocked(api.openDownloadsFolder).mockResolvedValue(undefined);
     vi.mocked(api.clearCompletedDownloads).mockResolvedValue(1);
     vi.mocked(api.clearAllDownloads).mockResolvedValue(3);
+    vi.mocked(api.retryDownload).mockResolvedValue(record({}));
     vi.mocked(api.listCreators).mockResolvedValue({
       items: [
         {
@@ -190,6 +192,21 @@ describe("downloads page", () => {
     });
     expect(within(dialog).getByText("Ada")).toBeInTheDocument();
     expect(within(dialog).getByText(/Daily at 09:00/)).toBeInTheDocument();
+  });
+
+  it("retries all failed downloads and no longer shows Clear completed", async () => {
+    wrapper(<DownloadsPage />);
+    expect(await screen.findByText("Failed file")).toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("button", { name: "Clear completed" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry failed" }));
+
+    await waitFor(() =>
+      expect(api.retryDownload).toHaveBeenCalledWith("failed"),
+    );
   });
 
   it("explains that clearing downloads keeps the media files", async () => {

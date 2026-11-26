@@ -49,6 +49,11 @@ project follows [Semantic Versioning](https://semver.org/).
   header and no longer shows footer status text or picker check marks.
 - Creator avatars show initials while loading and no longer stay blank when a
   cached image finishes before its load handler.
+- Downloads now has a Retry failed action that requeues every failed or
+  cancelled download. The Clear completed button and row status badges were
+  removed.
+- The creator dialog date fields have extra horizontal room on mobile so the
+  bars no longer touch the edges.
 - The creator download dialog keeps a stable height when the picker is short,
   stacks date inputs on mobile, and no longer allows horizontal dragging.
 - The creator download picker defaults to the most popular creators.
