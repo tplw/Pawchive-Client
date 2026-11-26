@@ -417,7 +417,7 @@ export function Modal({
   if (!open) return null;
   return createPortal(
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/65 p-5 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[110] flex items-center justify-center overflow-x-hidden bg-black/65 p-5 backdrop-blur-sm animate-fade-in"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -441,7 +441,7 @@ export function Modal({
           </div>
           <IconButton label="Close" icon={X} onClick={onClose} />
         </div>
-        <div className="max-h-[64vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="max-h-[64vh] overflow-x-hidden overflow-y-auto px-5 py-4 touch-pan-y">{children}</div>
         {footer ? (
           <div className="flex flex-wrap justify-end gap-2 border-t border-line/70 px-5 py-3.5">{footer}</div>
         ) : null}

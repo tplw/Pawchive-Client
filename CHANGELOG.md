@@ -49,6 +49,11 @@ project follows [Semantic Versioning](https://semver.org/).
   header and no longer shows footer status text or picker check marks.
 - Creator avatars show initials while loading and no longer stay blank when a
   cached image finishes before its load handler.
+- The creator download dialog keeps a stable height when the picker is short,
+  stacks date inputs on mobile, and no longer allows horizontal dragging.
+- The creator download picker defaults to the most popular creators.
+- Changing maximum posts is covered by a regression test that keeps the
+  selected media types intact.
 - Unavailable posts can no longer be selected in the creator download picker,
   avoiding avoidable archive 404 failures. They remain visible and disabled
   unless Skip unavailable posts is enabled.

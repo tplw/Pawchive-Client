@@ -221,6 +221,31 @@ describe("creator download dialog", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps media types when maximum posts changes", () => {
+    wrapper(
+      <CreatorDownloadDialog open onClose={() => undefined} creator={creator} />,
+    );
+
+    const images = screen.getByText("Images").closest("button");
+    expect(images).not.toBeNull();
+    expect(images).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.change(screen.getByRole("spinbutton"), {
+      target: { value: "2" },
+    });
+
+    expect(images).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("loads popular creators by default", async () => {
+    wrapper(<CreatorDownloadDialog open onClose={() => undefined} />);
+    await screen.findByText("Ada");
+
+    expect(api.listCreators).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: "popular" }),
+    );
+  });
+
   it("saves a daily schedule with the current creator and filters", () => {
     wrapper(
       <CreatorDownloadDialog open onClose={() => undefined} creator={creator} />,

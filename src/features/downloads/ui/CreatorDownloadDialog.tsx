@@ -222,11 +222,11 @@ export function CreatorDownloadDialog({
     !starting;
 
   const creators = useQuery({
-    queryKey: queryKeys.creatorsDirectory(debouncedCreatorSearch, "", "name"),
+    queryKey: queryKeys.creatorsDirectory(debouncedCreatorSearch, "", "popular"),
     queryFn: () =>
       api.listCreators({
         query: debouncedCreatorSearch || undefined,
-        sort: "name",
+        sort: "popular",
         offset: 0,
         limit: 20,
       }),
@@ -574,7 +574,7 @@ export function CreatorDownloadDialog({
               autoFocus
             />
           </div>
-          <div className="mt-3 max-h-[52vh] space-y-1.5 overflow-y-auto">
+          <div className="mt-3 min-h-[52vh] max-h-[52vh] space-y-1.5 overflow-y-auto">
             {creators.isLoading ? (
               <div className="flex justify-center py-10">
                 <Spinner />
@@ -744,20 +744,20 @@ export function CreatorDownloadDialog({
             ) : null}
 
             <Field label="Date range">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <input
                   type="date"
                   value={fromDate}
                   onChange={(event) => setFromDate(event.target.value)}
                   aria-label="From date"
-                  className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+                  className="h-9 w-full min-w-0 rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
                 />
                 <input
                   type="date"
                   value={toDate}
                   onChange={(event) => setToDate(event.target.value)}
                   aria-label="To date"
-                  className="h-9 w-full rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
+                  className="h-9 w-full min-w-0 rounded-lg border border-line bg-base px-2.5 text-xs text-ink outline-none focus:border-accent/70"
                 />
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
