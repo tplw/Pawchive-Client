@@ -58,7 +58,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - The creator dialog date fields have extra horizontal room on mobile so the
   bars no longer touch the edges.
 - The creator dialog date fields use clipped, shrinkable wrappers on mobile,
-  keeping both boxes side by side with a clear gap.
+  keeping both boxes side by side with a clear gap. Date values are centered
+  inside each field.
 - The creator download dialog keeps a stable height when the picker is short,
   stacks date inputs on mobile, and no longer allows horizontal dragging.
 - The creator download picker defaults to the most popular creators.

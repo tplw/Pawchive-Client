@@ -751,7 +751,7 @@ export function CreatorDownloadDialog({
                     value={fromDate}
                     onChange={(event) => setFromDate(event.target.value)}
                     aria-label="From date"
-                    className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-xs text-ink outline-none"
+                    className="date-input-center h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-xs text-ink outline-none"
                   />
                 </div>
                 <div className="min-w-0 overflow-hidden rounded-lg border border-line bg-base focus-within:border-accent/70">
@@ -760,7 +760,7 @@ export function CreatorDownloadDialog({
                     value={toDate}
                     onChange={(event) => setToDate(event.target.value)}
                     aria-label="To date"
-                    className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-xs text-ink outline-none"
+                    className="date-input-center h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-xs text-ink outline-none"
                   />
                 </div>
               </div>

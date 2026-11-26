@@ -76,6 +76,15 @@ textarea {
   -webkit-tap-highlight-color: transparent;
 }
 
+input[type="date"].date-input-center {
+  text-align: center;
+}
+
+input[type="date"].date-input-center::-webkit-date-and-time-value,
+input[type="date"].date-input-center::-webkit-datetime-edit {
+  text-align: center;
+}
+
 .main-scroll {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
