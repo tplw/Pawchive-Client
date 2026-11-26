@@ -50,6 +50,7 @@ import { CreatorAnnouncements } from "./CreatorAnnouncements";
 import { CreatorFilterModal } from "./CreatorFilterModal";
 import { CreatorDownloadDialog } from "../../downloads/ui/CreatorDownloadDialog";
 import { useCreatorFilterState } from "../model/useCreatorFilterState";
+import { useCreatorSort } from "../model/useCreatorSort";
 import { useCreatorTab, type CreatorTab } from "../model/useCreatorTab";
 import { SiteIcon } from "../../../shared/SiteIcon";
 import type { CreatorPostSort } from "../../../shared/types";
@@ -90,7 +91,7 @@ function CreatorProfileContent({
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [postSearch, setPostSearch] = useState("");
-  const [postSort, setPostSort] = useState<CreatorPostSort>("newest");
+  const [postSort, setPostSort] = useCreatorSort(service, creatorId);
   const debouncedPostSearch = useDebouncedValue(postSearch.trim(), 300);
   const postQuery = debouncedPostSearch.length >= 3 ? debouncedPostSearch : "";
   const postCardSize = useAppStore((state) => state.settings.postCardSize);

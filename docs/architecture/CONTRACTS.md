@@ -76,6 +76,8 @@ remounts, the fixed search route key and scroll restoration.
   download schedules.
 - `sessionStorage["pawchive-creator-tab:<service>:<creatorId>"]` — selected
   creator profile tab.
+- `sessionStorage["pawchive-creator-sort:<service>:<creatorId>"]` — selected
+  creator post sort (`newest` or `oldest`).
 - `sessionStorage["pawchive-scroll-positions"]` — per-route scroll offsets.
 
 Changing any shape requires an explicit migration.

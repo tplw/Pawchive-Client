@@ -77,6 +77,40 @@ pub fn provider_for_host(host: &str) -> MediaProvider {
     }
 }
 
+/// Resolve a provider link far enough to know its real media type. Folder
+/// links must be expanded first; callers ignore errors so a broken provider
+/// link keeps its original classification instead of aborting the batch.
+pub(crate) async fn resolve_attachment_kind(
+    mega: &mega::MegaResolver,
+    proton: &proton::ProtonResolver,
+    remote: &remote::RemoteResolver,
+    attachment: &mut crate::shared::models::Attachment,
+) -> crate::shared::error::AppResult<()> {
+    if !attachment.needs_kind_resolution() {
+        return Ok(());
+    }
+    let url = attachment.url.clone();
+    if mega::is_media_url(&url) {
+        let file = mega.resolve(&url).await?;
+        attachment.name = file.name.clone();
+        attachment.ext = crate::shared::security::file_extension(&file.name);
+        attachment.kind = file.kind();
+    } else if proton::is_proton_url(&url) {
+        let file = proton.resolve(&url).await?;
+        attachment.name = file.name.clone();
+        attachment.ext = crate::shared::security::file_extension(&file.name);
+        attachment.kind = file.kind;
+    } else if remote::needs_resolution(&url) {
+        let media = remote.resolve(&url).await?;
+        attachment.name = media.name.clone();
+        attachment.ext = crate::shared::security::file_extension(&media.name);
+        attachment.kind = media.kind;
+        attachment.provider = media.provider;
+    }
+    attachment.resolving = false;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

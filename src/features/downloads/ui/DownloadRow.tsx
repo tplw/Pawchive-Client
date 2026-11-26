@@ -51,6 +51,7 @@ export const DownloadRow = memo(function DownloadRow({
   const queryClient = useQueryClient();
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
+  const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
   const enqueue = usePlayerStore((state) => state.enqueue);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -191,7 +192,8 @@ export const DownloadRow = memo(function DownloadRow({
             </div>
             <p className="mt-0.5 truncate text-[10px] text-muted">
               {record.creatorName ? `${record.creatorName} · ` : ""}
-              {serviceLabel(record.service)} · {record.fileName}
+              {hideSourceTags ? null : `${serviceLabel(record.service)} · `}
+              {record.fileName}
             </p>
             <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[9px] text-dim">
               <span className="uppercase tracking-[0.12em]">

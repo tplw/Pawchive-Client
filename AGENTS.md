@@ -220,6 +220,8 @@ Frontend rules:
     download schedules.
   - `sessionStorage["pawchive-creator-tab:<service>:<creatorId>"]`: selected
     creator profile tab.
+  - `sessionStorage["pawchive-creator-sort:<service>:<creatorId>"]`: selected
+    creator post sort.
   - `sessionStorage["pawchive-scroll-positions"]`: scroll offsets.
 - DOM contracts: `#main-scroll`, `[data-modal-open="true"]`,
   `data-card-size`, `data-tauri-drag-region`.

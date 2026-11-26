@@ -42,8 +42,14 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Creator pages keep the selected Newest/Oldest post sort after opening a post
+  and going back, or after leaving and reopening the creator.
 - Hide source tags now also hides service badges in the creator download
-  picker and schedules and the Service row on creator and post details.
+  picker, schedules and download rows, and the Service row on creator and
+  post details.
+- Creator batches resolve provider metadata before the media-type filter, so
+  MEGA, Proton and cloud-drive files with unknown extensions are no longer
+  skipped as other files.
 - Oldest creator sorting now returns full 50-post windows, so a filtered tail
   page no longer leaves the tab on No visible posts and older posts continue
   to load.

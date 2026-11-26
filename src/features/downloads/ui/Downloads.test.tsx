@@ -64,6 +64,7 @@ function wrapper(ui: React.ReactNode) {
 
 describe("downloads page", () => {
   beforeEach(() => {
+
     vi.clearAllMocks();
     window.localStorage.clear();
     useAppStore.setState({
@@ -152,6 +153,19 @@ describe("downloads page", () => {
     expect(screen.getByText("Done audio")).toBeInTheDocument();
     expect(screen.queryByText("Active video")).not.toBeInTheDocument();
     expect(screen.queryByText("Failed file")).not.toBeInTheDocument();
+  });
+
+  it("hides service labels in download rows when source tags are hidden", async () => {
+    useAppStore.setState({
+      settings: { ...DEFAULT_SETTINGS, hideSourceTags: true },
+      toasts: [],
+    });
+
+    wrapper(<DownloadsPage />);
+
+    expect(await screen.findByText("Active video")).toBeInTheDocument();
+    expect(screen.queryByText(/Patreon/)).not.toBeInTheDocument();
+    expect(screen.getByText(/clip\.mp4/)).toBeInTheDocument();
   });
 
   it("shows scheduled creator downloads", async () => {

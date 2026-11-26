@@ -293,6 +293,43 @@ fn retry_target_dir(root: &Path, file_path: &Path) -> PathBuf {
     root.to_path_buf()
 }
 
+/// Resolve provider metadata before the media-type filter runs. Without this,
+/// a Drive/Dropbox/MEGA link with no filename extension is classified as
+/// "other" and dropped before `enqueue` gets a chance to discover its real
+/// kind.
+async fn resolve_download_kinds(state: &AppState, attachments: Vec<Attachment>) -> Vec<Attachment> {
+    let mut attachments = attachments;
+    let gate = Arc::new(tokio::sync::Semaphore::new(4));
+    let mut jobs = tokio::task::JoinSet::new();
+    for (index, attachment) in attachments.iter().enumerate() {
+        if !attachment.needs_kind_resolution() {
+            continue;
+        }
+        let state = state.clone();
+        let mut attachment = attachment.clone();
+        let gate = gate.clone();
+        jobs.spawn(async move {
+            let _permit = gate.acquire_owned().await.ok();
+            let _ = crate::infra::providers::resolve_attachment_kind(
+                &state.mega,
+                &state.proton,
+                &state.remote,
+                &mut attachment,
+            )
+            .await;
+            (index, attachment)
+        });
+    }
+    while let Some(joined) = jobs.join_next().await {
+        if let Ok((index, attachment)) = joined {
+            if let Some(slot) = attachments.get_mut(index) {
+                *slot = attachment;
+            }
+        }
+    }
+    attachments
+}
+
 struct SelectedDownloadAttachments {
     files: Vec<(Attachment, MediaKind)>,
     skipped: u64,
@@ -418,6 +455,9 @@ pub async fn download_creator_posts(
             attachments,
         )
         .await;
+        if !media_kinds.is_empty() {
+            attachments = resolve_download_kinds(state, attachments).await;
+        }
         let post_thumbnail = attachments
             .iter()
             .find_map(|attachment| attachment.thumbnail_url.clone());

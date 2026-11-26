@@ -51,25 +51,6 @@ fn oldest_page_window(end: i64) -> (i64, i64) {
     ((end - PAGE_SIZE).max(0), end)
 }
 
-/// Provider links whose real media kind only exists in remote metadata. The
-/// creator download scan needs these kinds before it applies its media-type
-/// filter; archive-relative files are already classified from their path.
-fn scan_kind_needs_resolution(attachment: &Attachment) -> bool {
-    if attachment.locked
-        || attachment.preview_only
-        || attachment.unavailable
-        || attachment.local_path.is_some()
-    {
-        return false;
-    }
-    crate::infra::providers::mega::is_media_url(&attachment.url)
-        || crate::infra::providers::mega::parse_folder_link(&attachment.url).is_some()
-        || crate::infra::providers::proton::is_proton_url(&attachment.url)
-        || crate::infra::providers::remote::drive_folder_id(&attachment.url).is_some()
-        || (attachment.kind == MediaKind::Other
-            && crate::infra::providers::remote::needs_resolution(&attachment.url))
-}
-
 /// Newest-first page offsets needed to read the index range `[start, end)`.
 /// The API only accepts 50-post page offsets, so a 50-post window may straddle
 /// two pages when the feed length is not a multiple of 50.
@@ -652,7 +633,10 @@ impl PostService {
                 .into_iter()
                 .filter_map(|file| Attachment::new(&self.state.cfg, &file))
                 .collect();
-            if !attachments.iter().any(scan_kind_needs_resolution) {
+            if !attachments
+                .iter()
+                .any(crate::shared::models::Attachment::needs_kind_resolution)
+            {
                 continue;
             }
             if cancel.map(CancellationToken::is_cancelled).unwrap_or(false) {
@@ -670,27 +654,13 @@ impl PostService {
                 )
                 .await;
                 for attachment in attachments.iter_mut() {
-                    if !scan_kind_needs_resolution(attachment) {
-                        continue;
-                    }
-                    let url = attachment.url.clone();
-                    let kind = if crate::infra::providers::mega::is_media_url(&url) {
-                        state.mega.resolve(&url).await.map(|file| file.kind()).ok()
-                    } else if crate::infra::providers::proton::is_proton_url(&url) {
-                        state.proton.resolve(&url).await.map(|file| file.kind).ok()
-                    } else if crate::infra::providers::remote::needs_resolution(&url) {
-                        state
-                            .remote
-                            .resolve(&url)
-                            .await
-                            .map(|media| media.kind)
-                            .ok()
-                    } else {
-                        None
-                    };
-                    if let Some(kind) = kind {
-                        attachment.kind = kind;
-                    }
+                    let _ = crate::infra::providers::resolve_attachment_kind(
+                        &state.mega,
+                        &state.proton,
+                        &state.remote,
+                        attachment,
+                    )
+                    .await;
                 }
                 let mut kinds = Vec::new();
                 for attachment in &attachments {
@@ -799,7 +769,7 @@ impl PostService {
 mod tests {
     use super::{
         apply_local_downloads, marks_attachment_unavailable, oldest_page_window,
-        range_page_offsets, scan_kind_needs_resolution, sort_post_summaries_oldest, PostService,
+        range_page_offsets, sort_post_summaries_oldest, PostService,
     };
     use crate::app::state::AppState;
     use crate::infra::pawchive_api::ApiClient;
@@ -977,45 +947,47 @@ mod tests {
 
     #[test]
     fn scan_resolution_targets_cloud_links_only() {
-        assert!(scan_kind_needs_resolution(&media_attachment(
+        let needs =
+            |url: &str, kind: MediaKind| media_attachment(url, kind).needs_kind_resolution();
+        assert!(needs(
             "https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30",
             MediaKind::Video,
-        )));
-        assert!(scan_kind_needs_resolution(&media_attachment(
+        ));
+        assert!(needs(
             "https://mega.nz/folder/RBA1wbzZ#9JumpYIWHYvgZ0RyL6wIBQ",
             MediaKind::Other,
-        )));
-        assert!(scan_kind_needs_resolution(&media_attachment(
+        ));
+        assert!(needs(
             "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz",
             MediaKind::Other,
-        )));
-        assert!(scan_kind_needs_resolution(&media_attachment(
+        ));
+        assert!(needs(
             "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/view",
             MediaKind::Other,
-        )));
-        assert!(scan_kind_needs_resolution(&media_attachment(
+        ));
+        assert!(needs(
             "https://drive.proton.me/urls/abc#pw",
             MediaKind::Other,
-        )));
-        assert!(scan_kind_needs_resolution(&media_attachment(
+        ));
+        assert!(needs(
             "https://www.dropbox.com/s/abc/clip",
             MediaKind::Other,
-        )));
-        assert!(!scan_kind_needs_resolution(&media_attachment(
+        ));
+        assert!(!needs(
             "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/view",
             MediaKind::Image,
-        )));
-        assert!(!scan_kind_needs_resolution(&media_attachment(
+        ));
+        assert!(!needs(
             "https://file.pawchive.pw/data/aa/clip.mp4",
             MediaKind::Video,
-        )));
+        ));
 
         let mut locked = media_attachment(
             "https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30",
             MediaKind::Video,
         );
         locked.locked = true;
-        assert!(!scan_kind_needs_resolution(&locked));
+        assert!(!locked.needs_kind_resolution());
     }
 
     #[test]

@@ -271,6 +271,39 @@ describe("creator profile", () => {
     expect(screen.getByRole("button", { name: "Scan posts" })).toBeInTheDocument();
   });
 
+  it("hides source tags on the creator profile when configured", async () => {
+    useAppStore.setState({
+      settings: { ...DEFAULT_SETTINGS, hideSourceTags: true },
+    });
+
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    expect(await screen.findByText("First post")).toBeInTheDocument();
+    expect(screen.queryByText("Patreon")).not.toBeInTheDocument();
+
+    useAppStore.setState({ settings: DEFAULT_SETTINGS });
+  });
+
+  it("keeps the oldest sort after reopening the creator", async () => {
+    const first = wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    expect(await screen.findByText("First post")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Oldest" }));
+    await waitFor(() =>
+      expect(api.getCreatorPosts).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "oldest" }),
+      ),
+    );
+
+    first.unmount();
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+
+    const oldest = await screen.findByRole("button", { name: "Oldest" });
+    expect(oldest).toHaveAttribute("aria-pressed", "true");
+    expect(api.getCreatorPosts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort: "oldest" }),
+    );
+  });
+
   it("loads older posts when the first oldest window is empty", async () => {
     vi.mocked(api.getCreatorPosts).mockImplementation(async ({ sort, offset }) => {
       if (sort === "oldest") {

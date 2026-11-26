@@ -407,6 +407,21 @@ pub struct Attachment {
 }
 
 impl Attachment {
+    /// True when the provider link's real media type is only available after
+    /// resolving remote metadata. Folder links are included because they must
+    /// be expanded before their children can be classified.
+    pub fn needs_kind_resolution(&self) -> bool {
+        if self.locked || self.preview_only || self.unavailable || self.local_path.is_some() {
+            return false;
+        }
+        crate::infra::providers::mega::is_media_url(&self.url)
+            || crate::infra::providers::mega::parse_folder_link(&self.url).is_some()
+            || crate::infra::providers::proton::is_proton_url(&self.url)
+            || crate::infra::providers::remote::drive_folder_id(&self.url).is_some()
+            || (self.kind == MediaKind::Other
+                && crate::infra::providers::remote::needs_resolution(&self.url))
+    }
+
     pub fn new(cfg: &crate::shared::config::PawchiveConfig, file: &FileRef) -> Option<Self> {
         let temp_url = file
             .temp_url()
