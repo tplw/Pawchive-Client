@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "../../../app/store";
 import { api } from "../../../shared/api";
@@ -41,6 +47,7 @@ function post(
   id: string,
   title: string,
   kind: MediaKind = "image",
+  unavailable = false,
 ): PostSummary {
   return {
     id,
@@ -58,7 +65,7 @@ function post(
     hasFull: null,
     imported: true,
     exceedsLimit: false,
-    unavailable: false,
+    unavailable,
   } as PostSummary;
 }
 
@@ -185,6 +192,33 @@ describe("creator download dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "All time" }));
     expect(from.value).toBe("");
     expect(to.value).toBe("");
+  });
+
+  it("does not select unavailable posts", async () => {
+    vi.mocked(api.getCreatorDownloadPosts).mockResolvedValue(
+      page([
+        post("1", "Available post"),
+        post("2", "Missing post", "image", true),
+      ]),
+    );
+    wrapper(
+      <CreatorDownloadDialog open onClose={() => undefined} creator={creator} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Scan posts" }));
+
+    expect(
+      await screen.findByText(/1 of 2 posts selected/),
+    ).toBeInTheDocument();
+    const missing = screen.getByText("Missing post").closest("label");
+    expect(missing).not.toBeNull();
+    const checkbox = within(missing!).getByRole("checkbox");
+    expect(checkbox).toBeDisabled();
+    fireEvent.click(checkbox);
+    expect(screen.getByText(/1 of 2 posts selected/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Download 1 post" }),
+    ).toBeInTheDocument();
   });
 
   it("saves a daily schedule with the current creator and filters", () => {

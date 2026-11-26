@@ -206,10 +206,13 @@ export function CreatorDownloadDialog({
     () => (scan ? sortCreatorDownloadPosts(scan.posts, order) : []),
     [order, scan],
   );
+  const availablePosts = useMemo(
+    () => displayedPosts.filter((post) => !post.unavailable),
+    [displayedPosts],
+  );
   const allSelected =
-    scan !== null &&
-    displayedPosts.length > 0 &&
-    displayedPosts.every((post) => selectedPosts.has(post.id));
+    availablePosts.length > 0 &&
+    availablePosts.every((post) => selectedPosts.has(post.id));
   const canDownload =
     Boolean(selectedCreator) &&
     Boolean(scan) &&
@@ -317,11 +320,12 @@ export function CreatorDownloadDialog({
     );
   };
 
-  const togglePost = (id: string) => {
+  const togglePost = (post: PostSummary) => {
+    if (post.unavailable) return;
     setSelectedPosts((current) => {
       const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(post.id)) next.delete(post.id);
+      else next.add(post.id);
       return next;
     });
   };
@@ -331,7 +335,7 @@ export function CreatorDownloadDialog({
     setSelectedPosts(
       allSelected
         ? new Set()
-        : new Set(displayedPosts.map((post) => post.id)),
+        : new Set(availablePosts.map((post) => post.id)),
     );
   };
 
@@ -373,7 +377,13 @@ export function CreatorDownloadDialog({
       if (controller.signal.aborted) return;
       setScan(result);
       setScanSignature(currentSignature);
-      setSelectedPosts(new Set(result.posts.map((post) => post.id)));
+      setSelectedPosts(
+        new Set(
+          result.posts
+            .filter((post) => !post.unavailable)
+            .map((post) => post.id),
+        ),
+      );
       if (result.posts.length === 0) {
         toast(
           "info",
@@ -534,11 +544,15 @@ export function CreatorDownloadDialog({
           </Button>
           <Button
             variant="primary"
-            loading={starting}
-            disabled={!canDownload}
+            disabled={!canDownload || starting}
+            className="transition-none"
             onClick={() => void startDownload()}
           >
-            <Download className="h-3.5 w-3.5" />
+            {starting ? (
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
             {selectedPosts.size > 0
               ? `Download ${selectedPosts.size} post${
                   selectedPosts.size === 1 ? "" : "s"
@@ -974,17 +988,21 @@ export function CreatorDownloadDialog({
                     <label
                       key={`${post.service}:${post.user}:${post.id}`}
                       className={cn(
-                        "flex cursor-pointer items-start gap-2.5 rounded-lg border p-2 transition",
+                        "flex items-start gap-2.5 rounded-lg border p-2 transition",
+                        post.unavailable
+                          ? "cursor-not-allowed border-line/40 bg-card/20 opacity-60"
+                          : "cursor-pointer",
                         checked
                           ? "border-accent/35 bg-accent/[0.07]"
-                          : "border-line/60 bg-card/35 hover:border-line",
+                          : !post.unavailable &&
+                              "border-line/60 bg-card/35 hover:border-line",
                       )}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
-                        disabled={starting}
-                        onChange={() => togglePost(post.id)}
+                        disabled={starting || post.unavailable}
+                        onChange={() => togglePost(post)}
                         className="mt-1 h-3.5 w-3.5 shrink-0 accent-[rgb(var(--accent))]"
                       />
                       <PostThumb post={post} />
