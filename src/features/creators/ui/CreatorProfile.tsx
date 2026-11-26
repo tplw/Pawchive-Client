@@ -181,10 +181,11 @@ function CreatorProfileContent({
         signal,
       }),
     initialPageParam: postSort === "oldest" ? -1 : 0,
+    // Oldest pages return the start of the next older window as their offset.
     getNextPageParam: (last) =>
       postSort === "oldest"
-        ? last.offset >= 50
-          ? last.offset - 50
+        ? last.hasMore
+          ? last.offset
           : undefined
         : nextOffset(last, 50),
     staleTime: 60_000,

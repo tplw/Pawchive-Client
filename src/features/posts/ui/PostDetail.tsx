@@ -1016,10 +1016,12 @@ function PostDetailContent({
                   <dt>Attachments</dt>
                   <dd className="text-ink">{detail.attachments.length}</dd>
                 </div>
-                <div className="flex justify-between gap-3">
-                  <dt>Service</dt>
-                  <dd className="text-ink">{serviceLabel(service)}</dd>
-                </div>
+                {hideSourceTags ? null : (
+                  <div className="flex justify-between gap-3">
+                    <dt>Service</dt>
+                    <dd className="text-ink">{serviceLabel(service)}</dd>
+                  </div>
+                )}
                 <div className="flex justify-between gap-3">
                   <dt>Post ID</dt>
                   <dd className="max-w-32 truncate text-ink">{detail.post.id}</dd>

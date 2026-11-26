@@ -118,9 +118,7 @@ describe("post detail", () => {
     });
     wrapper(<PostDetailPage service="fanbox" creatorId="7" postId="99" />);
     expect(await screen.findByText("Detailed post")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Pixiv Fanbox", { selector: "span" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Pixiv Fanbox")).not.toBeInTheDocument();
     useAppStore.setState({ settings: DEFAULT_SETTINGS });
   });
 

@@ -159,6 +159,7 @@ function ScheduleRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
   const [running, setRunning] = useState(false);
 
   const runNow = async () => {
@@ -183,7 +184,9 @@ function ScheduleRow({
           <p className="truncate text-[11px] font-semibold text-ink">
             {schedule.creator.name}
           </p>
-          <ServiceBadge service={schedule.creator.service} />
+          {hideSourceTags ? null : (
+            <ServiceBadge service={schedule.creator.service} />
+          )}
           {!schedule.enabled ? (
             <span className="text-[8px] font-semibold uppercase tracking-wider text-muted">
               Paused

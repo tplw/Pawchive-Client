@@ -271,6 +271,45 @@ describe("creator profile", () => {
     expect(screen.getByRole("button", { name: "Scan posts" })).toBeInTheDocument();
   });
 
+  it("loads older posts when the first oldest window is empty", async () => {
+    vi.mocked(api.getCreatorPosts).mockImplementation(async ({ sort, offset }) => {
+      if (sort === "oldest") {
+        if (offset === -1) {
+          return { items: [], offset: 20, hasMore: true };
+        }
+        if (offset === 20) {
+          return {
+            items: [
+              {
+                ...post,
+                id: "oldest",
+                title: "Oldest post",
+                published: 10,
+                added: 10,
+              },
+            ],
+            offset: 0,
+            hasMore: false,
+          };
+        }
+      }
+      return { items: [post], offset: 0, hasMore: false };
+    });
+
+    wrapper(<CreatorProfilePage service="patreon" creatorId="42" />);
+    expect(await screen.findByText("First post")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Oldest" }));
+    expect(await screen.findByText("No visible posts")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Load next page" }));
+
+    expect(await screen.findByText("Oldest post")).toBeInTheDocument();
+    expect(api.getCreatorPosts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ offset: 20, sort: "oldest" }),
+    );
+  });
+
   it("persists auto-detected ASMR for creator previews", async () => {
     window.localStorage.removeItem("pawchive-creator-filter:patreon:42");
     vi.mocked(api.getCreatorPosts).mockResolvedValue({

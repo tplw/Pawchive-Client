@@ -31,8 +31,9 @@ project follows [Semantic Versioning](https://semver.org/).
   Download post also skips files that are already saved.
 - The creator download scan has a Rescan button beside the Matching posts
   heading.
-- Creator pages can sort posts Newest first or Oldest first. Oldest loads the
-  last page first and pages backwards, so the order covers the whole feed.
+- Creator pages can sort posts Newest first or Oldest first. Oldest loads full
+  50-post windows from the end of the feed and pages backwards, so the order
+  covers the whole feed.
 - Mobile downloads keep running while the app is backgrounded. Android uses a
   foreground service; iOS uses the background execution window that the system
   grants.
@@ -41,6 +42,14 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Hide source tags now also hides service badges in the creator download
+  picker and schedules and the Service row on creator and post details.
+- Oldest creator sorting now returns full 50-post windows, so a filtered tail
+  page no longer leaves the tab on No visible posts and older posts continue
+  to load.
+- Creator download scans resolve MEGA, Proton and cloud-drive metadata before
+  applying media-type filters, so folder and provider-only links match the
+  selected types.
 - Mobile Downloads places Choose creator and Schedules first and right
   aligned, with the stats below them. Button labels no longer wrap or overlap
   in the creator download footer, and the download button swaps its icon in

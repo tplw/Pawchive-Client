@@ -6,6 +6,7 @@ import { navigate } from "../../../shared/lib/router";
 import { CreatorAvatar } from "./CreatorVisuals";
 import { Spinner } from "../../../shared/ui";
 import { serviceLabel } from "../../../shared/lib/constants";
+import { useAppStore } from "../../../app/store";
 import type { CreatorProfile, CreatorSummary } from "../../../shared/types";
 
 export function CreatorAbout({
@@ -23,6 +24,7 @@ export function CreatorAbout({
   updated: number | null | undefined;
   links: UseQueryResult<CreatorProfile[], Error>;
 }) {
+  const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
   return (
     <section className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="rounded-2xl border border-line/70 bg-surface/40 p-5">
@@ -92,10 +94,12 @@ export function CreatorAbout({
                 Creator details
               </p>
               <dl className="space-y-1.5">
-                <div className="flex justify-between gap-3">
-                  <dt>Service</dt>
-                  <dd className="text-ink">{serviceLabel(service)}</dd>
-                </div>
+                {hideSourceTags ? null : (
+                  <div className="flex justify-between gap-3">
+                    <dt>Service</dt>
+                    <dd className="text-ink">{serviceLabel(service)}</dd>
+                  </div>
+                )}
                 <div className="flex justify-between gap-3">
                   <dt>Creator ID</dt>
                   <dd className="max-w-36 truncate text-ink">{creatorId}</dd>

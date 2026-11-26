@@ -130,6 +130,7 @@ export function CreatorDownloadDialog({
 }) {
   const toast = useAppStore((state) => state.toast);
   const reportError = useAppStore((state) => state.reportError);
+  const hideSourceTags = useAppStore((state) => state.settings.hideSourceTags);
   const blockedCreators = useAppStore(
     (state) => state.settings.blockedCreators ?? [],
   );
@@ -616,7 +617,9 @@ export function CreatorDownloadDialog({
                       favoriteKeys.has(`${entry.service}:${entry.id}`) ? (
                         <Star className="h-3 w-3 shrink-0 fill-favorite text-favorite" />
                       ) : null}
-                      <ServiceBadge service={entry.service} />
+                      {hideSourceTags ? null : (
+                        <ServiceBadge service={entry.service} />
+                      )}
                     </span>
                     <span className="mt-0.5 block truncate text-[10px] text-muted">
                       @{entry.public_id || entry.id}
@@ -645,7 +648,9 @@ export function CreatorDownloadDialog({
                   {selectedCreator.name}
                 </p>
                 <div className="mt-1 flex items-center gap-1.5">
-                  <ServiceBadge service={selectedCreator.service} />
+                  {hideSourceTags ? null : (
+                    <ServiceBadge service={selectedCreator.service} />
+                  )}
                   <span className="truncate text-[10px] text-muted">
                     @{selectedCreator.id}
                   </span>

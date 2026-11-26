@@ -43,6 +43,54 @@ fn sort_post_summaries_oldest(posts: &mut [PostSummary]) {
     });
 }
 
+/// Oldest-first pages walk the newest-first feed backwards. `end` is the
+/// exclusive newest-first index boundary; the returned window is the 50 posts
+/// immediately older than it.
+fn oldest_page_window(end: i64) -> (i64, i64) {
+    let end = end.max(0);
+    ((end - PAGE_SIZE).max(0), end)
+}
+
+/// Provider links whose real media kind only exists in remote metadata. The
+/// creator download scan needs these kinds before it applies its media-type
+/// filter; archive-relative files are already classified from their path.
+fn scan_kind_needs_resolution(attachment: &Attachment) -> bool {
+    if attachment.locked
+        || attachment.preview_only
+        || attachment.unavailable
+        || attachment.local_path.is_some()
+    {
+        return false;
+    }
+    crate::infra::providers::mega::is_media_url(&attachment.url)
+        || crate::infra::providers::mega::parse_folder_link(&attachment.url).is_some()
+        || crate::infra::providers::proton::is_proton_url(&attachment.url)
+        || crate::infra::providers::remote::drive_folder_id(&attachment.url).is_some()
+        || (attachment.kind == MediaKind::Other
+            && crate::infra::providers::remote::needs_resolution(&attachment.url))
+}
+
+/// Newest-first page offsets needed to read the index range `[start, end)`.
+/// The API only accepts 50-post page offsets, so a 50-post window may straddle
+/// two pages when the feed length is not a multiple of 50.
+fn range_page_offsets(start: i64, end: i64) -> Vec<i64> {
+    if end <= start {
+        return Vec::new();
+    }
+    let first = (start / PAGE_SIZE) * PAGE_SIZE;
+    let last = ((end - 1) / PAGE_SIZE) * PAGE_SIZE;
+    let mut offsets = Vec::new();
+    let mut offset = first;
+    loop {
+        offsets.push(offset);
+        if offset >= last {
+            break;
+        }
+        offset += PAGE_SIZE;
+    }
+    offsets
+}
+
 /// Prefer a completed local download over the remote attachment. This also
 /// clears the provider loading marker so post detail never resolves MEGA,
 /// Proton or remote-drive metadata for a file that is already on disk.
@@ -433,8 +481,8 @@ impl PostService {
         let oldest = matches!(sort, Some("oldest"));
         let token = request_id.map(|id| self.state.register_cancel(id));
         let result = async {
-            if oldest && offset == -1 {
-                self.oldest_creator_posts_page(service, creator_id, query, token.as_ref())
+            if oldest {
+                self.oldest_creator_posts_page(service, creator_id, offset, query, token.as_ref())
                     .await
             } else {
                 if offset < 0 {
@@ -445,39 +493,66 @@ impl PostService {
                     .api
                     .creator_posts(service, creator_id, offset, query, token.as_ref())
                     .await?;
-                Ok((offset, posts))
+                build_post_page(&self.state, posts, offset, true)
             }
         }
         .await;
         if let Some(id) = request_id {
             self.state.finish_cancel(id);
         }
-        let (page_offset, posts) = result?;
-        let mut page = build_post_page(&self.state, posts, page_offset, true)?;
-        if oldest {
-            sort_post_summaries_oldest(&mut page.items);
+        result
+    }
+
+    /// Walk the newest-first feed backwards and return one 50-post window in
+    /// oldest-first order. `cursor` is `-1` for the oldest posts, then the
+    /// returned page offset for each older window. This keeps every response
+    /// at 50 posts instead of returning the short tail page first, which used
+    /// to render an empty creator tab whenever that tail page was filtered.
+    async fn oldest_creator_posts_page(
+        &self,
+        service: &str,
+        creator_id: &str,
+        cursor: i64,
+        query: Option<&str>,
+        cancel: Option<&CancellationToken>,
+    ) -> AppResult<PostPage> {
+        if cursor > 1_000_000 {
+            return Err(AppError::Validation("offset is too large".into()));
         }
+        let end = if cursor < 0 {
+            self.creator_post_total(service, creator_id, query, cancel)
+                .await?
+        } else {
+            cursor
+        };
+        let (start, end) = oldest_page_window(end);
+        let posts = self
+            .creator_posts_between(service, creator_id, start, end, query, cancel)
+            .await?;
+        let mut page = build_post_page(&self.state, posts, start, true)?;
+        page.has_more = start > 0;
+        sort_post_summaries_oldest(&mut page.items);
         Ok(page)
     }
 
-    /// Walk the newest-first creator feed to its last page. The frontend can
-    /// then page backwards with the normal 50-post offsets to show the true
-    /// oldest posts first without downloading the whole feed in one response.
-    async fn oldest_creator_posts_page(
+    /// Count the newest-first creator feed. The archive only exposes offsets,
+    /// so probe exponentially and then binary-search the last non-empty page.
+    async fn creator_post_total(
         &self,
         service: &str,
         creator_id: &str,
         query: Option<&str>,
         cancel: Option<&CancellationToken>,
-    ) -> AppResult<(i64, Vec<Post>)> {
+    ) -> AppResult<i64> {
         let mut low = 0i64;
-        let mut low_page = self
+        let mut low_len = self
             .state
             .api
             .creator_posts(service, creator_id, 0, query, cancel)
-            .await?;
-        if (low_page.len() as i64) < PAGE_SIZE {
-            return Ok((0, low_page));
+            .await?
+            .len() as i64;
+        if low_len < PAGE_SIZE {
+            return Ok(low_len);
         }
 
         let mut high: Option<i64> = None;
@@ -493,9 +568,9 @@ impl PostService {
                 break;
             }
             low = step;
-            low_page = page;
-            if (low_page.len() as i64) < PAGE_SIZE {
-                return Ok((low, low_page));
+            low_len = page.len() as i64;
+            if low_len < PAGE_SIZE {
+                return Ok(low + low_len);
             }
             let Some(next) = step.checked_mul(2) else {
                 break;
@@ -504,7 +579,7 @@ impl PostService {
         }
 
         let Some(mut high) = high else {
-            return Ok((low, low_page));
+            return Ok(low + low_len);
         };
         while high - low > PAGE_SIZE {
             let mid = low + ((high - low) / (PAGE_SIZE * 2)) * PAGE_SIZE;
@@ -520,17 +595,133 @@ impl PostService {
                 high = mid;
             } else {
                 low = mid;
-                low_page = page;
-                if (low_page.len() as i64) < PAGE_SIZE {
-                    break;
+                low_len = page.len() as i64;
+                if low_len < PAGE_SIZE {
+                    return Ok(low + low_len);
                 }
             }
         }
-        Ok((low, low_page))
+        Ok(low + low_len)
+    }
+
+    /// Read the newest-first index range `[start, end)` and return it in feed
+    /// order. The range is at most one page window, so this fetches one or two
+    /// archive pages.
+    async fn creator_posts_between(
+        &self,
+        service: &str,
+        creator_id: &str,
+        start: i64,
+        end: i64,
+        query: Option<&str>,
+        cancel: Option<&CancellationToken>,
+    ) -> AppResult<Vec<Post>> {
+        let mut posts = Vec::new();
+        for page_offset in range_page_offsets(start, end) {
+            let page = self
+                .state
+                .api
+                .creator_posts(service, creator_id, page_offset, query, cancel)
+                .await?;
+            for (index, post) in page.into_iter().enumerate() {
+                let global = page_offset + index as i64;
+                if global >= start && global < end {
+                    posts.push((global, post));
+                }
+            }
+        }
+        posts.sort_by_key(|(index, _)| *index);
+        Ok(posts.into_iter().map(|(_, post)| post).collect())
+    }
+
+    /// Resolve cloud-provider metadata for a scan page so each summary carries
+    /// the real media kinds instead of the extension guess. Only posts with
+    /// provider links do any network work, with a small concurrency cap so a
+    /// page full of Drive links cannot flood the providers.
+    async fn resolve_scan_media_kinds(
+        &self,
+        posts: &[Post],
+        cancel: Option<&CancellationToken>,
+    ) -> Vec<Option<Vec<MediaKind>>> {
+        let mut results: Vec<Option<Vec<MediaKind>>> = vec![None; posts.len()];
+        let gate = Arc::new(tokio::sync::Semaphore::new(4));
+        let mut jobs = tokio::task::JoinSet::new();
+        for (index, post) in posts.iter().enumerate() {
+            let attachments: Vec<Attachment> = post
+                .all_files_including_direct()
+                .into_iter()
+                .filter_map(|file| Attachment::new(&self.state.cfg, &file))
+                .collect();
+            if !attachments.iter().any(scan_kind_needs_resolution) {
+                continue;
+            }
+            if cancel.map(CancellationToken::is_cancelled).unwrap_or(false) {
+                break;
+            }
+            let state = self.state.clone();
+            let gate = gate.clone();
+            jobs.spawn(async move {
+                let _permit = gate.acquire_owned().await.ok();
+                let mut attachments = crate::infra::providers::remote::expand_folders(
+                    &state.mega,
+                    &state.proton,
+                    &state.remote,
+                    attachments,
+                )
+                .await;
+                for attachment in attachments.iter_mut() {
+                    if !scan_kind_needs_resolution(attachment) {
+                        continue;
+                    }
+                    let url = attachment.url.clone();
+                    let kind = if crate::infra::providers::mega::is_media_url(&url) {
+                        state.mega.resolve(&url).await.map(|file| file.kind()).ok()
+                    } else if crate::infra::providers::proton::is_proton_url(&url) {
+                        state.proton.resolve(&url).await.map(|file| file.kind).ok()
+                    } else if crate::infra::providers::remote::needs_resolution(&url) {
+                        state
+                            .remote
+                            .resolve(&url)
+                            .await
+                            .map(|media| media.kind)
+                            .ok()
+                    } else {
+                        None
+                    };
+                    if let Some(kind) = kind {
+                        attachment.kind = kind;
+                    }
+                }
+                let mut kinds = Vec::new();
+                for attachment in &attachments {
+                    if attachment.locked
+                        || attachment.preview_only
+                        || attachment.unavailable
+                        || attachment.local_path.is_some()
+                    {
+                        continue;
+                    }
+                    if !kinds.contains(&attachment.kind) {
+                        kinds.push(attachment.kind);
+                    }
+                }
+                (index, (!kinds.is_empty()).then_some(kinds))
+            });
+        }
+        while let Some(joined) = jobs.join_next().await {
+            let Ok((index, kinds)) = joined else {
+                continue;
+            };
+            if let Some(slot) = results.get_mut(index) {
+                *slot = kinds;
+            }
+        }
+        results
     }
 
     /// Creator post feed without the global content filters. The creator
-    /// download dialog applies its own date, keyword and media filters.
+    /// download dialog applies its own date, keyword and media filters, so
+    /// provider metadata must be resolved here first.
     pub(crate) async fn creator_download_posts(
         &self,
         service: &str,
@@ -546,15 +737,26 @@ impl PostService {
             return Err(AppError::Blocked);
         }
         let token = request_id.map(|id| self.state.register_cancel(id));
-        let result = self
-            .state
-            .api
-            .creator_posts(service, creator_id, offset, None, token.as_ref())
-            .await;
+        let result = async {
+            let posts = self
+                .state
+                .api
+                .creator_posts(service, creator_id, offset, None, token.as_ref())
+                .await?;
+            let resolved = self.resolve_scan_media_kinds(&posts, token.as_ref()).await;
+            let mut page = build_post_page_unfiltered(&self.state, posts, offset)?;
+            for (item, kinds) in page.items.iter_mut().zip(resolved) {
+                if let Some(kinds) = kinds {
+                    item.media_kinds = kinds;
+                }
+            }
+            Ok(page)
+        }
+        .await;
         if let Some(id) = request_id {
             self.state.finish_cancel(id);
         }
-        build_post_page_unfiltered(&self.state, result?, offset)
+        result
     }
 
     pub(crate) async fn popular(
@@ -595,9 +797,18 @@ impl PostService {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_local_downloads, marks_attachment_unavailable, sort_post_summaries_oldest};
+    use super::{
+        apply_local_downloads, marks_attachment_unavailable, oldest_page_window,
+        range_page_offsets, scan_kind_needs_resolution, sort_post_summaries_oldest, PostService,
+    };
+    use crate::app::state::AppState;
+    use crate::infra::pawchive_api::ApiClient;
+    use crate::shared::config::{NetworkSettings, PawchiveConfig};
     use crate::shared::error::AppError;
-    use crate::shared::models::{Attachment, DownloadRecord, MediaKind, PostSummary};
+    use crate::shared::models::{AppSettings, Attachment, DownloadRecord, MediaKind, PostSummary};
+    use std::sync::{Arc, Mutex, RwLock};
+    use wiremock::matchers::{method, path, query_param, query_param_is_missing};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn attachment(url: &str, resolving: bool) -> Attachment {
         Attachment {
@@ -664,6 +875,167 @@ mod tests {
 
         assert!(attachments[1].local_path.is_none());
         assert!(attachments[1].resolving);
+    }
+
+    fn state_with_api(base: &str) -> AppState {
+        let cfg = PawchiveConfig {
+            api_base: format!("{base}/api/v1"),
+            ..Default::default()
+        };
+        let api = ApiClient::new(
+            cfg.clone(),
+            NetworkSettings {
+                timeout_secs: 5,
+                max_concurrency: 4,
+                retries: 0,
+                cache_size_mb: 64,
+            },
+        )
+        .unwrap();
+        AppState {
+            db: Arc::new(crate::infra::sqlite::Db::open_in_memory().unwrap()),
+            api,
+            cfg,
+            settings: Arc::new(RwLock::new(AppSettings::default())),
+            cancellations: Arc::new(Mutex::new(Default::default())),
+            downloads: Arc::new(Mutex::new(Default::default())),
+            download_gate: Arc::new(tokio::sync::Semaphore::new(1)),
+            http: reqwest::Client::new(),
+            mega: crate::infra::providers::mega::MegaResolver::new(reqwest::Client::new()),
+            proton: Arc::new(crate::infra::providers::proton::ProtonResolver::new()),
+            passwords: Arc::new(crate::infra::provider_passwords::ProviderPasswords::in_memory()),
+            remote: Arc::new(crate::infra::providers::remote::RemoteResolver::new(
+                reqwest::Client::new(),
+            )),
+            app_data_dir: std::env::temp_dir(),
+            default_download_dir: std::env::temp_dir(),
+            media_server: crate::infra::local_http::LocalMediaServer::test_instance(),
+            account: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    fn feed_page(start: i64, count: i64) -> Vec<serde_json::Value> {
+        (0..count)
+            .map(|offset| {
+                let index = start + offset;
+                serde_json::json!({
+                    "id": format!("p{index:03}"),
+                    "user": "42",
+                    "service": "patreon",
+                    "title": format!("Post {index}"),
+                    "published": 1_700_000_000_i64 - index,
+                })
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn oldest_cursor_returns_full_windows_and_the_oldest_post() {
+        let server = MockServer::start().await;
+        for (offset, count) in [(0, 50), (50, 1), (100, 0)] {
+            let mock = Mock::given(method("GET")).and(path("/api/v1/patreon/user/42"));
+            let mock = if offset == 0 {
+                mock.and(query_param_is_missing("o"))
+            } else {
+                mock.and(query_param("o", offset.to_string()))
+            };
+            mock.respond_with(ResponseTemplate::new(200).set_body_json(feed_page(offset, count)))
+                .mount(&server)
+                .await;
+        }
+
+        let service = PostService::new(state_with_api(&server.uri()));
+        let first = service
+            .creator_posts("patreon", "42", -1, None, Some("oldest"), None)
+            .await
+            .unwrap();
+        assert_eq!(first.offset, 1);
+        assert!(first.has_more);
+        assert_eq!(first.items.len(), 50);
+        assert_eq!(first.items.first().unwrap().id, "p050");
+        assert_eq!(first.items.last().unwrap().id, "p001");
+
+        let second = service
+            .creator_posts("patreon", "42", first.offset, None, Some("oldest"), None)
+            .await
+            .unwrap();
+        assert_eq!(second.offset, 0);
+        assert!(!second.has_more);
+        assert_eq!(second.items.len(), 1);
+        assert_eq!(second.items[0].id, "p000");
+    }
+
+    fn media_attachment(url: &str, kind: MediaKind) -> Attachment {
+        Attachment {
+            url: url.into(),
+            path: url.into(),
+            download_url: url.into(),
+            kind,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn scan_resolution_targets_cloud_links_only() {
+        assert!(scan_kind_needs_resolution(&media_attachment(
+            "https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30",
+            MediaKind::Video,
+        )));
+        assert!(scan_kind_needs_resolution(&media_attachment(
+            "https://mega.nz/folder/RBA1wbzZ#9JumpYIWHYvgZ0RyL6wIBQ",
+            MediaKind::Other,
+        )));
+        assert!(scan_kind_needs_resolution(&media_attachment(
+            "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz",
+            MediaKind::Other,
+        )));
+        assert!(scan_kind_needs_resolution(&media_attachment(
+            "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/view",
+            MediaKind::Other,
+        )));
+        assert!(scan_kind_needs_resolution(&media_attachment(
+            "https://drive.proton.me/urls/abc#pw",
+            MediaKind::Other,
+        )));
+        assert!(scan_kind_needs_resolution(&media_attachment(
+            "https://www.dropbox.com/s/abc/clip",
+            MediaKind::Other,
+        )));
+        assert!(!scan_kind_needs_resolution(&media_attachment(
+            "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/view",
+            MediaKind::Image,
+        )));
+        assert!(!scan_kind_needs_resolution(&media_attachment(
+            "https://file.pawchive.pw/data/aa/clip.mp4",
+            MediaKind::Video,
+        )));
+
+        let mut locked = media_attachment(
+            "https://mega.nz/file/cH51DYDR#qH7QOfRcM-7N9riZWdSjsRq5VDTLfIhThx1capgVA30",
+            MediaKind::Video,
+        );
+        locked.locked = true;
+        assert!(!scan_kind_needs_resolution(&locked));
+    }
+
+    #[test]
+    fn oldest_pages_walk_backwards_in_full_windows() {
+        assert_eq!(oldest_page_window(351), (301, 351));
+        assert_eq!(oldest_page_window(301), (251, 301));
+        assert_eq!(oldest_page_window(50), (0, 50));
+        assert_eq!(oldest_page_window(1), (0, 1));
+        assert_eq!(oldest_page_window(0), (0, 0));
+        assert_eq!(oldest_page_window(-1), (0, 0));
+    }
+
+    #[test]
+    fn oldest_windows_read_the_newest_first_pages_that_contain_them() {
+        assert_eq!(range_page_offsets(301, 351), [300, 350]);
+        assert_eq!(range_page_offsets(251, 301), [250, 300]);
+        assert_eq!(range_page_offsets(100, 150), [100]);
+        assert_eq!(range_page_offsets(1, 51), [0, 50]);
+        assert_eq!(range_page_offsets(0, 50), [0]);
+        assert!(range_page_offsets(10, 10).is_empty());
     }
 
     #[test]
