@@ -49,6 +49,9 @@ project follows [Semantic Versioning](https://semver.org/).
   header and no longer shows footer status text or picker check marks.
 - Creator avatars show initials while loading and no longer stay blank when a
   cached image finishes before its load handler.
+- The Downloads header no longer shows the active/completed/failed/saved
+  stats strip. Creator date fields sit side by side again, matching the
+  maximum-posts and queue-order fields.
 - Downloads now has a Retry failed action that requeues every failed or
   cancelled download. The Clear completed button and row status badges were
   removed.

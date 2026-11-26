@@ -2,10 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   CalendarClock,
-  CheckCircle2,
   Download,
   FolderOpen,
-  HardDrive,
   ListPlus,
   ListX,
   LoaderCircle,
@@ -17,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../shared/api";
 import { errorMessage } from "../../../shared/lib/constants";
 import { isCreatorBlocked } from "../../../shared/lib/blockedCreators";
-import { cn, formatBytes } from "../../../shared/lib/format";
+import { cn } from "../../../shared/lib/format";
 import { DownloadRow } from "./DownloadRow";
 import { CreatorDownloadDialog } from "./CreatorDownloadDialog";
 import { DownloadSchedules } from "./DownloadSchedules";
@@ -157,18 +155,6 @@ export function DownloadsPage() {
     onError: (error) =>
       reportError(error, "Could not retry failed downloads"),
   });
-  const queuedItems = useMemo(
-    () => allItems.filter((item) => item.status === "queued"),
-    [allItems],
-  );
-  const completedBytes = useMemo(
-    () =>
-      completedItems.reduce(
-        (total, item) => total + (item.totalBytes ?? item.downloadedBytes),
-        0,
-      ),
-    [completedItems],
-  );
   const searchText = search.trim().toLowerCase();
   const hasFilters =
     searchText.length > 0 || statusFilter !== "all" || mediaFilter !== "all";
@@ -285,43 +271,8 @@ export function DownloadsPage() {
 
   return (
     <div className="mx-auto max-w-5xl pb-10">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        {allItems.length > 0 ? (
-          <div className="order-2 flex w-full flex-wrap items-center gap-x-3.5 gap-y-1 rounded-lg border border-line/60 bg-card/30 px-3 py-2 text-[10px] text-muted sm:order-1 sm:w-auto">
-            <span className="inline-flex items-center gap-1.5">
-              <Download className="h-3 w-3 text-accent" />
-              <strong className="font-semibold text-ink">
-                {activeItems.length}
-              </strong>
-              active
-              {queuedItems.length > 0 ? ` · ${queuedItems.length} queued` : ""}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-3 w-3 text-success/80" />
-              <strong className="font-semibold text-ink">
-                {completedItems.length}
-              </strong>
-              completed
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <AlertCircle className="h-3 w-3 text-muted" />
-              <strong className="font-semibold text-ink">
-                {failedItems.length}
-              </strong>
-              failed
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <HardDrive className="h-3 w-3 text-muted" />
-              <strong className="font-semibold text-ink">
-                {formatBytes(completedBytes)}
-              </strong>
-              saved
-            </span>
-          </div>
-        ) : (
-          <div />
-        )}
-        <div className="order-1 ml-auto flex flex-wrap items-center gap-2 sm:order-2">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="primary"
             size="sm"

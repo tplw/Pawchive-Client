@@ -744,7 +744,7 @@ export function CreatorDownloadDialog({
             ) : null}
 
             <Field label="Date range">
-              <div className="grid grid-cols-1 gap-2 px-1.5 sm:grid-cols-2 sm:px-0">
+              <div className="grid grid-cols-2 gap-2">
                 <input
                   type="date"
                   value={fromDate}
