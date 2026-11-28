@@ -96,7 +96,8 @@ Changing any shape requires an explicit migration.
 - Provider order: MEGA, then Google Drive/Dropbox/GoFile, then direct Pawchive
   URLs.
 - Deferred attachments without a path or signed URL are not real media.
-- Provider folders expand into individual file attachments.
+- Provider folders expand into individual file attachments. Dropbox expands
+  public `/scl/fo/` folder roots; nested Dropbox folders are skipped.
 - Loopback media URLs support HTTP Range, HEAD, ETag and provider headers.
 - Cache directory: `app_data/media-cache`; hashed filenames, atomic `.part-*`
   writes, size pruning.

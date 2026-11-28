@@ -239,6 +239,8 @@ impl Post {
                 safe_filename(&format!("drive-{id}"))
             } else if let Some(id) = crate::infra::providers::remote::drive_folder_id(&raw) {
                 safe_filename(&format!("drive-folder-{id}"))
+            } else if crate::infra::providers::remote::dropbox_folder_link(&raw).is_some() {
+                safe_filename("Dropbox folder")
             } else if let Some(id) = crate::infra::providers::remote::gofile_content_id(&raw) {
                 safe_filename(&format!("gofile-{id}"))
             } else {

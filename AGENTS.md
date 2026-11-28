@@ -275,7 +275,10 @@ server. Do not give a provider page URL directly to `<video>`.
   links expire, so range streams refresh the file metadata before failing.
 - Proton Drive: public-link SDK, custom passwords stored per share token,
   child nodes addressed with `?pawchive_node=<volume>~<link>`, range streams.
-- Google Drive, Dropbox and GoFile: resolve to a loopback URL with normal HTTP
+- Google Drive: file links and public folders expand into individual files.
+- Dropbox: file and share links resolve to a loopback URL. Public `/scl/fo/`
+  folder roots expand into their top-level files; nested folders are skipped.
+- GoFile: file and share links resolve to a loopback URL with normal HTTP
   Range support.
 - Direct HTTPS media links in post text or embeds are extracted and validated
   in Rust.

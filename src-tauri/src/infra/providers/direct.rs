@@ -61,7 +61,7 @@ fn provider_url_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r#"(?i)(?:https?://)?(?:www\.)?(?:drive\.google\.com/(?:file/d/|open\?|uc\?|drive/folders/)|docs\.google\.com/(?:file/d/|uc\?)|dropbox\.com/(?:scl/fi/|s/|sh/)|gofile\.io/d/)[^\s"'<>]+"#,
+            r#"(?i)(?:https?://)?(?:www\.)?(?:drive\.google\.com/(?:file/d/|open\?|uc\?|drive/folders/)|docs\.google\.com/(?:file/d/|uc\?)|dropbox\.com/(?:scl/fi/|scl/fo/|s/|sh/)|gofile\.io/d/)[^\s"'<>]+"#,
         )
         .expect("valid provider link regex")
     })
@@ -259,6 +259,7 @@ mod tests {
         let text = r#"
             Gdrive: https://drive.google.com/drive/folders/1megyDZ_AK9oFl-OzFzIz7NcZ_s1l9wz-?usp=sharing
             Mega: https://mega.nz/folder/RBA1wbzZ#9JumpYIWHYvgZ0RyL6wIBQ
+            Dropbox: https://www.dropbox.com/scl/fo/v3teqrul0cdj39h4qx0qi/AAdv5rFTPe_stegmWciLKAU?rlkey=l44stxjfakh693kmgu2ei6je9&amp;st=5667umju&amp;dl=0
             Bad: https://drive.google.com/drive/folders/abc
         "#;
         assert_eq!(
@@ -266,6 +267,8 @@ mod tests {
             vec![
                 "https://mega.nz/folder/RBA1wbzZ#9JumpYIWHYvgZ0RyL6wIBQ".to_string(),
                 "https://drive.google.com/drive/folders/1megyDZ_AK9oFl-OzFzIz7NcZ_s1l9wz-?usp=sharing"
+                    .to_string(),
+                "https://www.dropbox.com/scl/fo/v3teqrul0cdj39h4qx0qi/AAdv5rFTPe_stegmWciLKAU?rlkey=l44stxjfakh693kmgu2ei6je9&st=5667umju&dl=0"
                     .to_string(),
             ]
         );

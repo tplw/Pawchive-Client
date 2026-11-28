@@ -8,6 +8,9 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Dropbox shared folder links (`/scl/fo/...`) are detected in post text and
+  expanded into their individual file attachments, so folder media appears in
+  the post viewer, player, downloads and creator scans.
 - A **Download from creator** flow on Downloads and the creator profile. It
   scans a creator's posts with a date range, maximum post count, blacklist
   words, media-type filters and a preview list, then queues the selected posts.

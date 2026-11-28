@@ -7,6 +7,7 @@ use crate::shared::error::{AppError, AppResult};
 use crate::shared::models::MediaKind;
 use crate::shared::security::validate_media_remote_url;
 use regex::Regex;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -14,6 +15,10 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const DROPBOX_LIST_URL: &str = "https://www.dropbox.com/list_shared_link_folder_entries";
+const DROPBOX_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const DROPBOX_MAX_ENTRIES: usize = 1000;
+const DROPBOX_MAX_PAGES: usize = 20;
 const RESOLVE_TTL: Duration = Duration::from_secs(10 * 60);
 const GOFILE_ACCOUNT_TTL: Duration = Duration::from_secs(45 * 60);
 const GOFILE_SECRET_TTL: Duration = Duration::from_secs(45 * 60);
@@ -299,6 +304,28 @@ pub async fn expand_folders(
             expanded.push(attachment);
             continue;
         }
+        if let Some(folder) = dropbox_folder_link(&attachment.url) {
+            if let Ok(files) = list_dropbox_folder(remote.client(), &folder).await {
+                if !files.is_empty() {
+                    for file in files {
+                        if !seen_urls.insert(file.url.clone()) {
+                            continue;
+                        }
+                        expanded.push(folder_file_attachment(
+                            file.url,
+                            file.name,
+                            MediaProvider::Dropbox,
+                        ));
+                    }
+                    continue;
+                }
+            }
+            attachment.name = "Dropbox folder".into();
+            attachment.kind = crate::shared::models::MediaKind::Other;
+            attachment.preview_only = true;
+            expanded.push(attachment);
+            continue;
+        }
         let mega_url = match mega.decrypt_link(&attachment.url).await {
             Ok(url) => url.unwrap_or_else(|| attachment.url.clone()),
             Err(AppError::PasswordRequired { .. }) => {
@@ -529,6 +556,245 @@ pub fn drive_folder_id(raw: &str) -> Option<String> {
     valid_drive_id(segments.get(position + 1).copied())
 }
 
+/// A public Dropbox shared-folder link in the `/scl/fo/` form.
+#[derive(Debug, Clone)]
+pub struct DropboxFolderLink {
+    pub link_key: String,
+    pub secure_hash: String,
+    pub rlkey: Option<String>,
+    pub url: String,
+}
+
+/// A file listed inside a public Dropbox shared folder.
+#[derive(Debug, Clone)]
+pub struct DropboxFolderFile {
+    pub name: String,
+    pub url: String,
+}
+
+/// Parse a `dropbox.com/scl/fo/<key>/<hash>?rlkey=...` folder root.
+pub fn dropbox_folder_link(raw: &str) -> Option<DropboxFolderLink> {
+    let mut url = url::Url::parse(raw).ok()?;
+    if url.scheme() == "http" {
+        let _ = url.set_scheme("https");
+    }
+    if url.scheme() != "https" {
+        return None;
+    }
+    let host = url.host_str()?.to_ascii_lowercase();
+    if !(host == "dropbox.com" || host.ends_with(".dropbox.com")) {
+        return None;
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return None;
+    }
+    let segments: Vec<_> = url
+        .path_segments()?
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    // Only the shared-folder root is a folder. Dropbox also uses
+    // `/scl/fo/<key>/<hash>/<filename>` for individual files inside a folder,
+    // and those must keep flowing through the normal file resolver.
+    if segments.len() != 4
+        || !segments[0].eq_ignore_ascii_case("scl")
+        || !segments[1].eq_ignore_ascii_case("fo")
+    {
+        return None;
+    }
+    let link_key = segments[2].trim();
+    let secure_hash = segments[3].trim();
+    if link_key.is_empty()
+        || secure_hash.is_empty()
+        || !link_key
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+        || !secure_hash
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        return None;
+    }
+    let rlkey = url
+        .query_pairs()
+        .find(|(name, _)| name == "rlkey")
+        .map(|(_, value)| value.into_owned());
+    let url = validate_media_remote_url(url.as_str()).ok()?.to_string();
+    Some(DropboxFolderLink {
+        link_key: link_key.to_string(),
+        secure_hash: secure_hash.to_string(),
+        rlkey,
+        url,
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct DropboxFolderListing {
+    #[serde(default)]
+    entries: Vec<DropboxFolderEntry>,
+    #[serde(default)]
+    has_more_entries: bool,
+    #[serde(default)]
+    next_request_voucher: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DropboxFolderEntry {
+    #[serde(default)]
+    filename: String,
+    #[serde(default)]
+    href: String,
+    #[serde(default)]
+    is_dir: bool,
+}
+
+fn dropbox_cookies(headers: &reqwest::header::HeaderMap) -> Vec<String> {
+    headers
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .filter_map(|value| value.split(';').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn dropbox_cookie_value(cookies: &[String], name: &str) -> Option<String> {
+    cookies.iter().find_map(|cookie| {
+        cookie
+            .strip_prefix(name)?
+            .strip_prefix('=')
+            .map(str::to_string)
+    })
+}
+
+fn parse_dropbox_folder_listing(
+    body: &str,
+) -> AppResult<(Vec<DropboxFolderFile>, bool, Option<String>)> {
+    let DropboxFolderListing {
+        entries,
+        has_more_entries,
+        next_request_voucher,
+    } = serde_json::from_str(body).map_err(|error| {
+        AppError::Network(format!(
+            "could not read the Dropbox folder listing: {error}"
+        ))
+    })?;
+    let mut files = Vec::new();
+    for entry in entries {
+        if entry.is_dir || entry.filename.trim().is_empty() || entry.href.trim().is_empty() {
+            continue;
+        }
+        let Ok(href) = validate_media_remote_url(&entry.href) else {
+            continue;
+        };
+        if provider_for_url(href.as_str()) != MediaProvider::Dropbox {
+            continue;
+        }
+        let name = crate::shared::security::safe_filename(entry.filename.trim());
+        if name.is_empty() {
+            continue;
+        }
+        files.push(DropboxFolderFile {
+            name,
+            url: href.to_string(),
+        });
+        if files.len() >= DROPBOX_MAX_ENTRIES {
+            break;
+        }
+    }
+    Ok((files, has_more_entries, next_request_voucher))
+}
+
+/// List the files in a public Dropbox shared folder. Dropbox serves folder
+/// contents through a CSRF-protected web endpoint, so the folder page is read
+/// once to establish the anonymous session before the listing request.
+pub async fn list_dropbox_folder(
+    client: &reqwest::Client,
+    folder: &DropboxFolderLink,
+) -> AppResult<Vec<DropboxFolderFile>> {
+    let page = tokio::time::timeout(
+        REQUEST_TIMEOUT,
+        client
+            .get(&folder.url)
+            .header(reqwest::header::USER_AGENT, DROPBOX_USER_AGENT)
+            .header(reqwest::header::ACCEPT, "text/html,application/xhtml+xml")
+            .send(),
+    )
+    .await
+    .map_err(|_| AppError::Timeout)?
+    .map_err(|error| AppError::Network(crate::shared::security::network_error_message(&error)))?;
+    if !page.status().is_success() {
+        return Err(AppError::Unavailable(format!(
+            "Dropbox folder page answered HTTP {}",
+            page.status().as_u16()
+        )));
+    }
+    let cookies = dropbox_cookies(page.headers());
+    let csrf = dropbox_cookie_value(&cookies, "__Host-js_csrf")
+        .ok_or_else(|| AppError::Unavailable("Dropbox did not return a folder session".into()))?;
+    let cookie_header = cookies.join("; ");
+    drop(page);
+
+    let mut files = Vec::new();
+    let mut voucher: Option<String> = None;
+    for _ in 0..DROPBOX_MAX_PAGES {
+        let mut form = vec![
+            ("link_key", folder.link_key.as_str()),
+            ("link_type", "c"),
+            ("secure_hash", folder.secure_hash.as_str()),
+            ("sub_path", ""),
+        ];
+        if let Some(rlkey) = folder.rlkey.as_deref() {
+            form.push(("rlkey", rlkey));
+        }
+        if let Some(voucher) = voucher.as_deref() {
+            form.push(("voucher", voucher));
+        }
+        let response = tokio::time::timeout(
+            REQUEST_TIMEOUT,
+            client
+                .post(DROPBOX_LIST_URL)
+                .header(reqwest::header::USER_AGENT, DROPBOX_USER_AGENT)
+                .header(reqwest::header::REFERER, folder.url.as_str())
+                .header(reqwest::header::ORIGIN, "https://www.dropbox.com")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("X-CSRF-Token", csrf.as_str())
+                .header(reqwest::header::COOKIE, cookie_header.as_str())
+                .form(&form)
+                .send(),
+        )
+        .await
+        .map_err(|_| AppError::Timeout)?
+        .map_err(|error| {
+            AppError::Network(crate::shared::security::network_error_message(&error))
+        })?;
+        let status = response.status();
+        let body = tokio::time::timeout(REQUEST_TIMEOUT, response.text())
+            .await
+            .map_err(|_| AppError::Timeout)?
+            .map_err(|error| {
+                AppError::Network(crate::shared::security::network_error_message(&error))
+            })?;
+        if !status.is_success() {
+            return Err(AppError::Unavailable(format!(
+                "Dropbox folder listing answered HTTP {}",
+                status.as_u16()
+            )));
+        }
+        let (page_files, has_more, next_voucher) = parse_dropbox_folder_listing(&body)?;
+        files.extend(page_files);
+        if files.len() >= DROPBOX_MAX_ENTRIES || !has_more {
+            break;
+        }
+        voucher = next_voucher;
+        if voucher.is_none() {
+            break;
+        }
+    }
+    Ok(files)
+}
+
 /// A file (or subfolder) listed inside a public Google Drive folder.
 #[derive(Debug, Clone)]
 pub struct DriveFolderFile {
@@ -656,6 +922,11 @@ fn valid_drive_id(value: Option<&str>) -> Option<String> {
 }
 
 pub fn dropbox_direct_url(raw: &str) -> AppResult<String> {
+    if dropbox_folder_link(raw).is_some() {
+        return Err(AppError::Validation(
+            "Dropbox folder links are expanded before playback".into(),
+        ));
+    }
     let mut parsed = url::Url::parse(raw)?;
     if parsed.scheme() == "http" {
         let _ = parsed.set_scheme("https");
@@ -903,12 +1174,67 @@ mod tests {
     }
 
     #[test]
+    fn parses_dropbox_folder_links() {
+        let link = dropbox_folder_link(
+            "https://www.dropbox.com/scl/fo/v3teqrul0cdj39h4qx0qi/AAdv5rFTPe_stegmWciLKAU?rlkey=l44stxjfakh693kmgu2ei6je9&st=5667umju&dl=0",
+        )
+        .unwrap();
+        assert_eq!(link.link_key, "v3teqrul0cdj39h4qx0qi");
+        assert_eq!(link.secure_hash, "AAdv5rFTPe_stegmWciLKAU");
+        assert_eq!(link.rlkey.as_deref(), Some("l44stxjfakh693kmgu2ei6je9"));
+        assert!(dropbox_folder_link(
+            "https://www.dropbox.com/scl/fo/key/hash/Normal.mp4?rlkey=key&dl=0"
+        )
+        .is_none());
+        assert!(
+            dropbox_folder_link("https://www.dropbox.com/scl/fi/abc/clip.mp4?rlkey=key&dl=0")
+                .is_none()
+        );
+        assert!(dropbox_folder_link("https://www.dropbox.com/scl/fo/../x?rlkey=key").is_none());
+        assert!(dropbox_direct_url(
+            "https://www.dropbox.com/scl/fo/v3teqrul0cdj39h4qx0qi/AAdv5rFTPe_stegmWciLKAU?rlkey=l44stxjfakh693kmgu2ei6je9"
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn parses_dropbox_folder_entries() {
+        let body = r#"{
+            "entries": [
+                {
+                    "filename": "Normal.mp4",
+                    "href": "https://www.dropbox.com/scl/fo/key/hash/Normal.mp4?rlkey=key&dl=0",
+                    "is_dir": false
+                },
+                {
+                    "filename": "Subfolder",
+                    "href": "https://www.dropbox.com/scl/fo/key/hash/Subfolder?rlkey=key&dl=0",
+                    "is_dir": true
+                }
+            ],
+            "has_more_entries": true,
+            "next_request_voucher": "voucher"
+        }"#;
+        let (files, has_more, voucher) = parse_dropbox_folder_listing(body).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "Normal.mp4");
+        assert!(files[0].url.contains("Normal.mp4"));
+        assert!(has_more);
+        assert_eq!(voucher.as_deref(), Some("voucher"));
+    }
+
+    #[test]
     fn normalizes_dropbox_links() {
         let url =
             dropbox_direct_url("http://dropbox.com/scl/fi/abc/clip.mp4?rlkey=key&dl=0").unwrap();
         assert!(url.starts_with("https://dropbox.com/scl/fi/abc/clip.mp4?"));
         assert!(url.contains("raw=1"));
         assert!(!url.contains("dl=0"));
+
+        let child =
+            dropbox_direct_url("https://www.dropbox.com/scl/fo/key/hash/Normal.mp4?rlkey=key&dl=0")
+                .unwrap();
+        assert!(child.contains("raw=1"));
     }
 
     #[test]

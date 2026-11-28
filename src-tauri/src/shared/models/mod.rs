@@ -295,6 +295,29 @@ mod tests {
     }
 
     #[test]
+    fn includes_dropbox_folder_links_in_posts() {
+        let cfg = crate::shared::config::PawchiveConfig::default();
+        let post = Post {
+            id: "1".into(),
+            service: "patreon".into(),
+            user: "2".into(),
+            title: "Dropbox folder".into(),
+            content: r#"<p><a href="https://www.dropbox.com/scl/fo/v3teqrul0cdj39h4qx0qi/AAdv5rFTPe_stegmWciLKAU?rlkey=l44stxjfakh693kmgu2ei6je9&amp;st=5667umju&amp;dl=0">VIDEO FOLDER LINK</a></p>"#.into(),
+            ..Default::default()
+        };
+        let files = post.all_files_including_direct();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "Dropbox folder");
+        assert!(files[0].path.contains("/scl/fo/"));
+        let attachment = Attachment::new(&cfg, &files[0]).unwrap();
+        assert_eq!(
+            attachment.provider,
+            crate::infra::providers::MediaProvider::Dropbox
+        );
+        assert!(attachment.needs_kind_resolution());
+    }
+
+    #[test]
     fn marks_external_provider_attachments_as_resolving() {
         let cfg = crate::shared::config::PawchiveConfig::default();
         let cases = [
