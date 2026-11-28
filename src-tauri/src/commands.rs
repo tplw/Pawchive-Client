@@ -457,6 +457,17 @@ pub async fn remove_playlist_item(state: State<'_, AppState>, id: i64) -> AppRes
         .await
 }
 
+#[tauri::command]
+pub async fn reorder_playlist_items(
+    state: State<'_, AppState>,
+    playlist_id: i64,
+    item_ids: Vec<i64>,
+) -> AppResult<()> {
+    LibraryService::new(st(&state))
+        .reorder_playlist_items(playlist_id, item_ids)
+        .await
+}
+
 /* ------------------------------- downloads ------------------------------ */
 
 #[tauri::command]

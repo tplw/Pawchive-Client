@@ -19,6 +19,9 @@ const DROPBOX_LIST_URL: &str = "https://www.dropbox.com/list_shared_link_folder_
 const DROPBOX_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const DROPBOX_MAX_ENTRIES: usize = 1000;
 const DROPBOX_MAX_PAGES: usize = 20;
+const DRIVE_MAX_FOLDER_DEPTH: usize = 8;
+const DRIVE_MAX_FOLDERS: usize = 200;
+const DRIVE_MAX_FILES: usize = 2_000;
 const RESOLVE_TTL: Duration = Duration::from_secs(10 * 60);
 const GOFILE_ACCOUNT_TTL: Duration = Duration::from_secs(45 * 60);
 const GOFILE_SECRET_TTL: Duration = Duration::from_secs(45 * 60);
@@ -325,6 +328,35 @@ pub async fn expand_folders(
             attachment.preview_only = true;
             expanded.push(attachment);
             continue;
+        }
+        if let Some(id) = gofile_content_id(&attachment.url) {
+            match remote.gofile.files(&id).await {
+                Ok(listing) if listing.is_folder => {
+                    if !listing.files.is_empty() {
+                        for file in listing.files {
+                            let name = crate::shared::security::safe_filename(&file.name);
+                            let url = format!("https://gofile.io/d/{}", file.id);
+                            if name.is_empty() || !seen_urls.insert(url.clone()) {
+                                continue;
+                            }
+                            expanded.push(folder_file_attachment(url, name, MediaProvider::Gofile));
+                        }
+                        continue;
+                    }
+                    attachment.name = "GoFile folder".into();
+                    attachment.kind = crate::shared::models::MediaKind::Other;
+                    attachment.preview_only = true;
+                    expanded.push(attachment);
+                    continue;
+                }
+                Ok(_) | Err(_) => {
+                    // A single file or a temporarily unavailable folder keeps
+                    // its original link so the normal resolver can report the
+                    // provider error on demand.
+                    expanded.push(attachment);
+                    continue;
+                }
+            }
         }
         let mega_url = match mega.decrypt_link(&attachment.url).await {
             Ok(url) => url.unwrap_or_else(|| attachment.url.clone()),
@@ -811,8 +843,13 @@ pub async fn list_drive_folder(
 ) -> AppResult<Vec<DriveFolderFile>> {
     let mut pending = vec![(folder_id.to_string(), 0usize)];
     let mut files = Vec::new();
+    let mut folders = 0usize;
     let mut first = true;
     while let Some((id, depth)) = pending.pop() {
+        if folders >= DRIVE_MAX_FOLDERS || files.len() >= DRIVE_MAX_FILES {
+            break;
+        }
+        folders += 1;
         let entries = match fetch_drive_folder_page(client, &id).await {
             Ok(entries) => entries,
             Err(error) => {
@@ -825,11 +862,14 @@ pub async fn list_drive_folder(
         first = false;
         for entry in entries {
             if entry.is_folder {
-                if depth < 3 {
+                if depth < DRIVE_MAX_FOLDER_DEPTH {
                     pending.push((entry.id, depth + 1));
                 }
             } else {
                 files.push(entry);
+                if files.len() >= DRIVE_MAX_FILES {
+                    break;
+                }
             }
         }
     }

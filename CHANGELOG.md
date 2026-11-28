@@ -8,6 +8,9 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Playlists have an Edit mode for reordering items with up/down controls and
+  removing media without leaving the playlist. Order is saved in SQLite and
+  survives restarts.
 - Dropbox shared folder links (`/scl/fo/...`) are detected in post text and
   expanded into their individual file attachments, so folder media appears in
   the post viewer, player, downloads and creator scans.
@@ -45,6 +48,15 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- GoFile shares with nested folders or more than 100 entries now walk every
+  subfolder and page, so their media appears as individual attachments instead
+  of one unavailable `gofile-...` row. Google Drive folder walks also go eight
+  levels deep instead of three.
+- Playlist items use the same green completed check as Downloads. The check
+  only appears when the recorded file still exists, is a regular file, and is
+  not empty, so deleted or stale downloads no longer look offline.
+- The playlist header no longer has a separate Queue all button. Play all is
+  the single action that queues the playlist and starts playback.
 - Creator pages keep the selected Newest/Oldest post sort after opening a post
   and going back, or after leaving and reopening the creator.
 - Hide source tags now also hides service badges in the creator download

@@ -1,8 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
+  Check,
+  CheckCircle2,
   Download,
   ListMusic,
+  Pencil,
   Play,
   Plus,
   Trash2,
@@ -26,7 +31,6 @@ import { ImageViewer } from "../../media/ui/ImageViewer";
 import { MediaThumbnail } from "../../media/ui/MediaThumbnail";
 import { SiteIcon } from "../../../shared/SiteIcon";
 import {
-  Badge,
   Button,
   ConfirmDialog,
   EmptyState,
@@ -42,6 +46,7 @@ function playlistFileName(item: PlaylistItem): string {
 
 export function PlaylistPage({ playlistId }: { playlistId: number }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [localImageUrls, setLocalImageUrls] = useState<Record<number, string>>(
     {},
@@ -65,7 +70,10 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
   const items = useQuery({
     queryKey: queryKeys.playlistItems(playlistId),
     queryFn: () => api.listPlaylistItems(playlistId),
-    staleTime: 20_000,
+    // The localPath field is only returned for files that still exist on
+    // disk. Re-check it whenever the playlist is reopened or focused so a
+    // deleted download cannot keep showing the offline check mark.
+    staleTime: 0,
   });
 
   const allItems = useMemo(
@@ -139,6 +147,47 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
     onError: (error) => reportError(error, "Could not remove item"),
   });
 
+  const reorder = useMutation({
+    mutationFn: (itemIds: number[]) =>
+      api.reorderPlaylistItems(playlistId, itemIds),
+    onMutate: async (itemIds) => {
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.playlistItems(playlistId),
+      });
+      const previous = queryClient.getQueryData<PlaylistItem[]>(
+        queryKeys.playlistItems(playlistId),
+      );
+      if (previous) {
+        const byId = new Map(previous.map((item) => [item.id, item]));
+        queryClient.setQueryData(
+          queryKeys.playlistItems(playlistId),
+          itemIds
+            .map((id) => byId.get(id))
+            .filter((item): item is PlaylistItem => Boolean(item)),
+        );
+      }
+      return { previous };
+    },
+    onError: (error, _itemIds, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          queryKeys.playlistItems(playlistId),
+          context.previous,
+        );
+      }
+      reportError(error, "Could not reorder playlist");
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.playlistItems(playlistId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.playlist(playlistId),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlists() });
+    },
+  });
+
   const deletePlaylist = useMutation({
     mutationFn: () => api.deletePlaylist(playlistId),
     onSuccess: () => {
@@ -186,6 +235,33 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
     const index = playableItems.findIndex((entry) => entry.id === item.id);
     const queued = queue[index];
     if (queued) enqueue([queued]);
+  };
+
+  const moveItem = (item: PlaylistItem, direction: -1 | 1) => {
+    const full = items.data;
+    if (!full || reorder.isPending) return;
+    const currentIndex = allItems.findIndex((entry) => entry.id === item.id);
+    const targetIndex = currentIndex + direction;
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= allItems.length
+    ) {
+      return;
+    }
+    const reorderedVisible = [...allItems];
+    [reorderedVisible[currentIndex], reorderedVisible[targetIndex]] = [
+      reorderedVisible[targetIndex],
+      reorderedVisible[currentIndex],
+    ];
+    const visibleIds = new Set(allItems.map((entry) => entry.id));
+    let cursor = 0;
+    // Keep blocked/hidden items in their existing slots while reordering the
+    // items the user can actually see.
+    const reorderedFull = full.map((entry) =>
+      visibleIds.has(entry.id) ? reorderedVisible[cursor++] : entry,
+    );
+    reorder.mutate(reorderedFull.map((entry) => entry.id));
   };
 
   const downloadItem = (item: PlaylistItem) => {
@@ -284,21 +360,22 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
               </Button>
               <Button
                 variant="secondary"
-                disabled={queue.length === 0}
-                onClick={() => {
-                  enqueue(queue);
-                  toast("info", "Playlist queued", `${queue.length} items`);
-                }}
-              >
-                <ListMusic className="h-4 w-4" /> Queue all
-              </Button>
-              <Button
-                variant="secondary"
                 loading={download.isPending}
                 disabled={allItems.length === 0}
                 onClick={() => download.mutate()}
               >
                 <Download className="h-4 w-4" /> Download
+              </Button>
+              <Button
+                variant={editing ? "primary" : "secondary"}
+                onClick={() => setEditing((value) => !value)}
+              >
+                {editing ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Pencil className="h-4 w-4" />
+                )}
+                {editing ? "Done" : "Edit"}
               </Button>
               <IconButton
                 label="Delete playlist"
@@ -314,7 +391,11 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
         <SectionHeader
           eyebrow="Items"
           title="Playlist items"
-          description="Tap an item to play audio or video, or open an image full-screen."
+          description={
+            editing
+              ? "Use the arrows to reorder items and the remove button to take media out of the playlist."
+              : "Tap an item to play audio or video, or open an image full-screen."
+          }
         />
         {items.isLoading ? (
           <div className="flex justify-center py-10">
@@ -344,7 +425,7 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
           />
         ) : (
           <div className="space-y-2">
-            {allItems.map((item) => {
+            {allItems.map((item, index) => {
               const playable = isPlayableMediaKind(item.mediaKind);
               return (
                 <article
@@ -363,13 +444,24 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
                     onClick={() => openItem(item)}
                     className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-1 py-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
                   >
-                    <MediaThumbnail
-                      kind={item.mediaKind}
-                      thumbnailUrl={item.thumbnailUrl}
-                      mediaUrl={item.mediaUrl}
-                      localPath={item.localPath}
-                      className="h-12 w-16"
-                    />
+                    <span className="relative inline-flex shrink-0">
+                      <MediaThumbnail
+                        kind={item.mediaKind}
+                        thumbnailUrl={item.thumbnailUrl}
+                        mediaUrl={item.mediaUrl}
+                        localPath={item.localPath}
+                        className="h-12 w-16"
+                      />
+                      {item.localPath ? (
+                        <span
+                          title="Downloaded"
+                          aria-label="Downloaded"
+                          className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full border border-card bg-success text-base"
+                        >
+                          <CheckCircle2 className="h-3 w-3" />
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-bold text-ink">
                         {item.title || playlistFileName(item)}
@@ -378,33 +470,52 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
                         <span className="truncate">
                           {item.creatorName || "Unknown creator"} · {item.mediaKind}
                         </span>
-                        {item.localPath ? (
-                          <Badge tone="success" className="shrink-0">
-                            Offline
-                          </Badge>
-                        ) : null}
                       </span>
                     </span>
                   </button>
                   <div className="flex shrink-0 items-center gap-0.5">
-                    {playable ? (
-                      <IconButton
-                        label="Add to queue"
-                        icon={ListMusic}
-                        size="sm"
-                        onClick={() => addToQueue(item)}
-                      />
-                    ) : null}
-                    <IconButton
-                      label="Download"
-                      icon={Download}
-                      size="sm"
-                      onClick={() => downloadItem(item)}
-                    />
+                    {editing ? (
+                      <>
+                        <IconButton
+                          label="Move up"
+                          icon={ArrowUp}
+                          size="sm"
+                          disabled={reorder.isPending || index === 0}
+                          onClick={() => moveItem(item, -1)}
+                        />
+                        <IconButton
+                          label="Move down"
+                          icon={ArrowDown}
+                          size="sm"
+                          disabled={
+                            reorder.isPending || index === allItems.length - 1
+                          }
+                          onClick={() => moveItem(item, 1)}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        {playable ? (
+                          <IconButton
+                            label="Add to queue"
+                            icon={ListMusic}
+                            size="sm"
+                            onClick={() => addToQueue(item)}
+                          />
+                        ) : null}
+                        <IconButton
+                          label="Download"
+                          icon={Download}
+                          size="sm"
+                          onClick={() => downloadItem(item)}
+                        />
+                      </>
+                    )}
                     <IconButton
                       label="Remove from playlist"
                       icon={X}
                       size="sm"
+                      disabled={removeItem.isPending}
                       onClick={() => removeItem.mutate(item.id)}
                     />
                   </div>

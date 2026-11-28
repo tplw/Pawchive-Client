@@ -2,6 +2,7 @@ use super::{map_playlist, map_playlist_item, Db};
 use crate::shared::error::{AppError, AppResult};
 use crate::shared::models::{now_ts, Playlist, PlaylistItem};
 use rusqlite::{params, OptionalExtension};
+use std::collections::HashSet;
 
 impl Db {
     pub fn list_playlists(&self) -> AppResult<Vec<Playlist>> {
@@ -14,7 +15,7 @@ impl Db {
                          FROM playlist_items i
                          WHERE i.playlist_id = p.id
                            AND (i.thumbnail_url IS NOT NULL OR i.media_kind = 'image')
-                         ORDER BY i.added_at ASC, i.id ASC LIMIT 1)
+                         ORDER BY i.position ASC, i.added_at ASC, i.id ASC LIMIT 1)
                  FROM playlists p ORDER BY p.updated_at DESC, p.id DESC",
             )?;
             let rows = stmt
@@ -35,7 +36,7 @@ impl Db {
                              FROM playlist_items i
                              WHERE i.playlist_id = p.id
                                AND (i.thumbnail_url IS NOT NULL OR i.media_kind = 'image')
-                             ORDER BY i.added_at ASC, i.id ASC LIMIT 1)
+                             ORDER BY i.position ASC, i.added_at ASC, i.id ASC LIMIT 1)
                      FROM playlists p WHERE p.id = ?1",
                     params![id],
                     map_playlist,
@@ -107,7 +108,8 @@ impl Db {
                          WHERE d.url = i.media_url AND d.status = 'completed'
                          ORDER BY d.created_at DESC LIMIT 1)
                  FROM playlist_items i
-                 WHERE i.playlist_id = ?1 ORDER BY i.added_at ASC, i.id ASC",
+                 WHERE i.playlist_id = ?1
+                 ORDER BY i.position ASC, i.added_at ASC, i.id ASC",
             )?;
             let rows = stmt
                 .query_map(params![playlist_id], map_playlist_item)?
@@ -132,8 +134,12 @@ impl Db {
             }
             conn.execute(
                 "INSERT INTO playlist_items(playlist_id, service, creator_id, post_id, media_path,
-                    media_url, title, creator_name, thumbnail_url, media_kind, added_at)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                    media_url, title, creator_name, thumbnail_url, media_kind, added_at, position)
+                 VALUES(
+                    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
+                    (SELECT COALESCE(MAX(position), -1) + 1
+                     FROM playlist_items WHERE playlist_id = ?1)
+                 )
                  ON CONFLICT(playlist_id, media_path) DO UPDATE SET
                     title = excluded.title,
                     creator_name = excluded.creator_name,
@@ -187,7 +193,77 @@ impl Db {
 
     pub fn remove_playlist_item(&self, id: i64) -> AppResult<()> {
         self.with_conn(|conn| {
+            let playlist_id: Option<i64> = conn
+                .query_row(
+                    "SELECT playlist_id FROM playlist_items WHERE id = ?1",
+                    params![id],
+                    |row| row.get(0),
+                )
+                .optional()?;
             conn.execute("DELETE FROM playlist_items WHERE id = ?1", params![id])?;
+            if let Some(playlist_id) = playlist_id {
+                conn.execute(
+                    "UPDATE playlists SET updated_at = ?2 WHERE id = ?1",
+                    params![playlist_id, now_ts()],
+                )?;
+            }
+            Ok(())
+        })
+    }
+
+    /// Persist a complete playlist order. The caller must send every item so a
+    /// stale tab cannot silently drop rows while rearranging.
+    pub fn reorder_playlist_items(&self, playlist_id: i64, item_ids: &[i64]) -> AppResult<()> {
+        self.with_conn(|conn| {
+            let transaction = conn.unchecked_transaction()?;
+            let playlist_exists: i64 = transaction.query_row(
+                "SELECT COUNT(*) FROM playlists WHERE id = ?1",
+                params![playlist_id],
+                |row| row.get(0),
+            )?;
+            if playlist_exists == 0 {
+                return Err(AppError::NotFound);
+            }
+            let item_count: i64 = transaction.query_row(
+                "SELECT COUNT(*) FROM playlist_items WHERE playlist_id = ?1",
+                params![playlist_id],
+                |row| row.get(0),
+            )?;
+            if item_count as usize != item_ids.len() {
+                return Err(AppError::Validation(
+                    "playlist items changed; reload the playlist".into(),
+                ));
+            }
+            let mut seen = HashSet::new();
+            for id in item_ids {
+                if !seen.insert(*id) {
+                    return Err(AppError::Validation(
+                        "playlist order contains duplicate items".into(),
+                    ));
+                }
+                let belongs: i64 = transaction.query_row(
+                    "SELECT COUNT(*) FROM playlist_items WHERE id = ?1 AND playlist_id = ?2",
+                    params![id, playlist_id],
+                    |row| row.get(0),
+                )?;
+                if belongs == 0 {
+                    return Err(AppError::Validation(
+                        "playlist order contains an unknown item".into(),
+                    ));
+                }
+            }
+            for (position, id) in item_ids.iter().enumerate() {
+                transaction.execute(
+                    "UPDATE playlist_items SET position = ?2
+                     WHERE id = ?1 AND playlist_id = ?3",
+                    params![id, position as i64, playlist_id],
+                )?;
+            }
+            transaction.execute(
+                "UPDATE playlists SET updated_at = ?2 WHERE id = ?1",
+                params![playlist_id, now_ts()],
+            )?;
+            transaction.commit()?;
             Ok(())
         })
     }

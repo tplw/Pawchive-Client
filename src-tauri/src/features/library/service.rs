@@ -6,7 +6,31 @@ use crate::shared::error::{AppError, AppResult};
 use crate::shared::models::{now_ts, CreatorSummary, Playlist, PlaylistItem};
 use crate::shared::security::{validate_id, validate_service};
 use crate::shared::task::blocking;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+/// A playlist item is offline only when the recorded completed file still
+/// exists as a non-empty regular file. Stale database rows must not produce a
+/// false offline indicator.
+fn existing_local_path(local: &str, download_dir: &Path) -> Option<PathBuf> {
+    let valid = |path: &Path| {
+        path.is_file()
+            && std::fs::metadata(path)
+                .map(|meta| meta.len() > 0)
+                .unwrap_or(false)
+    };
+    let original = Path::new(local);
+    let mut candidates = Vec::new();
+    if let Some(name) = original.file_name() {
+        // Flat downloads and creator batch downloads use different levels.
+        candidates.push(download_dir.join(name));
+        if let Some(parent) = original.parent().and_then(Path::file_name) {
+            candidates.push(download_dir.join(parent).join(name));
+        }
+    }
+    candidates.push(original.to_path_buf());
+    candidates.into_iter().find(|path| valid(path))
+}
 
 /// Playlists and creator favorites.
 pub(crate) struct LibraryService {
@@ -70,13 +94,7 @@ impl LibraryService {
                     // the current download folder when the recorded absolute
                     // path is stale, falling back to the original path if it
                     // still exists.
-                    let current = std::path::Path::new(&local)
-                        .file_name()
-                        .map(|name| download_dir.join(name))
-                        .filter(|path| path.exists());
-                    let original = std::path::Path::new(&local);
-                    item.local_path = current
-                        .or_else(|| original.exists().then(|| original.to_path_buf()))
+                    item.local_path = existing_local_path(&local, &download_dir)
                         .map(|path| path.to_string_lossy().to_string());
                 }
             }
@@ -160,6 +178,15 @@ impl LibraryService {
         blocking(move || db.remove_playlist_item(id)).await
     }
 
+    pub(crate) async fn reorder_playlist_items(
+        &self,
+        playlist_id: i64,
+        item_ids: Vec<i64>,
+    ) -> AppResult<()> {
+        let db = Arc::clone(&self.state.db);
+        blocking(move || db.reorder_playlist_items(playlist_id, &item_ids)).await
+    }
+
     pub(crate) async fn favorite_creators(&self) -> AppResult<Vec<CreatorSummary>> {
         let settings = self.state.settings();
         let db = Arc::clone(&self.state.db);
@@ -205,5 +232,41 @@ impl LibraryService {
             }
         }
         Ok(favorited)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::existing_local_path;
+    use std::fs;
+
+    #[test]
+    fn only_existing_non_empty_files_count_as_downloaded() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("clip.mp4");
+        fs::write(&file, b"media").unwrap();
+
+        let moved = existing_local_path("/old/Downloads/clip.mp4", dir.path());
+        assert_eq!(moved.as_deref(), Some(file.as_path()));
+
+        let direct = existing_local_path(file.to_str().unwrap(), &dir.path().join("other"));
+        assert_eq!(direct.as_deref(), Some(file.as_path()));
+
+        let creator_dir = dir.path().join("Ada");
+        fs::create_dir(&creator_dir).unwrap();
+        let creator_file = creator_dir.join("batch.mp4");
+        fs::write(&creator_file, b"media").unwrap();
+        assert_eq!(
+            existing_local_path("/old/Documents/Ada/batch.mp4", dir.path()).as_deref(),
+            Some(creator_file.as_path())
+        );
+
+        assert!(existing_local_path("/old/Downloads/missing.mp4", dir.path()).is_none());
+
+        fs::write(dir.path().join("empty.mp4"), b"").unwrap();
+        assert!(existing_local_path("/old/Downloads/empty.mp4", dir.path()).is_none());
+
+        fs::create_dir(dir.path().join("folder.mp4")).unwrap();
+        assert!(existing_local_path("/old/Downloads/folder.mp4", dir.path()).is_none());
     }
 }

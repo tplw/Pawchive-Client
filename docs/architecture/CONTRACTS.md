@@ -3,7 +3,7 @@
 Phase 0 of the rebuild freezes these contracts. They must not change while code
 moves between modules.
 
-## Tauri commands (63)
+## Tauri commands (64)
 
 Settings/system: `get_settings`, `save_settings`, `get_config`,
 `check_for_update`, `open_external`, `set_status_bar_hidden`.
@@ -21,7 +21,7 @@ Favorites: `list_favorite_creators`, `set_favorite_creator`.
 
 Playlists: `list_playlists`, `get_playlist`, `create_playlist`, `rename_playlist`,
 `delete_playlist`, `list_playlist_items`, `add_playlist_item`,
-`remove_playlist_item`.
+`remove_playlist_item`, `reorder_playlist_items`.
 
 Downloads: `start_download`, `download_post`, `download_playlist`,
 `download_creator_posts`, `cancel_download`, `delete_download`, `retry_download`,
@@ -97,7 +97,8 @@ Changing any shape requires an explicit migration.
   URLs.
 - Deferred attachments without a path or signed URL are not real media.
 - Provider folders expand into individual file attachments. Dropbox expands
-  public `/scl/fo/` folder roots; nested Dropbox folders are skipped.
+  public `/scl/fo/` folder roots; nested Dropbox folders are skipped. GoFile
+  folders are walked recursively with pagination.
 - Loopback media URLs support HTTP Range, HEAD, ETag and provider headers.
 - Cache directory: `app_data/media-cache`; hashed filenames, atomic `.part-*`
   writes, size pruning.

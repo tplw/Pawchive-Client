@@ -287,6 +287,8 @@ export const api = {
     call<PlaylistItem>("add_playlist_item", { playlistId, ...item }),
   removePlaylistItem: (id: number) =>
     call<void>("remove_playlist_item", { id }),
+  reorderPlaylistItems: (playlistId: number, itemIds: number[]) =>
+    call<void>("reorder_playlist_items", { playlistId, itemIds }),
 
   startDownload: (request: {
     url: string;

@@ -18,6 +18,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../../migrations/0003_features.sql"),
     include_str!("../../../migrations/0004_download_thumbnails.sql"),
     include_str!("../../../migrations/0005_creator_imported.sql"),
+    include_str!("../../../migrations/0006_playlist_position.sql"),
 ];
 
 /// Preserve the raw corrupt settings row before the app falls back to defaults.
@@ -477,6 +478,101 @@ mod tests {
         assert_eq!(db.get_playlist(playlist.id).unwrap().unwrap().name, "Later");
         db.delete_playlist(playlist.id).unwrap();
         assert!(db.list_playlist_items(playlist.id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn playlist_position_migration_keeps_existing_order() {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in &MIGRATIONS[..5] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute(
+            "INSERT INTO playlists(id, name, description, created_at, updated_at)
+             VALUES(1, 'Old', '', 1, 1)",
+            [],
+        )
+        .unwrap();
+        for (title, added_at) in [("First", 1), ("Second", 2), ("Third", 3)] {
+            conn.execute(
+                "INSERT INTO playlist_items(playlist_id, media_path, media_url, title, added_at)
+                 VALUES(1, ?1, ?2, ?3, ?4)",
+                params![
+                    format!("/aa/{title}.mp4"),
+                    format!("https://file.pawchive.pw/data/aa/{title}.mp4"),
+                    title,
+                    added_at
+                ],
+            )
+            .unwrap();
+        }
+        conn.execute_batch(MIGRATIONS[5]).unwrap();
+        let ordered: Vec<String> = conn
+            .prepare("SELECT title FROM playlist_items ORDER BY position ASC, id ASC")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(ordered, ["First", "Second", "Third"]);
+    }
+
+    #[test]
+    fn playlist_items_keep_their_saved_order() {
+        let db = Db::open_in_memory().unwrap();
+        let playlist = db.create_playlist("Order test", "").unwrap();
+        let item = |name: &str, added_at: i64| PlaylistItem {
+            id: 0,
+            playlist_id: playlist.id,
+            service: "patreon".into(),
+            creator_id: "1".into(),
+            post_id: "2".into(),
+            media_path: format!("/aa/{name}.mp4"),
+            media_url: format!("https://file.pawchive.pw/data/aa/{name}.mp4"),
+            title: name.into(),
+            creator_name: "Ada".into(),
+            thumbnail_url: None,
+            media_kind: "video".into(),
+            added_at,
+            local_path: None,
+        };
+        let first = db
+            .add_playlist_item(playlist.id, &item("First", 1))
+            .unwrap();
+        let second = db
+            .add_playlist_item(playlist.id, &item("Second", 2))
+            .unwrap();
+        let third = db
+            .add_playlist_item(playlist.id, &item("Third", 3))
+            .unwrap();
+
+        db.reorder_playlist_items(playlist.id, &[third.id, first.id, second.id])
+            .unwrap();
+        assert_eq!(
+            db.list_playlist_items(playlist.id)
+                .unwrap()
+                .into_iter()
+                .map(|entry| entry.title)
+                .collect::<Vec<_>>(),
+            ["Third", "First", "Second"]
+        );
+
+        assert!(db.reorder_playlist_items(playlist.id, &[first.id]).is_err());
+        assert!(db
+            .reorder_playlist_items(playlist.id, &[first.id, first.id, second.id])
+            .is_err());
+
+        let fourth = db
+            .add_playlist_item(playlist.id, &item("Fourth", 4))
+            .unwrap();
+        db.reorder_playlist_items(playlist.id, &[third.id, first.id, second.id, fourth.id])
+            .unwrap();
+        assert_eq!(
+            db.list_playlist_items(playlist.id)
+                .unwrap()
+                .last()
+                .map(|entry| entry.title.as_str()),
+            Some("Fourth")
+        );
     }
 
     #[test]

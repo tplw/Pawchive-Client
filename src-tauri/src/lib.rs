@@ -199,6 +199,7 @@ pub fn run() {
             commands::list_playlist_items,
             commands::add_playlist_item,
             commands::remove_playlist_item,
+            commands::reorder_playlist_items,
             commands::start_download,
             commands::download_post,
             commands::download_playlist,

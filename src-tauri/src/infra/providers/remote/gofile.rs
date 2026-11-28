@@ -7,9 +7,14 @@ use crate::shared::models::MediaKind;
 use regex::Regex;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
+
+const GOFILE_MAX_FOLDER_DEPTH: usize = 8;
+const GOFILE_MAX_FOLDERS: usize = 200;
+const GOFILE_MAX_FILES: usize = 2_000;
 
 #[derive(Debug, Default)]
 struct GofileState {
@@ -137,6 +142,10 @@ impl GofileResolver {
     }
 
     pub(super) async fn contents(&self, content_id: &str) -> AppResult<(Value, String)> {
+        self.contents_page(content_id, 1).await
+    }
+
+    async fn contents_page(&self, content_id: &str, page: u32) -> AppResult<(Value, String)> {
         let mut state = self.state.lock().await;
         if let Some(until) = state.blocked_until {
             if Instant::now() < until {
@@ -164,7 +173,7 @@ impl GofileResolver {
             let request = self
                 .client
                 .get(format!(
-                    "https://api.gofile.io/contents/{content_id}?page=1&pageSize=100&sortField=name&sortDirection=1"
+                    "https://api.gofile.io/contents/{content_id}?page={page}&pageSize=100&sortField=name&sortDirection=1"
                 ))
                 .header(reqwest::header::USER_AGENT, GOFILE_USER_AGENT)
                 .header(reqwest::header::ACCEPT_LANGUAGE, GOFILE_LANGUAGE)
@@ -230,6 +239,150 @@ impl GofileResolver {
         Err(AppError::Unavailable(
             "GoFile rejected the guest session".into(),
         ))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct GofileEntry {
+    pub(super) id: String,
+    pub(super) name: String,
+}
+
+#[derive(Debug)]
+pub(super) struct GofileListing {
+    pub(super) is_folder: bool,
+    pub(super) files: Vec<GofileEntry>,
+}
+
+impl GofileResolver {
+    /// Walk a GoFile share to its leaves. The API returns folder metadata
+    /// without the contents of child folders, and large folders are paginated,
+    /// so every folder needs its own request.
+    pub(super) async fn files(&self, content_id: &str) -> AppResult<GofileListing> {
+        let (root, _) = self.contents_page(content_id, 1).await?;
+        if root.get("type").and_then(Value::as_str) == Some("file") {
+            return Ok(GofileListing {
+                is_folder: false,
+                files: Vec::new(),
+            });
+        }
+        if root.get("canAccess").and_then(Value::as_bool) == Some(false) {
+            return Err(AppError::Unavailable(
+                "this GoFile link is password protected".into(),
+            ));
+        }
+
+        let mut files = Vec::new();
+        let mut pending = vec![(content_id.to_string(), 0usize)];
+        let mut seen = HashSet::new();
+        let mut root = Some(root);
+        while let Some((folder_id, depth)) = pending.pop() {
+            if depth > GOFILE_MAX_FOLDER_DEPTH
+                || seen.len() >= GOFILE_MAX_FOLDERS
+                || files.len() >= GOFILE_MAX_FILES
+            {
+                break;
+            }
+            if !seen.insert(folder_id.clone()) {
+                continue;
+            }
+            let initial = if folder_id == content_id {
+                root.take()
+            } else {
+                None
+            };
+            let result = self
+                .collect_folder(&folder_id, depth, initial, &mut pending, &mut files)
+                .await;
+            if let Err(error) = result {
+                if folder_id == content_id {
+                    return Err(error);
+                }
+            }
+        }
+        Ok(GofileListing {
+            is_folder: true,
+            files,
+        })
+    }
+
+    async fn collect_folder(
+        &self,
+        folder_id: &str,
+        depth: usize,
+        mut initial: Option<Value>,
+        pending: &mut Vec<(String, usize)>,
+        files: &mut Vec<GofileEntry>,
+    ) -> AppResult<()> {
+        let mut page = 1u32;
+        let mut seen_children = 0usize;
+        loop {
+            let data = match initial.take() {
+                Some(data) => data,
+                None => self.contents_page(folder_id, page).await?.0,
+            };
+            if data.get("canAccess").and_then(Value::as_bool) == Some(false) {
+                return Err(AppError::Unavailable(
+                    "this GoFile folder is not accessible".into(),
+                ));
+            }
+            let children = gofile_children(&data);
+            let child_count = children.len();
+            for child in children {
+                let kind = child
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let Some(id) = child.get("id").and_then(Value::as_str) else {
+                    continue;
+                };
+                if !(6..=64).contains(&id.len())
+                    || !id
+                        .chars()
+                        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+                {
+                    continue;
+                }
+                if kind == "file" {
+                    let name = child
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .filter(|name| !name.trim().is_empty())
+                        .unwrap_or("gofile-media");
+                    files.push(GofileEntry {
+                        id: id.to_string(),
+                        name: name.to_string(),
+                    });
+                    if files.len() >= GOFILE_MAX_FILES {
+                        return Ok(());
+                    }
+                } else if kind == "folder" {
+                    pending.push((id.to_string(), depth + 1));
+                }
+            }
+            seen_children += child_count;
+            let total = data
+                .get("childrenCount")
+                .and_then(Value::as_u64)
+                .unwrap_or(0) as usize;
+            page += 1;
+            if child_count == 0
+                || page > 100
+                || (total > 0 && seen_children >= total)
+                || (total == 0 && child_count < 100)
+            {
+                break;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn gofile_children(data: &Value) -> Vec<&Value> {
+    match data.get("children") {
+        Some(Value::Object(children)) => children.values().collect(),
+        Some(Value::Array(children)) => children.iter().collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -524,4 +677,30 @@ fn rc4(text: &str, key: &[u8]) -> Option<String> {
         out.push(char::from_u32((ch as u32) ^ stream)?);
     }
     Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::gofile_children;
+    use serde_json::json;
+
+    #[test]
+    fn reads_object_and_array_children() {
+        let object = json!({
+            "children": {
+                "one": {"id": "file-1", "type": "file"},
+                "two": {"id": "folder-1", "type": "folder"}
+            }
+        });
+        assert_eq!(gofile_children(&object).len(), 2);
+
+        let array = json!({
+            "children": [
+                {"id": "file-2", "type": "file"},
+                {"id": "folder-2", "type": "folder"}
+            ]
+        });
+        assert_eq!(gofile_children(&array).len(), 2);
+        assert!(gofile_children(&json!({})).is_empty());
+    }
 }
