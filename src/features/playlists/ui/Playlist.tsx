@@ -511,13 +511,15 @@ export function PlaylistPage({ playlistId }: { playlistId: number }) {
                         />
                       </>
                     )}
-                    <IconButton
-                      label="Remove from playlist"
-                      icon={X}
-                      size="sm"
-                      disabled={removeItem.isPending}
-                      onClick={() => removeItem.mutate(item.id)}
-                    />
+                    {editing ? (
+                      <IconButton
+                        label="Remove from playlist"
+                        icon={X}
+                        size="sm"
+                        disabled={removeItem.isPending}
+                        onClick={() => removeItem.mutate(item.id)}
+                      />
+                    ) : null}
                   </div>
                 </article>
               );

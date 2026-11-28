@@ -104,6 +104,9 @@ describe("playlist page", () => {
     expect(
       screen.queryByRole("button", { name: "Queue all" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Remove from playlist" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reorders items from edit mode", async () => {
@@ -122,6 +125,7 @@ describe("playlist page", () => {
     wrapper(<PlaylistPage playlistId={5} />);
     expect(await screen.findByText("First")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     fireEvent.click(
       screen.getAllByRole("button", { name: "Remove from playlist" })[0],
     );
